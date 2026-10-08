@@ -117,14 +117,19 @@ workflow behavior must continue to operate.
 
 ### 3.2 Cheap semantic model
 
-A cheap LLM is used only for bounded semantic classification.
+A cheap LLM is used only for bounded semantic interpretation: initial
+classification and relative work estimation.
 
-For Issues it may classify:
+For Issues it may initially classify:
 
 - Issue Type
 - labels
 - Priority
 - coarse Effort
+
+Before an eligible Issue first leaves `Backlog`, the same cheap semantic model
+may also produce a bounded relative `Estimate` using the normalized planning
+context defined later in this document.
 
 For Pull Requests it may classify:
 
@@ -329,6 +334,9 @@ It does not disable deterministic relationship directives, dependency
 processing, Project membership synchronization, close/reopen synchronization,
 or the deterministic lifecycle controller itself.
 
+Because Estimate generation is model-driven, the master `Automation: false`
+switch also disables automatic Estimate generation.
+
 Explicit child capability flags do not override the master automation switch:
 
 ```text
@@ -464,9 +472,85 @@ Project routing is deterministic and derived from the normalized type. The LLM
 does not independently choose the Project.
 
 `Estimate` is not part of initial classification. It is Project planning
-metadata and will be specified separately.
+metadata produced later, when the item is about to leave `Backlog` for the
+first time.
 
-### 10.2 Project ingress
+### 10.2 Estimate on first Backlog exit
+
+Before an eligible Task or Feature first moves from `Backlog` to `Ready` or
+`Blocked`, the controller may request a bounded relative Estimate from the
+cheap semantic model.
+
+The allowed Estimate values are:
+
+```text
+1 | 2 | 3 | 5 | 8 | 13
+```
+
+Estimate is a relative planning point, not a duration in hours or days.
+
+The intended scale is:
+
+| Estimate | Intended meaning |
+| --- | --- |
+| `1` | Very small, localized change with one obvious implementation surface and focused verification. |
+| `2` | Small change across a few related files or one narrow component with straightforward tests. |
+| `3` | Medium change with meaningful implementation in one subsystem and multiple tests and/or documentation synchronization. |
+| `5` | Large change spanning several related implementation surfaces, contract/behavior changes, or substantial verification. |
+| `8` | Very large change involving multiple components/packages or significant integration and coordination work. |
+| `13` | Exceptional scope. Valid, but normally a decomposition candidate. |
+
+The estimator receives normalized planning context rather than raw repository
+credentials or mutation authority. Useful inputs include:
+
+- Type
+- title and body
+- canonical labels
+- Priority
+- Effort
+- Parent
+- Blocked-By / Blocks
+- Refs
+- repository identity
+- concise parent Phase context when relevant
+
+The controller validates the model result against the exact allowed value set
+before writing the Project field.
+
+Effort and Estimate are intentionally different:
+
+```text
+Effort
+→ coarse semantic size impression from initial classification
+
+Estimate
+→ relative planning point produced at Backlog exit
+```
+
+Effort must not be mapped mechanically to Estimate.
+
+Estimate also does not determine readiness, dependency eligibility, Phase
+ordering, or branch authorization.
+
+Estimate ownership is type-sensitive:
+
+```text
+Task / Feature
+→ may receive Estimate before first Backlog exit
+
+normal Phase
+→ no Estimate
+
+Phase + Create-Branch: true
+→ may receive Estimate for the Phase's direct implementation work only
+
+Pull Request
+→ no Estimate; Target Issue or Phase owns planning Estimate
+```
+
+A Phase Estimate must never represent the sum of its child work.
+
+### 10.3 Project ingress
 
 When an item enters Parametron Engineering, the controller initializes the
 canonical workflow state rather than relying on GitHub's built-in
@@ -970,6 +1054,30 @@ started.
 
 The parent Phase remains `In Progress` while open child work remains.
 
+### 22.1 Pull Request closed without merge
+
+Closing an accepted implementation Pull Request without merging it is an
+abandoned implementation attempt, not successful completion of its Target.
+
+The canonical recovery path is:
+
+```text
+PR closed without merge
+→ PR Status = Done
+→ Target Issue remains open
+→ Target Issue → In Progress
+```
+
+The Target Issue must not become `Done` or close merely because its
+implementation PR was closed.
+
+The existing Development relationship may remain as historical traceability.
+A later replacement PR may bind to the same Target through a valid `Target:`
+directive and the authorized development branch policy.
+
+Under normal status ownership, the target returns directly to `In Progress`;
+it is not reset through `Backlog` or `Ready`.
+
 ---
 
 ## 23. Phase-Owned Implementation
@@ -1347,10 +1455,8 @@ The following are intentionally not defined by this overview:
 - Bug Tracker lifecycle and scoring policy
 - exact numeric readiness-score weights
 - exact deterministic branch-name format
-- final Estimate semantics and ownership
 - future heavy-agent implementation/provider selection
 - advanced security-alert workflow behavior
-- target-Issue recovery policy for a Pull Request closed without merge
 
 These decisions can be specified independently without changing the authority
 and lifecycle model defined here.
@@ -1429,7 +1535,7 @@ Go workflow controller
         ↓ authority, policy, reconciliation, mutations
 
 Cheap semantic LLM
-        ↓ bounded classification only
+        ↓ bounded classification and relative estimation
 
 SQLite
         ↓ durable event processing and one-shot provenance
