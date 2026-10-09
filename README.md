@@ -25,7 +25,8 @@ mutations remain deterministic controller responsibilities.
 
 This repository contains the planned workflow system contract and a runnable Go
 service bootstrap, validated deployment configuration, deterministic Project
-schema binding, and a replaceable read-only GitHub client with live discovery.
+schema binding, a replaceable read-only GitHub client with live discovery,
+and durable SQLite event and generic provenance storage.
 Workflow lifecycle capabilities are not yet implemented.
 
 The current design covers the shared controller model, the **Parametron
@@ -63,6 +64,9 @@ Deployment configuration and the live-discovery boundary are documented in
 
 GitHub reads, authentication, errors, and test fakes are documented in
 [docs/github-integration.md](docs/github-integration.md).
+
+Durable delivery evidence, processing metadata, transactions, and SQLite settings
+are documented in [docs/persistence.md](docs/persistence.md).
 
 ## Development
 
