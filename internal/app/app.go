@@ -8,7 +8,7 @@ import (
 )
 
 // Config accepts resolved deployment bindings. A nil Deployment runs only the
-// bootstrap lifecycle; live discovery and startup wiring belong to issue #9.
+// bootstrap lifecycle. Prepare composes live discovery; full wiring belongs to #14.
 type Config struct {
 	Deployment *config.ResolvedConfig
 }

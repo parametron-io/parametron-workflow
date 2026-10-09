@@ -24,8 +24,9 @@ mutations remain deterministic controller responsibilities.
 ## Status
 
 This repository contains the planned workflow system contract and a runnable Go
-service bootstrap, plus validated deployment configuration and deterministic
-Project schema binding. Workflow lifecycle capabilities are not yet implemented.
+service bootstrap, validated deployment configuration, deterministic Project
+schema binding, and a replaceable read-only GitHub client with live discovery.
+Workflow lifecycle capabilities are not yet implemented.
 
 The current design covers the shared controller model, the **Parametron
 Engineering** Project workflow, and a separate **Bug Tracker** policy layer.
@@ -60,6 +61,9 @@ Together these documents define the current planned workflow system contract.
 Deployment configuration and the live-discovery boundary are documented in
 [docs/configuration.md](docs/configuration.md).
 
+GitHub reads, authentication, errors, and test fakes are documented in
+[docs/github-integration.md](docs/github-integration.md).
+
 ## Development
 
 Enter the reproducible Go development environment:
@@ -92,7 +96,8 @@ changes with `nix develop --command gofmt -w <files>`.
 `internal/app` exposes `Run(ctx, Config)` and treats context cancellation as a
 successful shutdown. Its typed configuration accepts resolved deployment
 bindings. The command continues to run the bootstrap without deployment
-configuration until issue #9 provides live schema discovery and startup wiring.
+configuration. `app.Prepare` composes live schema discovery with configuration
+resolution; issue #14 owns full command/runtime wiring.
 
 ## License
 
