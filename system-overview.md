@@ -365,21 +365,32 @@ sufficient label set rather than labelling aggressively.
 ### 9.1 Area / subsystem labels
 
 ```text
+engine
+freecad
+pdm
+studio
+configurator
+workflow
+
 dsl
 planning
 runtime
 records
 verification
 adapter
-pdm
-studio
-configurator
 docs
 infra
 ci
 ```
 
 These answer where the work belongs or what subsystem it concerns.
+
+Product-specific labels such as `engine`, `freecad`, `pdm`, `studio`,
+`configurator`, and `workflow` may be combined with concern labels such as
+`runtime`, `verification`, or `adapter`.
+
+`adapter` represents generic CAD or external-system adapter architecture.
+`freecad` represents the Parametron FreeCAD adapter specifically.
 
 ### 9.2 Engineering characteristic / risk labels
 
@@ -403,7 +414,21 @@ external
 
 `external` is reserved for cross-repository dependency/coordination signalling.
 
-### 9.4 Labels that must not be introduced
+### 9.4 Unmanaged helper labels
+
+The canonical repository label set also contains a small set of helper labels
+that are intentionally outside the classifier-managed allowlist:
+
+```text
+dependencies
+good first issue
+help wanted
+```
+
+The controller must preserve these labels when present, but semantic
+classification must not add or remove them.
+
+### 9.5 Labels that must not be introduced
 
 Do not duplicate Issue Type:
 
