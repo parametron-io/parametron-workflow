@@ -15,7 +15,7 @@ Go owns policy and mutations.
 GitHub records observable state.
 ```
 
-The controller uses bounded semantic classification and relative estimation
+The planned controller uses bounded semantic classification and relative estimation
 where free-form engineering text benefits from model judgement. Lifecycle
 transitions, dependency gating, Phase behavior, branch authorization, Pull
 Request binding, review transitions, ordering, reconciliation, and GitHub
@@ -24,7 +24,7 @@ mutations remain deterministic controller responsibilities.
 ## Status
 
 This repository contains the planned workflow system contract and a runnable Go
-service bootstrap, validated deployment configuration, deterministic Project
+service foundation, validated deployment configuration, deterministic Project
 schema binding, a replaceable read-only GitHub client with live discovery,
 durable SQLite event and generic provenance storage, signed webhook ingress,
 and a durable worker execution foundation with resource FIFO scheduling,
@@ -87,15 +87,22 @@ Enter the reproducible Go development environment:
 nix develop
 ```
 
-Run the bootstrap service:
+Run the controller foundation:
 
 ```sh
-nix develop --command go run ./cmd/parametron-workflow
+nix develop --command go run ./cmd/parametron-workflow \
+  --config /etc/parametron-workflow/bindings.json \
+  --data-dir /var/lib/parametron-workflow \
+  --github-token-file /run/secrets/github-token \
+  --webhook-secret-file /run/secrets/github-webhook
 ```
 
-The service requires no credentials, network access, database, or webhook
-configuration. It waits until cancellation; press Ctrl-C to shut down cleanly.
-The binary also handles SIGTERM.
+Startup validates deployment bindings against live GitHub schema before serving
+signed deliveries at `/webhooks/github` on `127.0.0.1:8080`. One file-backed SQLite
+inbox feeds current-state observation and an explicit foundation sink. The sink
+performs no lifecycle policy or mutations. SIGINT/SIGTERM stop ingress, cancel
+processing, wait for cleanup, and close SQLite. See [docs/runtime.md](docs/runtime.md)
+for settings, secrets, restart behavior, and deployment requirements.
 
 Run the baseline tests and build the binary:
 
@@ -108,11 +115,11 @@ The build writes `./parametron-workflow`, which can be run directly. Format Go
 changes with `nix develop --command gofmt -w <files>`.
 
 `cmd/parametron-workflow` owns process signals and error reporting.
-`internal/app` exposes `Run(ctx, Config)` and treats context cancellation as a
-successful shutdown. Its typed configuration accepts resolved deployment
-bindings. The command continues to run the bootstrap without deployment
-configuration. `app.Prepare` composes live schema discovery with configuration
-resolution; issue #14 owns full command/runtime wiring.
+`internal/app` owns schema preparation, one Store, observer/worker/webhook
+construction, HTTP serving, cancellation coordination, and shutdown.
+`app.Prepare` composes live discovery with deterministic configuration resolution.
+Phase 2 is integrated; semantic classification and workflow lifecycle policy
+remain later phases.
 
 ## License
 

@@ -35,7 +35,7 @@ including unknown-length/chunked bodies. No partial body reaches storage.
 
 The explicitly injected secret is copied into private handler memory. It is
 never loaded from the environment, placed in deployment configuration, or
-persisted. Production secret loading belongs to #14. Authentication uses
+persisted. The command loads it from `--webhook-secret-file`. Authentication uses
 standard-library HMAC-SHA-256 over the exact received bytes, hex decoding, and
 `hmac.Equal` for constant-time digest comparison. JSON is never normalized before
 verification. After authentication, the body must be syntactically valid JSON
@@ -94,9 +94,9 @@ Webhook payloads are immutable historical notification evidence, never canonical
 current GitHub state or authorization. The handler does not resolve resources or
 interpret Issue/PR fields, relationships, or Parametron directives.
 
-Issue #12 owns claiming, workers, attempt accounting, retry execution/timing,
-resource serialization, and crash recovery. Issue #13 owns event-to-resource
-resolution from this preserved evidence, current GitHub state refetch, normalized
-observations, and the policy handoff. Issue #14 owns server/listener configuration,
-secret and credential loading, database paths, runtime composition, and graceful
-end-to-end shutdown. The command remains the existing bootstrap.
+The worker owns claims, serialization, retry execution, and recovery. The
+observer refetches current GitHub state before normalized policy handoff.
+`internal/app` mounts this handler only at `/webhooks/github`, coordinates
+HTTP/worker lifetime, and closes the shared Store after cleanup. New requests
+through the shutdown admission gate receive 503; otherwise unknown routes
+receive 404. See [runtime.md](runtime.md).

@@ -100,9 +100,8 @@ Changing a GitHub field name requires updating the deployment configuration.
 Issue #9 provides the authentication boundary, GitHub transport and live schema
 discovery. `github.Client.DiscoverSchema` translates current API data into
 `Schema`; `app.Prepare` composes validated source, discovery, and resolution.
-See [github-integration.md](github-integration.md). Issue #14 owns full command
-startup and runtime wiring, including source loading and credential construction.
-`app.Config.Deployment` accepts the resolved configuration now. The command
-still runs only the cancellation-aware bootstrap with nil deployment: it does
-not load a file, discover schema, or claim to run a configured controller. No
-fake schema or IDs are supplied by the binary.
+See [github-integration.md](github-integration.md). The command strictly parses
+`--config` before constructing the runtime. `app.Run` always performs live schema
+discovery and resolution before opening ingress; a pre-resolved configuration
+cannot bypass startup validation. Secrets and operational settings remain
+separate from SourceConfig. See [runtime.md](runtime.md).

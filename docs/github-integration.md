@@ -4,9 +4,9 @@
 `DiscoverSchema`, `Repository`, `Issue`, `PullRequest`, and `ProjectItems`.
 `app.Prepare(ctx, source, client)` validates source configuration, discovers
 live schema, then calls `config.Resolve`. It returns no partial application
-configuration on failure. The command remains a cancellation-aware bootstrap;
-issue #14 owns deployment loading, credential-provider construction, and full
-runtime integration.
+configuration on failure. `app.Run` uses this boundary before opening SQLite
+and HTTP ingress. The command loads source bindings and file-backed secrets;
+see [runtime.md](runtime.md).
 
 ## Normalized data
 
@@ -120,7 +120,6 @@ operation fails explicitly. Tests use fakes and `httptest.Server`, require no
 credentials/network/CLI, and cover normalization, both Projects, pagination,
 configuration preparation, authentication isolation, and failure boundaries.
 
-Issue #11 owns signed webhook ingress; #12 owns durable queues/retries and
-ordering; #13 owns event-to-resource processing and policy-facing ObservedState;
-#14 owns full startup and end-to-end integration. Lifecycle decisions, directive
+Signed webhook ingress, durable worker queues/retries, observation, and startup
+are integrated through `internal/app`. Lifecycle decisions, directive
 parsing, semantic components, and authorized mutations remain later work.
