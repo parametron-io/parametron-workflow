@@ -26,7 +26,8 @@ mutations remain deterministic controller responsibilities.
 This repository contains the planned workflow system contract and a runnable Go
 service bootstrap, validated deployment configuration, deterministic Project
 schema binding, a replaceable read-only GitHub client with live discovery,
-durable SQLite event and generic provenance storage, and signed webhook ingress.
+durable SQLite event and generic provenance storage, signed webhook ingress,
+and a durable worker execution foundation with resource FIFO scheduling.
 Workflow lifecycle capabilities are not yet implemented.
 
 The current design covers the shared controller model, the **Parametron
@@ -70,6 +71,9 @@ are documented in [docs/persistence.md](docs/persistence.md).
 
 Signed HTTP ingress, durable acknowledgement, and transport validation are documented
 in [docs/webhooks.md](docs/webhooks.md).
+
+Durable claims, resource serialization, retries, recovery, and execution boundaries
+are documented in [docs/execution.md](docs/execution.md).
 
 ## Development
 
