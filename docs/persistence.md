@@ -11,8 +11,8 @@ and does not interpret webhook payloads as current GitHub state.
 Relative names resolve against the caller's current directory. The parent
 directory must already exist; Open creates the database file and initial schema.
 Names are URI-escaped internally, so they cannot inject SQLite connection options.
-Empty names and `:memory:` are rejected. No production location, directory
-creation policy, command flag, or startup integration is introduced.
+Empty names and `:memory:` are rejected. This package chooses no production location or directory policy; the app
+provides those as documented in [runtime.md](runtime.md).
 Callers own `Close()` and must keep transaction callbacks short.
 
 `PRAGMA user_version` is the schema version. Version 0 is accepted only when no
@@ -161,12 +161,11 @@ reset processing records or invent a recovery transition. Real on-disk restart
 tests verify committed state and deduplication after reopening; they do not
 simulate power loss or prove hardware durability.
 
-## Remaining consumers
+## Runtime consumers
 
-Issue #11 implements HTTP validation, signature verification, delivery metadata
-extraction, and acknowledgement only after InsertDelivery succeeds. Issue #12
-implements claiming, resource serialization, attempt execution, crash recovery,
-retry classification/timing boundaries, and terminal recording. Issue #13 owns resource
-resolution and current GitHub state refetch before policy evaluation. Issue #14
-owns production database location and complete runtime/startup wiring. Storage
-does not implement resource interpretation or production composition.
+The webhook handler acknowledges only after InsertDelivery succeeds. The worker
+owns claims, resource serialization, retries, recovery, and terminal recording.
+The observer owns resource identity and current-state refetch. `internal/app`
+opens one shared Store at `<data-dir>/workflow.sqlite` and closes it only after
+worker cleanup and admitted HTTP handlers finish. See [runtime.md](runtime.md).
+Storage itself does not choose a production location or interpret resources.

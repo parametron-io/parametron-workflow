@@ -98,11 +98,11 @@ and delivery deduplication does not reset their state. Later side-effecting
 processors must use appropriate idempotency/provenance protocols; the generic
 storage provenance surface is available but no workflow-specific facts are added.
 
-## Remaining integration
+## Runtime integration
 
-Webhook ingress still ends at durable acceptance and HTTP acknowledgement.
-`internal/observe` implements resource semantics, current Issue/PR/Project/relationship
-reads, stale/deleted handling, ObservedState and policy handoff. Issue #14 owns
-production boundaries and retry schedule, worker construction, database paths,
-credentials/secrets, HTTP server, and end-to-end startup/shutdown. The command
-and bootstrap app are unchanged.
+`internal/app` constructs the worker with the production observer, an explicit
+terminal local-error classifier, and a fixed positive retry delay (default 30s).
+It runs `Worker.Run` with a poll interval of at least 1s (default 1s) beside HTTP
+ingress. The worker retains sole recovery, eligibility, ordering, and settlement
+authority. One process must exclusively own the database; no distributed
+coordination is added. See [runtime.md](runtime.md).

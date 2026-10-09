@@ -130,8 +130,10 @@ Tests prove stale webhook/current-state disagreement through the actual resolver
 and processor, and compose them with the real worker and temporary file-backed
 SQLite store. No webhook HTTP server, startup, credentials, or network participates.
 
-Issue #14 still owns production configuration loading, database location,
-TokenSource/Transport construction, webhook secret/server/listener, worker Run
-wiring, retry schedule and local-error classifier choices, complete foundation
-integration, and startup/shutdown. Lifecycle policy and decision writing remain
-later phases.
+`internal/app` integrates source preparation, the shared GitHub client and Store,
+this resolver/processor, worker Run, and signed HTTP ingress. The production
+`app.FoundationSink` accepts PolicyInput and returns success without policy,
+classification, mutations, logs of input, or decision persistence. Integration
+tests inject recording consumers and prove current-state handoff through signed
+HTTP, SQLite, retries, restart, FIFO ordering, and shutdown. Lifecycle policy and
+decision writing remain later phases. See [runtime.md](runtime.md).
