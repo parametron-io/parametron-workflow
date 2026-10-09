@@ -29,6 +29,14 @@ content resource is `not_found`; an existing resource without matching membershi
 returns an empty collection. This operation does not enumerate Project members
 or draft issues unrelated to the requested resource.
 
+`internal/observe.Processor` consumes these current reads for both configured
+Projects using the freshly fetched Issue/PR node ID. It verifies primary and
+membership identities, normalizes ordering, and maps field IDs and configured
+Status options to semantic roles. No webhook state enters its policy input.
+Primary `not_found` produces a missing observation; Project-read `not_found`
+discards the incomplete observation and propagates unchanged to the worker.
+See [observation.md](observation.md) for the implemented handoff contract.
+
 ## Production transport and discovery
 
 `NewTransport` creates a standard-library `net/http` GraphQL adapter. No REST
