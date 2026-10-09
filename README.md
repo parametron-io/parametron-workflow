@@ -27,8 +27,8 @@ This repository currently defines the planned workflow system contract.
 
 The controller described here is not yet implemented.
 
-The current design covers the **Parametron Engineering** Project. Bug Tracker
-workflow policy will be added as a separate layer.
+The current design covers the shared controller model, the **Parametron
+Engineering** Project workflow, and a separate **Bug Tracker** policy layer.
 
 ## Design highlights
 
@@ -48,13 +48,14 @@ workflow policy will be added as a separate layer.
 
 ## Documentation
 
-The canonical system design is documented in
-[system-overview.md](system-overview.md).
+The shared controller design and Parametron Engineering workflow are documented
+in [system-overview.md](system-overview.md).
 
-It defines the authority model, directives, label taxonomy, lifecycle state
-machine, Phase ordering, branch and Pull Request behavior, Estimate policy,
-reconciliation rules, and the boundary between the controller and GitHub
-built-in workflows.
+Bug Tracker-specific triage, deterministic Priority Score, blocker urgency
+inheritance, Ready top-five admission, and score-based ordering are documented
+in [bug-tracker.md](bug-tracker.md).
+
+Together these documents define the current planned workflow system contract.
 
 ## License
 
