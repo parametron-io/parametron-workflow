@@ -37,8 +37,10 @@ A completed or failed event is never normally claimed again.
 The dispatcher traverses durable sequence order and resolves unbound events
 sequentially under durable claims. Successful resolution uses BindResource, then
 reads back storage's normalized binding. Bound events bypass resolution.
-ResourceResolver owns the meaning of the payload; #13 supplies the production
-implementation. Worker code never parses webhook schemas or fetches current state.
+ResourceResolver owns the meaning of the payload; `internal/observe.Resolver`
+supplies the production implementation. Worker code never parses webhook schemas
+or fetches current state. `observe.Processor` refetches and normalizes current
+GitHub state before policy handoff; see [observation.md](observation.md).
 
 Explicit FIFO queues use owner, repository, kind, and number; NodeID is evidence
 and is excluded from the key. A bounded pool executes one resource queue at a
@@ -99,7 +101,7 @@ storage provenance surface is available but no workflow-specific facts are added
 ## Remaining integration
 
 Webhook ingress still ends at durable acceptance and HTTP acknowledgement.
-Issue #13 owns actual resource semantics, current Issue/PR/Project/relationship
+`internal/observe` implements resource semantics, current Issue/PR/Project/relationship
 reads, stale/deleted handling, ObservedState and policy handoff. Issue #14 owns
 production boundaries and retry schedule, worker construction, database paths,
 credentials/secrets, HTTP server, and end-to-end startup/shutdown. The command
