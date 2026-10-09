@@ -80,11 +80,12 @@ retry execution policy remains outside ingress.
 
 `Config.Logger` accepts a standard-library `slog.Logger` and defaults to
 `slog.Default()`. Each reception emits an info-level `webhook reception` record
-with a stable `outcome` category and, when validated, delivery ID/event name.
+with only a controller-owned, stable `outcome` category.
 Categories include `accepted`, `duplicate`, `rejected_authentication`,
 `rejected_metadata`, `rejected_json`, `rejected_body`, `rejected_oversized`,
 `rejected_method`, `rejected_media_type`, `conflict`, and `persistence_failure`.
-No raw payload, secret, signature, credentials, or underlying error text is logged.
+No delivery ID, event name, raw payload, secret, signature, credentials, or
+underlying error text is logged.
 There are no metrics or tracing dependencies.
 
 ## Authority and remaining work

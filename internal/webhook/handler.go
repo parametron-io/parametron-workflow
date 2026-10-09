@@ -90,14 +90,7 @@ func singleHeader(header http.Header, name string) (string, bool) {
 func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	var id, event string
 	finish := func(status int, outcome string) {
-		attrs := []any{"outcome", outcome}
-		if id != "" {
-			attrs = append(attrs, "delivery_id", id)
-		}
-		if event != "" {
-			attrs = append(attrs, "event_name", event)
-		}
-		h.logger.InfoContext(r.Context(), "webhook reception", attrs...)
+		h.logger.InfoContext(r.Context(), "webhook reception", "outcome", outcome)
 		w.WriteHeader(status)
 	}
 	if r.Method != http.MethodPost {

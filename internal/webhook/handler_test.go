@@ -69,7 +69,7 @@ func TestValidIngress(t *testing.T) {
 	if !called || w.Code != 204 || w.Body.Len() != 0 {
 		t.Fatalf("response: %d %s", w.Code, w.Body.String())
 	}
-	for _, forbidden := range []string{string(secret), sign(body), "private_payload"} {
+	for _, forbidden := range []string{string(secret), sign(body), "private_payload", "abc-123", "issues", "delivery_id", "event_name"} {
 		if strings.Contains(logs.String(), forbidden) {
 			t.Fatal("sensitive log")
 		}
@@ -336,7 +336,7 @@ func TestRejectedAuthenticationLogs(t *testing.T) {
 	if w.Code != 401 {
 		t.Fatal(w.Code)
 	}
-	for _, value := range []string{string(secret), sign(body), "private_payload", strings.Repeat("0", 64)} {
+	for _, value := range []string{string(secret), sign(body), "private_payload", strings.Repeat("0", 64), "abc-123", "issues", "delivery_id", "event_name"} {
 		if strings.Contains(logs.String(), value) {
 			t.Fatal("sensitive rejection log")
 		}
