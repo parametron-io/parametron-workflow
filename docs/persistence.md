@@ -101,6 +101,24 @@ Other database errors remain wrapped/detectable as supplied by database/sql,
 including context cancellation where supported. No error-code taxonomy or retry
 policy is imposed for busy/unavailable databases.
 
+## Durable execution operations
+
+`Claim(ctx, id, now)` atomically checks pending/due retryable eligibility, marks
+processing, and increments the durable attempt count. Ineligible claims return
+ErrConflict. `Settle(ctx, id, attempt, status, next, category)` requires the current
+processing generation and preserves its count while completing, retrying,
+terminally failing, or releasing to pending. A stale settlement returns
+ErrConflict. These operations use the existing version-1 fields; no migration
+is required. Generic UpdateState remains a low-level API and must not be used
+to bypass the worker's ownership protocol.
+
+`RecoverInterrupted(ctx)` releases only processing rows to pending and clears
+their transient scheduling/category metadata. It preserves attempts, evidence,
+bindings, provenance, scheduled retries, and terminal states. Callers must hold
+exclusive runtime ownership and ensure no live attempts exist before recovery.
+Open itself does not perform recovery. See [execution.md](execution.md) for the
+worker contract and limitations around external effects.
+
 ## Provenance
 
 `RecordProvenance` stores namespace, stable key, associated delivery ID, opaque
@@ -145,10 +163,10 @@ simulate power loss or prove hardware durability.
 
 ## Remaining consumers
 
-Issue #11 owns HTTP validation, signature verification, delivery metadata
+Issue #11 implements HTTP validation, signature verification, delivery metadata
 extraction, and acknowledgement only after InsertDelivery succeeds. Issue #12
-owns claiming, resource serialization, attempt execution, crash recovery,
-retry classification/timing, and terminal decisions. Issue #13 owns resource
+implements claiming, resource serialization, attempt execution, crash recovery,
+retry classification/timing boundaries, and terminal recording. Issue #13 owns resource
 resolution and current GitHub state refetch before policy evaluation. Issue #14
-owns production database location and complete runtime/startup wiring. None of
-these behaviors is implemented by this storage package.
+owns production database location and complete runtime/startup wiring. Storage
+does not implement resource interpretation or production composition.
