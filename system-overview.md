@@ -11,9 +11,10 @@ and user-facing automation feedback.
 This is a design contract for the planned automation system. It does not claim
 that the controller described here is already implemented.
 
-The **Bug Tracker** workflow is intentionally outside this document. Bug
-classification may route work out of Parametron Engineering, but Bug Tracker
-lifecycle and scoring policy will be defined separately.
+The **Bug Tracker** reuses the controller architecture and shared lifecycle
+primitives defined here, but applies a separate Project-specific policy for
+triage, priority scoring, and Ready admission. That policy is defined in
+[bug-tracker.md](bug-tracker.md).
 
 ---
 
@@ -231,7 +232,8 @@ workflow.
 
 A Bug classification is routed outside Parametron Engineering to the Bug
 Tracker according to deterministic project-routing policy. Bug Tracker
-lifecycle policy is deferred to a separate specification.
+lifecycle, triage, scoring, and Ready-admission policy is defined in
+[bug-tracker.md](bug-tracker.md).
 
 ---
 
@@ -317,10 +319,13 @@ Missing boolean directives use policy defaults.
 | `Phase` | `false` |
 | `Task` | `true` |
 | `Feature` | `true` |
-| `Bug` | deferred to Bug Tracker policy |
+| `Bug` | `true` |
 | Pull Request | not applicable |
 
 A Phase therefore receives no development branch merely because it is active.
+A Bug uses the normal implementation branch path by default; Bug-specific
+readiness gating is defined in [bug-tracker.md](bug-tracker.md).
+
 A Phase that directly carries implementation work must opt in explicitly:
 
 ```text
@@ -637,7 +642,9 @@ GitHub Security Alert relationships are treated as external/native metadata.
 They are not currently controller-owned and carry no Parametron Engineering
 workflow semantics.
 
-A future Bug Tracker/security policy may use them separately.
+Bug Tracker currently treats Security Alert relationships the same way: they
+remain native/external metadata with no v1 workflow semantics. Future security
+policy may extend that boundary.
 
 ---
 
@@ -1452,7 +1459,6 @@ must remain usable.
 
 The following are intentionally not defined by this overview:
 
-- Bug Tracker lifecycle and scoring policy
 - exact numeric readiness-score weights
 - exact deterministic branch-name format
 - future heavy-agent implementation/provider selection
