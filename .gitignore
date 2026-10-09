@@ -31,3 +31,9 @@ go.work.sum
 # Editor/IDE
 # .idea/
 # .vscode/
+
+# Local service binary
+/parametron-workflow
+
+# direnv folder
+/.direnv
