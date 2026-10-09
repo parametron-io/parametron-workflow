@@ -579,6 +579,89 @@ shared implementation/review lifecycle.
 
 Bug Tracker v1 does not implement automatic work preemption.
 
+### 14.1 Ready demotion and branch authorization
+
+A Ready Bug may lose its top-five slot before qualifying development activity
+has started.
+
+Because branch creation occurs when a Ready Bug becomes execution-eligible,
+the controller must reconcile branch authorization before demoting that Bug to
+Backlog.
+
+The controller records the branch creation/base SHA when the authorized branch
+is created.
+
+Before applying:
+
+```text
+Ready → Backlog
+```
+
+the controller fetches the current branch state and compares the branch head
+with the recorded creation/base SHA.
+
+If:
+
+```text
+current branch HEAD == recorded creation/base SHA
+```
+
+then no qualifying development activity has occurred.
+
+The controller:
+
+```text
+revokes branch authorization
+→ safely deletes the untouched remote branch
+→ moves the Bug from Ready to Backlog
+```
+
+If instead:
+
+```text
+current branch HEAD != recorded creation/base SHA
+```
+
+the branch contains development activity.
+
+The controller must not delete the branch or demote the Bug. It revalidates
+current eligibility and, when the activity is valid, advances the Bug to
+`In Progress`.
+
+This current-state check prevents webhook delivery order from deciding whether
+work is considered started.
+
+### 14.2 Activity on a revoked branch
+
+A branch that was safely deleted after Ready demotion may still exist in a
+developer's local repository.
+
+If that developer later pushes the old branch and recreates it remotely, the
+push is observable GitHub activity but does not restore workflow authorization.
+
+The canonical behavior is:
+
+```text
+Bug = Backlog
++ branch authorization revoked
++ commit/push observed
+→ Bug remains Backlog
+→ no In Progress transition
+→ managed feedback
+```
+
+Observation does not recreate authorization.
+
+The controller must not automatically delete a recreated branch when it
+contains user commits. User work is preserved even when the branch is not
+authorized for lifecycle progression.
+
+If the Bug later re-enters the Ready top five, the controller must establish a
+new authorization decision. An existing branch containing post-revocation user
+commits must not be silently adopted as the newly authorized branch. Existing
+work adoption, if supported later, requires an explicit policy rather than an
+implicit bypass of Ready admission.
+
 ---
 
 ## 15. Priority Score Recalculation
