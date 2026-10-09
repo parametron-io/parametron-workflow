@@ -23,9 +23,9 @@ mutations remain deterministic controller responsibilities.
 
 ## Status
 
-This repository currently defines the planned workflow system contract.
-
-The controller described here is not yet implemented.
+This repository contains the planned workflow system contract and a runnable Go
+service bootstrap. The workflow controller capabilities described here are not
+yet implemented.
 
 The current design covers the shared controller model, the **Parametron
 Engineering** Project workflow, and a separate **Bug Tracker** policy layer.
@@ -56,6 +56,39 @@ inheritance, Ready top-five admission, and score-based ordering are documented
 in [bug-tracker.md](bug-tracker.md).
 
 Together these documents define the current planned workflow system contract.
+
+## Development
+
+Enter the reproducible Go development environment:
+
+```sh
+nix develop
+```
+
+Run the bootstrap service:
+
+```sh
+nix develop --command go run ./cmd/parametron-workflow
+```
+
+The service requires no credentials, network access, database, or webhook
+configuration. It waits until cancellation; press Ctrl-C to shut down cleanly.
+The binary also handles SIGTERM.
+
+Run the baseline tests and build the binary:
+
+```sh
+nix develop --command go test ./...
+nix develop --command go build ./cmd/parametron-workflow
+```
+
+The build writes `./parametron-workflow`, which can be run directly. Format Go
+changes with `nix develop --command gofmt -w <files>`.
+
+`cmd/parametron-workflow` owns process signals and error reporting.
+`internal/app` exposes `Run(ctx, Config)` and treats context cancellation as a
+successful shutdown. Its bootstrap configuration is empty; deployment
+configuration and controller integrations belong to later issues.
 
 ## License
 
