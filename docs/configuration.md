@@ -97,8 +97,11 @@ owned by the returned value; consumers should treat it as read-only.
 GitHub IDs are runtime discovery results, never durable user-authored bindings.
 Changing a GitHub field name requires updating the deployment configuration.
 
-Issue #9 owns authentication, GitHub transport and live schema discovery. It will
-translate API responses into `Schema` and wire parsing/resolution into startup.
+Issue #9 provides the authentication boundary, GitHub transport and live schema
+discovery. `github.Client.DiscoverSchema` translates current API data into
+`Schema`; `app.Prepare` composes validated source, discovery, and resolution.
+See [github-integration.md](github-integration.md). Issue #14 owns full command
+startup and runtime wiring, including source loading and credential construction.
 `app.Config.Deployment` accepts the resolved configuration now. The command
 still runs only the cancellation-aware bootstrap with nil deployment: it does
 not load a file, discover schema, or claim to run a configured controller. No
