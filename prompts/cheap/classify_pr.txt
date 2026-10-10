@@ -1,6 +1,6 @@
 Capability: classify_pr
 
-Return only one JSON schema object with exactly labels.
+Return only one JSON object matching the supplied output schema with exactly labels.
 Labels must be unique and selected only from:
 engine, freecad, pdm, studio, configurator, workflow, dsl, planning, runtime,
 records, verification, adapter, docs, infra, ci, determinism, regression,

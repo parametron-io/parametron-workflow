@@ -1,6 +1,6 @@
 Capability: classify_issue
 
-Return only one JSON schema object with exactly type, labels, priority, effort.
+Return only one JSON object matching the supplied output schema with exactly type, labels, priority, effort.
 Type is exactly Phase, Task, Feature, or Bug.
 Priority is exactly Critical, High, Medium, or Low.
 Effort is exactly XS, S, M, L, XL, or Unknown. Unknown is an explicit judgement.
