@@ -173,7 +173,7 @@ against configured allowlists and schemas.
 The model does not decide:
 
 - lifecycle Status
-- Project item position
+- Engineering Roadmap Order
 - branch creation
 - dependency eligibility
 - Parent / blocked-by / blocking relationships
@@ -660,7 +660,10 @@ Blocks: <issue-ref>
 
 represent dependency edges.
 
-These relationships affect execution eligibility and Phase dependency order.
+These relationships affect lifecycle/execution eligibility. Dependencies between
+roadmap roots order the complete root graph: Phase, parentless Task, and parentless
+Feature. Phase-owned child dependencies do not order direct children or become
+root edges; invalid cross-level roadmap dependencies fail closed without promotion.
 Cross-repository dependency edges use qualified Issue references and the
 `external` label according to existing repository conventions.
 
@@ -755,7 +758,7 @@ A child whose parent Phase is blocked remains in `Backlog`.
 
 ## 13. Phase and Child Ordering
 
-Phase dependencies define the primary roadmap order.
+Dependencies between top-level roadmap roots define roadmap order.
 
 A stable iterative topological ordering uses dependencies between roadmap roots:
 Phases and parentless Task/Feature, including CLOSED topology evidence. Canonical
@@ -814,10 +817,10 @@ Phase #60
 When the first child starts work, the parent Phase moves to `In Progress`.
 Unstarted children may remain `Ready`.
 
-Those Ready children must not become visually detached from the Phase's roadmap
-position.
+Those Ready children must not become visually detached from the Phase's Roadmap
+Order segment.
 
-A child inherits its parent Phase's roadmap position regardless of the
+A child inherits its parent Phase's Roadmap Order segment regardless of the
 parent's current workflow status.
 
 Conceptually:
@@ -966,7 +969,8 @@ Issue #48
 ```
 
 If multiple children of the same Phase are concurrently active, they remain
-contiguous under the Phase in stable child/dependency order.
+contiguous under the Phase in canonical resource identity order. Child dependency
+edges affect lifecycle/execution eligibility, not sibling Roadmap Order.
 
 Cross-repository children remain grouped under their parent Phase.
 
@@ -1004,7 +1008,8 @@ After a valid binding is accepted, the controller:
 - sets the accepted implementation PR to `In Progress`
 - projects `Target` into the native GitHub Development relationship
 - classifies PR labels through the cheap semantic model when enabled
-- positions the PR with its target work
+- assigns the PR a Roadmap Order companion slot after its Target Issue under
+  Phase #5's allocation/reconciliation policy
 
 Manual Development relationships that contradict `Target` are drift and are
 reconciled back to the canonical relationship.
@@ -1036,26 +1041,32 @@ transition.
 
 ---
 
-## 19. Pull Request Position in In Progress
+## 19. Pull Request Roadmap Order Companions
 
-A Draft PR representing an active child is grouped between the Phase and the
-Target Issue:
+An accepted Engineering PR belongs after its Target Issue within that Target's
+reserved +1..+9 companion namespace. For example, conceptual Roadmap Order values
+for a Draft PR representing an active child are:
 
 ```text
 In Progress
 
-Phase #45
-PR #80 (Draft, Target #48)
-Issue #48
+Phase #45                    10000
+Target Issue #48             10010
+PR #80 (Draft, Target #48)   10011
 ```
 
 This visual grouping represents one implementation unit rather than three
 independent Project cards.
 
-PR grouping remains deferred policy. #36's Roadmap Order namespace covers only
-Phase roots, standalone Task/Feature roots, and direct Phase children; it does not
-assign companion slots or authorize
-native item-position writes. A future grouping projection needs its own contract.
+Phase #5 owns deterministic Engineering PR companion allocation and numeric-field
+reconciliation. The example does not designate +1 as a PR-specific slot or define
+an exact multiple-PR allocation rule. Every primary roadmap Issue reserves nine
+generic companion slots; PRs are one possible companion type.
+
+#36 assigns primary Roadmap Order values for Phase roots, standalone Task/Feature
+roots, and direct Phase children. It only reserves the companion namespace and
+does not assign or interpret companions. Native Project item position is not the
+Engineering ordering mechanism.
 
 ---
 
@@ -1600,7 +1611,7 @@ Target: #48
 → PR added to Project
 → Development relationship projected
 → PR normalized to Draft once
-→ PR positioned between Phase and Issue
+→ Phase #5 allocates PR Roadmap Order after Target within Target's +1..+9 companions
 
 PR #80 Draft → Ready for review
 → PR #80 In Review
@@ -1662,8 +1673,9 @@ workflow state can be derived from explicit relationships, GitHub-native events,
 or stable controller rules.
 
 Phases define bounded engineering objectives and roadmap structure. Children
-inherit Phase workflow membership and roadmap position. Dependencies determine
-execution eligibility. Authorized branch activity starts work. Draft/Ready
+inherit Phase workflow membership and Roadmap Order anchors. Root dependencies
+determine roadmap-root order; dependencies also determine execution eligibility.
+Authorized branch activity starts work. Draft/Ready
 transitions start review. Changes requested returns work to implementation.
 Merge completes normal child work. Phase closure remains an explicit maintainer
 action after all child work is closed.
