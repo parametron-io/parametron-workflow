@@ -90,6 +90,11 @@ option IDs remain intact. A mapped Status option additionally receives its
 `config.StatusRole`; unmapped options retain an empty semantic role. No status,
 priority, eligibility, routing, or desired-state calculation is performed.
 
+These are unordered resource facts, not manual Project positions. #36's separate
+Project-wide `github.ProjectOrderReader` preserves explicit POSITION ASC connection
+order as semantic input; see [engineering-ordering.md](engineering-ordering.md).
+`ProjectState.Items` retains its existing stable-ID normalization.
+
 Canonical ordering is:
 
 - Projects: Engineering, then Bug Tracker.

@@ -67,6 +67,14 @@ type Plan struct {
 	ParentlessReady []storage.Resource
 }
 
+// Validate checks the shared Context/PhaseOrder contract without computing
+// lifecycle decisions. Roadmap producers can reuse this boundary independently
+// of a lifecycle Plan.
+func Validate(in Input) error {
+	_, err := validate(in)
+	return err
+}
+
 func identity(r storage.Resource) storage.Resource { r.NodeID = ""; return r }
 func less(a, b storage.Resource) bool {
 	if a.Owner != b.Owner {

@@ -21,8 +21,9 @@ dependency edges impose no ordering constraint here.
 
 Evaluate does not repair or sort PhaseOrder. Supplied unrelated Phase order is
 consumed unchanged; Issue numbers, IDs, titles, and map order never select an
-active Phase. #36 will produce this contract using dependency topology and valid
-manual Project position. Keeping ordering production separate avoids giving #36
+active Phase. #36 now produces this contract using dependency topology and valid
+manual Project position; see [engineering-ordering.md](engineering-ordering.md).
+Keeping ordering production separate avoids giving #36
 lifecycle authority or duplicating its roadmap policy in #35.
 
 For each repository represented in Context, scan PhaseOrder and select the first
@@ -133,8 +134,8 @@ Blocked/Backlog Phases and parentless work. No GitHub fake is needed.
 
 ## Remaining Phase #4 boundaries
 
-- #36: produce stable topological PhaseOrder, preserve unrelated manual position,
-  child grouping/order and inherited roadmap anchors, and Set-Position ownership.
+- #36 implements stable topological PhaseOrder, unrelated manual position
+  preservation, child grouping/order, inherited anchors, and Set-Position ownership.
 - #37: consume current eligibility for branch creation, naming, base resolution,
   durable provenance, retries, and rejection of manual lookalikes.
 - #38: qualifying authorized development activity, In Progress, Start Date,

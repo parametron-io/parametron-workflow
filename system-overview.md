@@ -18,6 +18,10 @@ Issue #35 implements pure deterministic pre-development lifecycle policy in
 GitHub Status/position/branch reconciliation and relationship projection remain
 later Phase #4 work.
 
+Issue #36 computes deterministic PhaseOrder and desired Engineering Phase/child
+position policy in [docs/engineering-ordering.md](docs/engineering-ordering.md).
+Actual GitHub Project position convergence remains #39.
+
 The **Bug Tracker** reuses the controller architecture and shared lifecycle
 primitives defined here, but applies a separate Project-specific policy for
 triage, priority scoring, and Ready admission. That policy is defined in

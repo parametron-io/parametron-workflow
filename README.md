@@ -44,6 +44,10 @@ Status and execution eligibility are now computed by #35's standalone pure
 [Engineering lifecycle policy](docs/engineering-lifecycle-policy.md).
 GitHub Status/position/branch reconciliation remains later Phase #4 work.
 
+#36 computes deterministic PhaseOrder and desired Engineering Phase/child
+position policy; see [docs/engineering-ordering.md](docs/engineering-ordering.md).
+Actual GitHub Project position convergence remains #39.
+
 The current design covers the shared controller model, the **Parametron
 Engineering** Project workflow, and a separate **Bug Tracker** policy layer.
 
