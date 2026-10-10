@@ -21,8 +21,10 @@ dependency edges impose no ordering constraint here.
 
 Evaluate does not repair or sort PhaseOrder. Supplied unrelated Phase order is
 consumed unchanged; Issue numbers, IDs, titles, and map order never select an
-active Phase. #36 now produces this contract using dependency topology and valid
-manual Project position; see [engineering-ordering.md](engineering-ordering.md).
+active Phase. #36 now filters this Phase-only contract from one deterministic
+top-level traversal of Phase and parentless Task/Feature roots. Root dependencies
+may induce Phase order transitively; standalone resources never enter PhaseOrder.
+See [engineering-ordering.md](engineering-ordering.md).
 Keeping ordering production separate avoids giving #36
 lifecycle authority or duplicating its roadmap policy in #35.
 
@@ -134,14 +136,15 @@ Blocked/Backlog Phases and parentless work. No GitHub fake is needed.
 
 ## Remaining Phase #4 boundaries
 
-- #36 implements stable topological PhaseOrder, unrelated manual position
-  preservation, child grouping/order, inherited anchors, and Set-Position ownership.
+- #36 implements canonical roadmap-root topology with a Phase-only projection,
+  first-class standalone Task/Feature roots, direct-child grouping and
+  numeric Roadmap Order with inherited anchors and current-work compaction.
 - #37: consume current eligibility for branch creation, naming, base resolution,
   durable provenance, retries, and rejection of manual lookalikes.
 - #38: qualifying authorized development activity, In Progress, Start Date,
   and permitted Assignee initialization.
-- #39: production integration and lifecycle/position/work authorization
-  reconciliation, including fresh context and current order production.
+- #39: production integration and lifecycle/Roadmap Order/work authorization
+  reconciliation, including fresh context and numeric-field observation.
 
 No Status/Project mutation, relationship projection, close/reopen policy,
 PR lifecycle, Bug Tracker lifecycle, Estimate execution, storage migration,

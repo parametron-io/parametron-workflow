@@ -546,8 +546,8 @@ It must not move to `To Triage`, because priority rebalancing does not
 invalidate completed triage.
 
 `Priority Score DESC` sorting in the Project view determines the visible
-Ready ordering. The controller does not need Engineering-style manual Project
-position reconciliation for Bug Tracker.
+Ready ordering. The controller does not need native Project item-position
+reconciliation for Bug Tracker.
 
 `Set-Position` therefore has no effect on score-based Bug Tracker ordering.
 

@@ -15,6 +15,7 @@ func sourceConfig() config.SourceConfig {
 	for i, p := range []config.Profile{config.Engineering, config.BugTracker} {
 		b := config.ProjectBinding{Number: i + 1, Fields: map[config.FieldRole]string{config.Status: "Status", config.Priority: "Priority", config.Effort: "Effort", config.Estimate: "Estimate", config.StartDate: "Start date"}, StatusOptions: map[config.StatusRole]string{config.Backlog: "Backlog", config.Ready: "Ready", config.InProgress: "In Progress", config.InReview: "In Review", config.Done: "Done"}}
 		if p == config.Engineering {
+			b.Fields[config.RoadmapOrder] = "Roadmap Order"
 			b.StatusOptions[config.Blocked] = "Blocked"
 		} else {
 			b.Fields[config.PriorityScore] = "Priority Score"
@@ -30,7 +31,7 @@ func fieldsJSON(project string) []any {
 		opts = append(opts, map[string]any{"id": project + name, "name": name})
 	}
 	result := []any{}
-	for _, f := range []struct{ name, kind string }{{"Status", "SINGLE_SELECT"}, {"Priority", "SINGLE_SELECT"}, {"Effort", "SINGLE_SELECT"}, {"Estimate", "NUMBER"}, {"Start date", "DATE"}, {"Priority Score", "NUMBER"}, {"Unrelated", "TEXT"}} {
+	for _, f := range []struct{ name, kind string }{{"Status", "SINGLE_SELECT"}, {"Priority", "SINGLE_SELECT"}, {"Effort", "SINGLE_SELECT"}, {"Estimate", "NUMBER"}, {"Start date", "DATE"}, {"Priority Score", "NUMBER"}, {"Roadmap Order", "NUMBER"}, {"Unrelated", "TEXT"}} {
 		w := map[string]any{"id": project + f.name, "name": f.name, "dataType": f.kind}
 		if f.kind == "SINGLE_SELECT" {
 			w["options"] = opts
@@ -83,7 +84,7 @@ func TestDiscoverSchema(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if got.Engineering.Fields[config.Estimate] != "P1Estimate" || got.Engineering.Fields[config.StartDate] != "P1Start date" || got.BugTracker.Fields[config.PriorityScore] != "P2Priority Score" || got.Engineering.StatusOptions[config.Ready] != "P1Ready" {
+	if got.Engineering.Fields[config.RoadmapOrder] != "P1Roadmap Order" || got.Engineering.Fields[config.Estimate] != "P1Estimate" || got.Engineering.Fields[config.StartDate] != "P1Start date" || got.BugTracker.Fields[config.PriorityScore] != "P2Priority Score" || got.Engineering.StatusOptions[config.Ready] != "P1Ready" {
 		t.Fatalf("%+v", got)
 	}
 }
@@ -244,6 +245,32 @@ func TestIssueTypeDiscoveryPaginationAndMalformed(t *testing.T) {
 				}
 			} else {
 				category(t, err, Malformed)
+			}
+		})
+	}
+}
+
+func TestRoadmapSchemaBindingFailures(t *testing.T) {
+	for _, mode := range []string{"missing", "wrong kind"} {
+		t.Run(mode, func(t *testing.T) {
+			client := adapter(t, schemaHandler(t, func(fields []any) []any {
+				for i, f := range fields {
+					if f.(map[string]any)["name"] == "Roadmap Order" {
+						if mode == "missing" {
+							return append(fields[:i], fields[i+1:]...)
+						}
+						f.(map[string]any)["dataType"] = "DATE"
+					}
+				}
+				return fields
+			}))
+			schema, err := client.DiscoverSchema(context.Background(), sourceConfig())
+			if err != nil {
+				t.Fatal(err)
+			}
+			_, err = config.Resolve(sourceConfig(), schema)
+			if err == nil || !strings.Contains(err.Error(), "roadmap_order") {
+				t.Fatal("malformed roadmap binding accepted", err)
 			}
 		})
 	}

@@ -142,7 +142,7 @@ func resolve(s SourceConfig, schema Schema) (ResolvedConfig, error) {
 			}
 			kind := SingleSelect
 			switch role {
-			case Estimate, PriorityScore:
+			case Estimate, PriorityScore, RoadmapOrder:
 				kind = Number
 			case StartDate:
 				kind = Date

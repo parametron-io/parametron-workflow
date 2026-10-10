@@ -88,6 +88,8 @@ func TestCurrentStateHandoff(t *testing.T) {
 					want := map[string]config.FieldKind{b.Fields[config.Status]: config.SingleSelect, b.Fields[config.Priority]: config.SingleSelect, b.Fields[config.Effort]: config.SingleSelect, b.Fields[config.Estimate]: config.Number, b.Fields[config.StartDate]: config.Date}
 					if project == d.BugTracker.ID {
 						want[b.Fields[config.PriorityScore]] = config.Number
+					} else {
+						want[b.Fields[config.RoadmapOrder]] = config.Number
 					}
 					if !reflect.DeepEqual(fields, want) {
 						t.Fatalf("fields=%v want %v", fields, want)
@@ -98,6 +100,9 @@ func TestCurrentStateHandoff(t *testing.T) {
 						typ = "PullRequest"
 					}
 					vals := map[string]github.FieldValue{b.Fields[config.Status]: {Kind: config.SingleSelect, OptionID: b.StatusOptions[config.Done]}, b.Fields[config.Priority]: {Kind: config.SingleSelect, OptionID: "unmapped-priority"}, b.Fields[config.Estimate]: {Kind: config.Number, Number: 0}, b.Fields[config.StartDate]: {Kind: config.Date, Date: "2026-10-09"}}
+					if project == d.Engineering.ID {
+						vals[b.Fields[config.RoadmapOrder]] = github.FieldValue{Kind: config.Number, Number: 10020}
+					}
 					return []github.ProjectItem{{ID: "z-item", ProjectID: project, Archived: true, Content: &github.Content{ID: content, Kind: typ}, Values: vals}, {ID: "a-item", ProjectID: project, Content: &github.Content{ID: content, Kind: typ}, Values: map[string]github.FieldValue{b.Fields[config.Status]: {Kind: config.SingleSelect, OptionID: "unmapped-status"}}}}, nil
 				},
 			}
@@ -170,6 +175,11 @@ func TestCurrentStateHandoff(t *testing.T) {
 				}
 				if v, ok := fields[config.Estimate]; !ok || v.Number != 0 {
 					t.Fatal("zero lost")
+				}
+				if project.Profile == config.Engineering {
+					if v, ok := fields[config.RoadmapOrder]; !ok || v.Kind != config.Number || v.Number != 10020 {
+						t.Fatal("Roadmap Order lost")
+					}
 				}
 				if _, ok := fields[config.Effort]; ok {
 					t.Fatal("unset became present")

@@ -21,6 +21,7 @@ func commandFixture(t *testing.T) ([]string, string, string, string) {
 		roles := []config.FieldRole{config.Status, config.Priority, config.Effort, config.Estimate, config.StartDate}
 		statuses := []config.StatusRole{config.Backlog, config.Ready, config.InProgress, config.InReview, config.Done}
 		if p == config.Engineering {
+			roles = append(roles, config.RoadmapOrder)
 			statuses = append(statuses, config.Blocked)
 		} else {
 			roles = append(roles, config.PriorityScore)

@@ -25,14 +25,11 @@ records, excludes PRs, and performs no workflow normalization. Client and Mutato
 are unchanged. ListerFake fails unconfigured calls. See
 [engineering-context.md](engineering-context.md) for authoritative child discovery.
 
-#36 adds a separate `ProjectOrderReader.ListProjectItemsInOrder(ctx, projectID)`
-capability and ProjectOrderFake. Transport explicitly reads ProjectV2.items with
-POSITION ASC and both archive states, preserving cursor/page order without sorting.
-It retains PR/Draft/null content as uncontrolled items and validates identities,
-duplicates, archive flags, and pagination through the existing typed error boundary.
-Normal resource membership reads, Client, and Mutator are unchanged. See
-[engineering-ordering.md](engineering-ordering.md) for the supported API evidence
-and pure ordering contract. Actual Project position mutations remain #39.
+#36 requires Engineering's numeric Roadmap Order binding. Existing configured
+number reads preserve its value for comparison; native Project item position is
+not an Engineering input. There is no special ordered reader. Client and Mutator
+are unchanged. See [engineering-ordering.md](engineering-ordering.md) for pure
+numeric assignments/clears. Numeric-field reconciliation remains #39.
 
 Repository identity reuses `config.Repository` (node ID, owner login, name).
 Issues contain node/repository identity, number, title, unparsed body, OPEN or

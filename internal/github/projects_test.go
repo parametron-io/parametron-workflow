@@ -111,3 +111,22 @@ func TestIncompatibleConfiguredValue(t *testing.T) {
 	_, err = client.ProjectItems(context.Background(), "I", "P", map[string]config.FieldKind{"start": config.Date})
 	category(t, err, Malformed)
 }
+
+func TestRoadmapNumberRead(t *testing.T) {
+	for _, number := range []int{0, 10020} {
+		client := adapter(t, projectHandler(func(values []any) []any {
+			return append(values, map[string]any{"__typename": "ProjectV2ItemFieldNumberValue", "field": map[string]any{"id": "roadmap"}, "number": number})
+		}))
+		got, err := client.ProjectItems(context.Background(), "I", "P", map[string]config.FieldKind{"roadmap": config.Number, "unset": config.Number})
+		if err != nil {
+			t.Fatal(err)
+		}
+		v, present := got[0].Values["roadmap"]
+		if !present || v.Kind != config.Number || v.Number != float64(number) {
+			t.Fatal("roadmap number lost", got)
+		}
+		if _, present := got[0].Values["unset"]; present {
+			t.Fatal("unset fabricated")
+		}
+	}
+}

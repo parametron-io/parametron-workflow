@@ -20,7 +20,8 @@ including case and spaces. No name defaults or coercions are applied.
         "priority": "Priority",
         "effort": "Effort",
         "estimate": "Estimate",
-        "start_date": "Start date"
+        "start_date": "Start date",
+        "roadmap_order": "Roadmap Order"
       },
       "status_options": {
         "backlog": "Backlog",
@@ -60,10 +61,12 @@ Projects are selected by organization owner and positive Project number; the
 profiles must bind distinct Projects.
 
 Every shown field and status binding is required. Engineering does not accept
-`to_triage` or `priority_score`; Bug Tracker does not accept `blocked`. Unknown
-profile, field and status roles are rejected. Status, Priority and Effort bind
-single-select fields; Estimate and Priority Score bind numeric fields; Start
-Date binds a date field. Status is represented as a single-select field in
+`to_triage` or `priority_score`; Bug Tracker does not accept `blocked` or
+`roadmap_order`. Engineering requires Roadmap Order; Bug Tracker requires
+Priority Score. Unknown profile, field and status roles are rejected. Status,
+Priority and Effort bind single-select fields; Estimate, Priority Score, and
+Roadmap Order bind numeric fields; Start Date binds a date field. Status is
+represented as a single-select field in
 normalized discovery data. Priority/Effort semantic allowlists are validated by
 semanticreconcile at construction; config retains options generically.
 Native Sub-issues progress is a GitHub UI

@@ -1,181 +1,249 @@
-# Engineering roadmap and desired position policy
+# Engineering Roadmap Order
 
-Issue #36 implements `internal/engineeringorder`. It computes deterministic
-PhaseOrder and desired Engineering Phase/child position policy. Actual GitHub
-Project position convergence remains #39. Neither policy stage performs reads,
-mutations, model execution, persistence, filesystem access, retries, clock reads,
-or random selection. App, worker, webhook, semantic composition, and the default
-CLI do not invoke this package.
+Issue #36 implements pure `internal/engineeringorder` policy. It computes full
+RoadmapRoots, its PhaseOrder projection, and numeric assignments/clears. Actual
+GitHub numeric-field reconciliation remains #39; this policy is not composed
+into app, worker, webhook, semanticflow, semanticreconcile, or CLI execution.
 
-The dependency direction is `engineeringorder → engineeringpolicy →
-engineeringcontext`. Engineeringpolicy remains unaware of engineeringorder.
-Its validation-only `Validate(Input) error` exposes the existing #35 input
-contract without producing a lifecycle Plan or changing lifecycle behavior.
+The dependency direction remains `engineeringorder → engineeringpolicy →
+engineeringcontext`. Engineeringpolicy is unaware of engineeringorder. Its
+validation-only Validate entry point shares #35's existing Context/PhaseOrder
+contract without computing lifecycle decisions.
 
-## Supported Project order observation
+## Derived field and presentation
 
-`github.ProjectOrderReader.ListProjectItemsInOrder(ctx, projectID)` is a separate
-read-only capability implemented by `github.Transport`. Client and Mutator are
-unchanged. ProjectOrderFake fails unconfigured calls with Permanent. The reader
-reuses the existing GraphQL, token source, HTTP limits, context, and typed errors;
-it logs nothing and performs no retries.
+Engineering requires the numeric custom Project field **Roadmap Order**, bound
+through `config.RoadmapOrder` (`roadmap_order`). A human administrator configures
+the Engineering view to sort by **Roadmap Order ASC**. The field need not be
+visible on cards. Bug Tracker instead requires **Priority Score** and continues
+to sort **Priority Score DESC**; Roadmap Order is not a Bug Tracker field role.
 
-The supported [GitHub Project GraphQL contract](https://docs.github.com/en/graphql/reference/projects#projectv2)
-exposes `ProjectV2.items(orderBy: ProjectV2ItemOrder)` and
-[ProjectV2ItemOrderField.POSITION](https://docs.github.com/en/graphql/reference/projects#projectv2itemorderfield).
-The reader explicitly selects `orderBy:{field:POSITION,direction:ASC}`. This is
-Project item position, corresponding to
-[updateProjectV2ItemPosition](https://docs.github.com/en/graphql/reference/projects#updateprojectv2itemposition),
-whose return value is the reordered item connection and whose `afterId` input
-positions an item after another item (null/omitted means top). No undocumented
-default connection order or field-value sorting is assumed.
+Roadmap Order is controller-owned, deterministic, recomputable derived state.
+It is mutable current-roadmap placement, never an identifier, historical slot,
+branch identity, provenance, or stable external reference. Completing earlier
+work can rebase a Phase from 11000 to 10000.
 
-Verified on 2026-10-10 against official documentation and read-only live schema
-introspection: POSITION is supported and items accepts orderBy and archivedStates.
-A live read of the Engineering Project also accepted the explicit POSITION ASC
-query with both archive states and returned cursor metadata. No mutation was used
-to verify ordering. View-specific sorting is not this global position contract.
-The inherited anchor needs only global sequence filtering, no view API behavior.
+Native GitHub card position, manual drag/drop, Project view order, and observed
+Roadmap Order values supply no roadmap policy authority or stability signal.
+There is no ProjectOrderReader, CurrentOrder, opaque-position landmark, or
+native-position reconciliation target in #36. Normal resource Project membership
+observation remains sorted by stable item IDs. Roadmap Order is read through the
+existing configured-number field-value mechanism, for future comparison in #39.
+An absent field remains unset; a present numeric zero remains explicit zero.
 
-Pages contain up to 100 items and are appended exactly as returned until
-hasNextPage is false. No sort or canonical identity normalization changes that
-sequence. Missing page metadata/nodes, null item nodes, missing continuation
-cursors, cursor cycles, duplicate item IDs, duplicate non-null content node IDs,
-and duplicate Issue owner/repository/number identities fail with Malformed,
-without partial output. Issue identity uses the existing canonical GitHub
-Identity, including repository node ID. Project identity is verified both on
-the queried node and every item. A missing Project is NotFound; blank requested
-Project IDs are Permanent. Other existing typed GitHub errors propagate.
-
-OrderedProjectItem retains item ID, Project ID, archive flag, Project item type,
-content typename/node ID, and optional Issue Identity. PRs and DraftIssues are
-preserved with no Issue conversion. Null/deleted/redacted content retains the
-item type and sequence slot without a content identity. Non-Issue opaque content
-remains uncontrolled. Archived items are read and preserved but never supply a
-manual rank. Reads across pages are not transactionally atomic; duplicates
-reject the attempt, and #39 must obtain fresh evidence before moving items.
-
-Normal `observe.ProjectState.Items` remains a resource membership/field facts
-collection sorted by stable item ID. It is **not** position evidence. The new
-Project-wide sequence is a different semantic surface: order itself is data.
-A caller maps only Issue identities to canonical `storage.Resource` values,
-preserving exact node evidence and lowercase owner/repository; all other items
-map to nil Resource while retaining their ProjectItemID and archive flag.
-The pure package needs no GitHub transport types.
-
-## Stage 1: PhaseOrder
+## Stage 1: two-level roadmap topology
 
 ```go
-phaseOrder, err := engineeringorder.BuildPhaseOrder(context, currentOrder)
+order, err := engineeringorder.BuildRoadmapOrder(context)
 lifecycle, err := engineeringpolicy.Evaluate(engineeringpolicy.Input{
     Context: context,
-    PhaseOrder: phaseOrder,
+    PhaseOrder: order.PhaseOrder,
 })
 ```
 
-BuildPhaseOrder does not need a lifecycle Plan. It returns every Context Phase
-exactly once, including CLOSED Phases, with exact Context resource evidence.
-Task, Feature, Bug, PR, and opaque items never enter PhaseOrder.
+Roadmap root = Phase OR Task without authoritative Parent OR Feature without
+authoritative Parent. Phase-internal members are direct Task/Feature children
+whose #34 Parent points to a Phase. A Phase with Parent remains a root.
 
-Iterative stable Kahn traversal uses only Phase → Phase dependency edges:
-blocker precedes blocked, including closed endpoints and cross-repository edges.
-Parent edges and non-Phase dependency edges do not impose Phase order.
-For simultaneously zero-indegree candidates, current non-archived Project rank
-wins; ranked candidates precede unranked candidates. Unranked ties use canonical
-owner, repository, Issue number, then node evidence. Dependencies override a
-conflicting manual order without rejecting the snapshot merely for that conflict.
-A missing/archived position is valid and uses fallback; no numeric GitHub position
-is fabricated. Only otherwise-free choices preserve manual order.
+BuildRoadmapOrder requires neither lifecycle Plan nor Project input. Its Order
+contains complete RoadmapRoots, including CLOSED roots as topology evidence, and
+PhaseOrder containing every Phase exactly once. One iterative stable Kahn
+traversal orders roots using explicit root-to-root blocker → blocked edges,
+including Phase → standalone Task → Phase and standalone Task → Feature chains.
+PhaseOrder is a Phase-only filter of that traversal, never a separate sort.
+Standalone resources never enter #35's PhaseOrder; their dependencies may induce
+relative Phase order transitively. Exact resource/node evidence is preserved.
 
-CurrentOrder requires unique Project item IDs and unique non-null Issue semantic
-identities/node IDs, including archived membership. An archived duplicate plus
-an active item is rejected too; neither is chosen arbitrarily. Unrelated Issues
-are allowed as landmarks, but a relevant identity or node ID must match Context
-exactly. Opaque slots do not become lifecycle inputs. Current input is not mutated.
+For simultaneously eligible roots, canonical owner, repository, Issue number,
+then node evidence breaks ties. Dependencies override fallback. Status, Priority,
+Effort, labels, titles, timestamps, Project position, webhook order, and map
+iteration never determine root order. Parent membership defines the two levels;
+it is not a dependency edge. Bugs remain lifecycle blockers, not roadmap roots.
 
-## Stage 2: desired Phase segments
+A root cannot depend on, or block, another Phase's owned Task/Feature child as a
+cross-level roadmap relation. A standalone Task/Feature root is likewise unrelated
+to every Phase-owned child for this check. Such intent fails ErrRoadmapHierarchy,
+including CLOSED endpoints. The controller never promotes child B1 → Phase A
+into Phase B → Phase A; authors must declare the intended root dependency.
+Child-to-child dependencies (including cross-Phase ones), and dependencies between
+a Phase and its own direct child, remain legitimate lifecycle facts. They are
+not root ordering edges and do not reorder segments or siblings. #35 is unchanged.
+
+#35 consumes this sequence directly without conversion or re-resolution. It owns
+Backlog/Blocked/Ready, active Phase selection, child Ready membership, execution
+eligibility, Create-Branch, and Set-Status. #36 does not take those authorities.
+
+## Stage 2: current numeric roadmap
 
 ```go
-positions, err := engineeringorder.Evaluate(engineeringorder.Input{
+plan, err := engineeringorder.Evaluate(engineeringorder.Input{
     Context: context,
     Lifecycle: lifecycle,
-    PhaseOrder: phaseOrder,
-    CurrentOrder: currentOrder,
+    Order: order,
 })
 ```
 
-Evaluate validates and consumes the supplied PhaseOrder unchanged; it does not
-compute a replacement order from a later manual snapshot. Plan contains copied
-PhaseOrder and a globally ordered DesiredOrder of Placement values. Each
-Placement contains Resource, optional AnchorPhase, and PositionOwned. There are
-no mutation commands, pseudo-positions, or canonical maps.
+Evaluate validates and consumes Order unchanged: roots are exact, complete,
+unique, and dependency-consistent; PhaseOrder must equal their Phase-only
+projection and satisfy #35's contract. This prevents contradictory ordering
+inputs without a second topology algorithm. Plan embeds Order and contains:
 
-Each Phase supplies one segment in PhaseOrder order: the OPEN Phase placement,
-then its OPEN Task/Feature children. The authoritative source is #34's Parent
-edges, never native Parent/SubIssues. A Phase with Parent remains a Phase anchor,
-not a child placement. Cross-repository children use precisely the same rules.
-Within siblings, preserve current non-archived manual order; ranked children
-precede missing-position children, then canonical resource identity breaks ties.
-Child dependency edges govern #35 execution eligibility, not sibling visual order.
-Priority, Effort, labels, titles, blockers, and webhook order do not rank siblings.
-Bug children receive no Engineering placement.
+- RoadmapRoots: full top-level topology, including completed roots.
+- PhaseOrder: the Phase-only subsequence consumed directly by #35.
+- Assignments: Resource, integer RoadmapOrder, optional child AnchorPhase;
+  ordered by ascending numeric value.
+- Clear: canonical unset for CLOSED roots and authoritative direct Task/Feature
+  children, ordered by canonical resource identity.
 
-All segments are contiguous in the desired controlled sequence. A later Phase
-cannot interleave into an earlier Phase's children. This applies independently
-of lifecycle Status/activation: filtering `Phase #45, child #48, child #49,
-Phase #60, child #61` to omit #45 and started #48 leaves `#49, #60, #61`.
-AnchorPhase is explicit, and the child stays in the first Phase's roadmap slot.
-This proves the property needed after #38 without implementing In Progress
-transitions or inventing view-specific rules.
+There are no Project item IDs, native positions, mutation commands, ownership
+flags, or canonical maps. Slices and anchor pointers are caller-owned.
 
-PhaseOrder topology differs from actionable positioning: CLOSED Phases remain
-in topology but have no DesiredOrder placement; CLOSED children are excluded too.
-OPEN children of a CLOSED Phase retain that Phase's segment/AnchorPhase while
-#35 independently keeps them Backlog. No Done policy is inferred.
+A standalone Task/Feature segment is retained while its root is OPEN. A Phase
+segment is retained when its Phase is OPEN **or** at least one authoritative
+direct Task/Feature child is OPEN. A CLOSED Phase with OPEN children retains its
+segment base without receiving an assignment itself; its children retain their
+anchor and values. This handles transitional terminal mismatches without
+inferring Done, reopening work, or changing #35 lifecycle policy.
 
-Parentless Task/Feature work stays outside DesiredOrder. #35's ParentlessReady
-relative ranking remains unchanged and available to the caller. It never
-interleaves into Phase segments. Uncontrolled items are not assigned positions
-or direct moves merely to satisfy grouping. DesiredOrder describes the controlled
-subsequence; #39 must compare it with the fresh full Project sequence.
+## Fixed five-digit v1 encoding
 
-## Ownership, validation, and determinism
+```text
+FIRST_ROADMAP_BASE  = 10000
+ROADMAP_STRIDE      = 1000
+DIRECT_CHILD_STRIDE = 10
 
-PositionOwned equals `node.Intent.Effective().SetPosition`. Default and explicit
-true yield true; false yields false. Canonical PhaseOrder, DesiredOrder resources,
-Parent grouping, anchors, and lifecycle eligibility are unchanged. Automation
-false does not suppress deterministic Set-Position semantics. Position is
-relational: moving an owned neighbor may change an unowned item's apparent index.
-This package adds no fixed-index semantics or mutation scheduling policy.
+rootBase = 10000 + (retainedSegmentIndex * 1000)
+```
 
-Shared #35 validation checks Context root, exact unique resources/node evidence,
-Type/source/classification/state, declared Parent endpoints, graph cycles, and
-complete dependency-consistent PhaseOrder. Local validation adds Project sequence
-identity/duplicate checks and exact complete unique lifecycle decisions, supported
-Status values, child parent evidence, and valid unique ParentlessReady identities.
-Bugs/closed/unknown resources cannot be injected as lifecycle decisions.
+The exported Go constants are FirstRoadmapBase, RoadmapStride, DirectChildStride,
+MaxRoadmapSegments, and MaxDirectChildren. Retained indices start at zero:
 
-Local `*engineeringorder.Error` supports errors.Is through ErrInvalid,
-ErrProjectOrder, ErrPhaseOrder, and ErrPlacement. Errors contain only stable local
-categories, never Issue content/provider data. Failures return no partial Plan.
-Slices and anchor pointers are caller-owned. Equivalent semantic Context input
-produces byte-identical JSON; CurrentOrder is preserved semantic input, not
-shuffled transport noise.
+```text
+first root      10000
+second root     11000
+third root      12000
+...
+ninetieth root   99000
+```
 
-Tests cover one/multi-page exact unsorted reads and failures, topology chains
-(including 1,000 Phases), diamonds, cross-repository edges, closed topology,
-manual/fallback ordering, direct #35 compatibility, grouping, ownership, and
-malformed inputs. A pure engine #45/#48/#49, #60/#61 and freecad #70/#71 fixture
-adds cross-repository child #72, a missing child position, Set-Position false,
-manual/native and accepted Types, and parentless Ready work. Twenty evaluations
-shuffle nodes/Parent/dependency edges while holding Project order fixed and
-compare encoded bytes, including the inherited-anchor filtering proof.
+Every OPEN root gets its base with AnchorPhase nil. A parentless Task/Feature
+consumes a full segment and has no +10 descendants in v1. OPEN Phase children
+are sorted by canonical resource
+identity and receive `base + (childIndex + 1) * 10`:
+
+```text
+Phase          10000
+child 1        10010
+child 2        10020
+...
+child 99       10990
+```
+
+Every primary roadmap Issue slot reserves its final decimal offsets +1..+9
+as a generic companion namespace:
+
+```text
+10000          Phase/root Issue
+10001..10009   reserved companions of 10000
+10010          direct child Issue
+10011..10019   reserved companions of 10010
+10020          next direct child Issue
+10021..10029   reserved companions of 10020
+```
+
+A future companion may be a PR, nested child Issue, additional PR, or another
+explicitly defined related workflow item. No offset has a designated companion
+type, and there is no single-PR assumption. #36 neither assigns nor interprets
+companion slots. Primary Issue assignments always end in zero. This reservation
+does not implement nested lifecycle or relax #35's direct Phase-parent validation.
+
+V1 capacity is exactly **90 retained top-level segments** across mixed Phases,
+standalone Tasks, and standalone Features; **99 OPEN direct children per Phase
+segment**; and **nine reserved companion slots per roadmap Issue slot**
+(`MaxCompanionsPerIssue`).
+All assigned values remain 10000..99999; the maximum current direct-child value
+is 99990. Excess capacity fails closed with ErrRoadmapCapacity and no partial
+Plan. Spacing never adapts dynamically. CLOSED topology/children do not consume
+numeric capacity.
+
+## Compaction, grouping, and inherited anchor
+
+Only #34's authoritative Parent edges define direct Task/Feature children.
+Cross-repository children use the same canonical ordering. Native SubIssues is
+not input. Phase-with-Parent remains a Phase, not a direct child assignment.
+Bugs never receive Engineering assignments or clears. Child dependencies remain
+#35 execution facts and do not affect visual numeric order.
+
+Retained segments are dense. Starting with A=10000, B=11000, C=12000, completing
+A and all A's direct work produces B=10000, C=11000. Completing B and its work
+then produces C=10000. Full topology can still contain A, B, C. Completed roots
+and direct children appear in Clear so #39 can clear stale field values.
+
+Standalone roots compact identically. Phase A=10000, Task X=11000, Phase B=12000
+becomes Phase A=10000, Phase B=11000 when X closes, with X in Clear. Giving X an
+authoritative Parent A instead moves it into A's +10 child namespace and removes
+its root segment. The entire retained roadmap, not a Phase-only list, compacts.
+
+OPEN siblings compact too: Phase=10000, A1=10010, A2=10020 becomes Phase=10000,
+A2=10010 when A1 closes; A1 appears in Clear. No historical slot is preserved.
+
+AnchorPhase is explicit for each direct child and independent of workflow Status:
+
+```text
+Phase #45 10000
+Task #48  10010
+Task #49  10020
+Phase #60 11000
+Task #61  11010
+```
+
+Filtering a view to omit #45 and started #48 leaves #49=10020 ahead of
+#60=11000. OPEN started work retains its values. A blocked child keeps its number
+while #35 separately denies execution eligibility. No view-specific API behavior
+or In Progress transition is implemented here.
+
+## Ownership and standalone work
+
+Set-Position remains parsed unchanged for grammar compatibility. Default, true,
+and false all produce identical Engineering PhaseOrder and Roadmap Order.
+The derived field is a controller-owned invariant, like Bug Tracker Priority
+Score; there is no PositionOwned or replacement opt-out directive. Automation
+false likewise does not disable topology, grouping, values, or compaction.
+
+Parentless Task/Feature are first-class roots with controller-owned Roadmap Order.
+Their root dependencies affect topology; their CLOSED values enter Clear. #35's
+ParentlessReady Priority/Effort ranking is a separate lifecycle-relative list and
+does not determine numeric root slots. Ready and Blocked roots use the same
+dependency/canonical traversal without Status-based heuristics.
+
+## Validation and tests
+
+Shared #35 validation checks root, exact unique identities/node evidence,
+Type/source/classification/state, Parent endpoints/intent, cycles, and complete
+PhaseOrder with Phase dependency precedence. Projection also validates complete,
+unique, exact lifecycle decisions, supported Status values, parent evidence, and
+ParentlessReady resources. Nested OPEN Task/Feature parents remain rejected.
+Errors contain only stable local categories: ErrInvalid, ErrPhaseOrder,
+ErrRoadmap, ErrRoadmapHierarchy, ErrRoadmapCapacity. Failures return no partial Plan.
+
+Tests cover topology chains/diamonds/cross-repository edges, direct #35
+compatibility, mixed-root dependencies and Phase-only projection, cross-level
+rejection without promotion, five-digit values/reservations, mixed 90/91 segments,
+99/100 children, standalone clearing/regrouping,
+compaction, clearing, closed-parent/open-child retention, inherited numeric
+anchors, ownership switches, malformed inputs, input immutability, and independent
+output pointers. Twenty equivalent evaluations shuffle nodes and both edge
+collections and compare encoding/json bytes. The pure multi-repository fixture
+includes accepted/manual Types, a blocked child, Set-Position false, parentless
+Ready work, a CLOSED child, and a completed earlier segment.
 
 ## Boundary left to #39
 
-#39 owns production composition, fresh reads before mutation, current/desired
-comparison, minimal moves with afterId, ownership-aware scheduling around
-uncontrolled/unowned items, partial-failure retry, and drift convergence.
-#36 adds no position mutation to Mutator, Status mutation, storage/schema,
-branch/PR/Bug Tracker behavior, CLI flags, external dependencies, or Nix changes.
-Project position reconciliation is not live.
+#39 owns fresh normal Project observation, recomputation of topology/lifecycle/
+Roadmap Order, current-versus-desired number comparison, missing/stale value
+writes, canonical field clearing, and idempotent retry after partial failure.
+Native item-position mutation and afterId are not Engineering mechanisms.
+#36 adds no number writer, reconciliation loop, persistence/schema migration,
+runtime composition, CLI behavior, dependencies, Nix changes, or nested lifecycle.
+The administrator's view sort is configured
+outside the controller; no live Project is mutated by this revision.

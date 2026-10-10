@@ -90,10 +90,11 @@ option IDs remain intact. A mapped Status option additionally receives its
 `config.StatusRole`; unmapped options retain an empty semantic role. No status,
 priority, eligibility, routing, or desired-state calculation is performed.
 
-These are unordered resource facts, not manual Project positions. #36's separate
-Project-wide `github.ProjectOrderReader` preserves explicit POSITION ASC connection
-order as semantic input; see [engineering-ordering.md](engineering-ordering.md).
-`ProjectState.Items` retains its existing stable-ID normalization.
+These are unordered resource facts. Engineering's configured Roadmap Order is
+observed through the existing number path, preserving zero versus unset. It is
+comparison evidence for #39, not #36 policy authority; see
+[engineering-ordering.md](engineering-ordering.md). `ProjectState.Items` retains
+stable-ID normalization; native card position is not an Engineering input.
 
 Canonical ordering is:
 

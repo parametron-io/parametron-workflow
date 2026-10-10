@@ -151,7 +151,9 @@ gating, execution eligibility, Create-Branch defaults, and Set-Status policy in
 [engineering-lifecycle-policy.md](engineering-lifecycle-policy.md). It consumes
 this Context plus an explicit validated PhaseOrder; #36 now produces that order
 through [engineering-ordering.md](engineering-ordering.md).
-None is computed by this resolver. Relationship projection, Project writes/position,
+None is computed by this resolver. #36 orders Phase and parentless Task/Feature
+roots, supplies a Phase-only projection to #35, and projects retained roots/children
+to numeric Roadmap Order without Project-position input. Relationship projection, Project field writes,
 branches, Start Date, Assignees, and later lifecycle synchronization remain later work.
 There are no storage/schema, app/runtime, CLI, dependency, or Nix changes.
 The default CLI and all Phase #3 behavior remain unchanged; this resolver is not
