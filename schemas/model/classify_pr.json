@@ -1,0 +1,10 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "classify_pr",
+  "type": "object",
+  "properties": {
+    "labels": {"type": "array", "uniqueItems": true, "items": {"type": "string", "enum": ["engine", "freecad", "pdm", "studio", "configurator", "workflow", "dsl", "planning", "runtime", "records", "verification", "adapter", "docs", "infra", "ci", "determinism", "regression", "breaking-change", "compatibility", "security", "performance", "migration", "external"]}}
+  },
+  "required": ["labels"],
+  "additionalProperties": false
+}

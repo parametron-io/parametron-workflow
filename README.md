@@ -30,7 +30,9 @@ durable SQLite event and generic provenance storage, signed webhook ingress,
 and a durable worker execution foundation with resource FIFO scheduling,
 current GitHub observation, a normalized policy-input handoff, and independently
 testable deterministic body-directive parsing, and a standalone provider-agnostic
-cheap semantic execution boundary.
+cheap semantic execution boundary with strict classification and Estimate policy.
+Semantic policy is independently testable and is not durably wired into the
+running controller.
 Workflow lifecycle capabilities are not yet implemented.
 
 The current design covers the shared controller model, the **Parametron
@@ -85,10 +87,12 @@ Deterministic explicit intent, defaults, references, and parser boundaries are
 documented in [docs/directives.md](docs/directives.md). The parser is not yet
 wired into the runtime.
 
-Cheap semantic capabilities, provider injection, versioned prompt/schema assets,
+Cheap semantic capabilities, provider injection, canonical prompt/schema assets
+with content-digest provenance,
 timeouts, errors, and test fakes are documented in
 [docs/semantic-execution.md](docs/semantic-execution.md). This boundary is not yet
-wired into the runtime; semantic classification policy is not implemented.
+wired into the runtime. Strict classification, Estimate ownership, and normalized
+planning context are documented in [docs/semantic-policy.md](docs/semantic-policy.md).
 
 ## Development
 

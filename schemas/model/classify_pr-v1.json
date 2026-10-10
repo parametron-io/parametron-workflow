@@ -1,8 +1,0 @@
-{
-  "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "title": "classify_pr v1",
-  "type": "object",
-  "properties": {"labels": {"type": "array", "items": {"type": "string"}}},
-  "required": ["labels"],
-  "additionalProperties": false
-}

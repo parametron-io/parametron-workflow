@@ -22,12 +22,29 @@ func supported(c Capability) bool {
 	return c == ClassifyIssue || c == ClassifyPR || c == EstimateIssue
 }
 
-// Input contains semantic content only. Later policy owns normalized planning
-// context and eligibility. No transport, secrets, callbacks or provider payloads
+// ContextJSON is a serialized structured context object produced by Go policy.
+// It carries semantic data only, never execution settings or authority.
+type ContextJSON string
+
+// MarshalJSON preserves context as an object, rather than quoting it as prose.
+func (c ContextJSON) MarshalJSON() ([]byte, error) {
+	if !json.Valid([]byte(c)) {
+		return nil, ErrRequest
+	}
+	var object map[string]json.RawMessage
+	if json.Unmarshal([]byte(c), &object) != nil || object == nil {
+		return nil, ErrRequest
+	}
+	return []byte(c), nil
+}
+
+// Input contains semantic content only. Policy supplies normalized planning
+// context and owns eligibility. No transport, secrets, callbacks or provider payloads
 // belong here; callers must select content rather than pass runtime state.
 type Input struct {
-	Title string `json:"title"`
-	Body  string `json:"body"`
+	Title   string      `json:"title"`
+	Body    string      `json:"body"`
+	Context ContextJSON `json:"context,omitempty"`
 }
 type Request struct {
 	Capability Capability
@@ -44,9 +61,9 @@ type Provenance struct {
 	Provider       string
 	Model          string
 	PromptIdentity string
-	PromptVersion  string
+	PromptDigest   string
 	SchemaIdentity string
-	SchemaVersion  string
+	SchemaDigest   string
 }
 type Runner interface {
 	Run(context.Context, Request) (Result, error)
@@ -155,6 +172,6 @@ func (r *configuredRunner) Run(parent context.Context, request Request) (Result,
 	}
 	return Result{append(json.RawMessage(nil), output...), Provenance{
 		request.Capability, r.selection.Provider, r.selection.Model,
-		assets.Prompt.Identity, assets.Prompt.Version, assets.Schema.Identity, assets.Schema.Version,
+		assets.Prompt.Identity, assets.Prompt.Digest, assets.Schema.Identity, assets.Schema.Digest,
 	}}, nil
 }

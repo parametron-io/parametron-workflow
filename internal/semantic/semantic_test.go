@@ -2,6 +2,7 @@ package semantic_test
 
 import (
 	"context"
+	"crypto/sha256"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -133,7 +134,8 @@ func TestExecutionAndProvenance(t *testing.T) {
 			if err != nil || calls != 1 || string(result.Output) != string(output) {
 				t.Fatalf("result %v, calls %d", err, calls)
 			}
-			want := semantic.Provenance{Capability: c, Provider: "fake", Model: "cheap/model-v1", PromptIdentity: "prompts/cheap/" + string(c) + "-v1.txt", PromptVersion: "v1", SchemaIdentity: "schemas/model/" + string(c) + "-v1.json", SchemaVersion: "v1"}
+			a, _ := catalog(t).Lookup(c)
+			want := semantic.Provenance{Capability: c, Provider: "fake", Model: "cheap/model-v1", PromptIdentity: "prompts/cheap/" + string(c) + ".txt", PromptDigest: fmt.Sprintf("sha256:%x", sha256.Sum256([]byte(a.Prompt.Content))), SchemaIdentity: "schemas/model/" + string(c) + ".json", SchemaDigest: fmt.Sprintf("sha256:%x", sha256.Sum256([]byte(a.Schema.Content)))}
 			if result.Provenance != want || strings.Contains(fmt.Sprintf("%+v", result.Provenance), "SECRET") {
 				t.Fatal("wrong or unsafe provenance")
 			}
@@ -286,8 +288,8 @@ func TestCatalog(t *testing.T) {
 		if a != again {
 			t.Fatal("unstable catalog")
 		}
-		if a.Prompt.Version != "v1" || a.Schema.Version != "v1" || !json.Valid([]byte(a.Schema.Content)) {
-			t.Fatal("invalid version/schema")
+		if a.Prompt.Digest != fmt.Sprintf("sha256:%x", sha256.Sum256([]byte(a.Prompt.Content))) || a.Schema.Digest != fmt.Sprintf("sha256:%x", sha256.Sum256([]byte(a.Schema.Content))) || !json.Valid([]byte(a.Schema.Content)) {
+			t.Fatal("invalid digest/schema")
 		}
 		var schema struct {
 			Dialect              string                     `json:"$schema"`
@@ -389,10 +391,87 @@ func TestStandaloneBoundary(t *testing.T) {
 		for i := 0; i < typ.NumField(); i++ {
 			field := typ.Field(i)
 			switch field.Name {
-			case "Capability", "Input", "Title", "Body", "Cheap", "Provider", "Model":
+			case "Capability", "Input", "Title", "Body", "Context", "Cheap", "Provider", "Model":
 			default:
 				t.Fatalf("unexpected envelope field %s", field.Name)
 			}
+		}
+	}
+}
+
+func TestStructuredContext(t *testing.T) {
+	input := semantic.Input{Title: "title", Body: "body", Context: semantic.ContextJSON(`{"type":"Task","labels":[]}`)}
+	raw, err := json.Marshal(input)
+	if err != nil || string(raw) != `{"title":"title","body":"body","context":{"type":"Task","labels":[]}}` {
+		t.Fatal(string(raw), err)
+	}
+	for _, value := range []string{"", "null", "[]", "true", "{} {}", "SECRET"} {
+		_, err := json.Marshal(semantic.ContextJSON(value))
+		if !errors.Is(err, semantic.ErrRequest) || strings.Contains(err.Error(), "SECRET") {
+			t.Fatal(err)
+		}
+	}
+	calls := 0
+	r := runner(t, &fakeProvider{execute: func(_ context.Context, request semantic.ExecutionRequest) (json.RawMessage, error) {
+		calls++
+		if request.Input != input {
+			t.Fatal("context changed")
+		}
+		return json.RawMessage(`{}`), nil
+	}}, time.Second)
+	if _, err := r.Run(context.Background(), semantic.Request{Capability: semantic.EstimateIssue, Input: input}); err != nil || calls != 1 {
+		t.Fatal(calls, err)
+	}
+}
+
+func TestAssetContentIdentity(t *testing.T) {
+	original := catalog(t)
+	fixtures := fstest.MapFS{}
+	for _, capability := range capabilities {
+		a, _ := original.Lookup(capability)
+		fixtures[a.Prompt.Identity] = &fstest.MapFile{Data: []byte(a.Prompt.Content)}
+		fixtures[a.Schema.Identity] = &fstest.MapFile{Data: []byte(a.Schema.Content)}
+	}
+	same, err := semantic.LoadCatalog(fixtures)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, capability := range capabilities {
+		before, _ := original.Lookup(capability)
+		after, _ := same.Lookup(capability)
+		if before != after {
+			t.Fatal("identical bytes changed identity")
+		}
+	}
+	for _, capability := range capabilities {
+		before, _ := original.Lookup(capability)
+		for _, selected := range []semantic.Asset{before.Prompt, before.Schema} {
+			saved := fixtures[selected.Identity]
+			fixtures[selected.Identity] = &fstest.MapFile{Data: []byte(selected.Content + "\n")}
+			changed, err := semantic.LoadCatalog(fixtures)
+			if err != nil {
+				t.Fatal(err)
+			}
+			after, _ := changed.Lookup(capability)
+			got, other := after.Prompt, after.Schema
+			if selected.Identity == before.Schema.Identity {
+				got, other = after.Schema, after.Prompt
+			}
+			if got.Identity != selected.Identity || got.Digest == selected.Digest || got.Digest != fmt.Sprintf("sha256:%x", sha256.Sum256([]byte(got.Content))) {
+				t.Fatal("changed bytes not reflected in digest")
+			}
+			expectedOther := before.Schema
+			if selected.Identity == before.Schema.Identity {
+				expectedOther = before.Prompt
+			}
+			if other != expectedOther {
+				t.Fatal("unrelated asset changed")
+			}
+			unchanged, _ := original.Lookup(capability)
+			if unchanged != before {
+				t.Fatal("catalog snapshot changed")
+			}
+			fixtures[selected.Identity] = saved
 		}
 	}
 }

@@ -1,0 +1,13 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "classify_issue",
+  "type": "object",
+  "properties": {
+    "type": {"type": "string", "enum": ["Phase", "Task", "Feature", "Bug"]},
+    "labels": {"type": "array", "uniqueItems": true, "items": {"type": "string", "enum": ["engine", "freecad", "pdm", "studio", "configurator", "workflow", "dsl", "planning", "runtime", "records", "verification", "adapter", "docs", "infra", "ci", "determinism", "regression", "breaking-change", "compatibility", "security", "performance", "migration", "external"]}},
+    "priority": {"type": "string", "enum": ["Critical", "High", "Medium", "Low"]},
+    "effort": {"type": "string", "enum": ["XS", "S", "M", "L", "XL", "Unknown"]}
+  },
+  "required": ["type", "labels", "priority", "effort"],
+  "additionalProperties": false
+}
