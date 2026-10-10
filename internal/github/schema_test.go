@@ -3,6 +3,7 @@ package github
 import (
 	"context"
 	"fmt"
+	"reflect"
 	"strings"
 	"testing"
 
@@ -41,6 +42,8 @@ func fieldsJSON(project string) []any {
 func schemaHandler(t *testing.T, change func([]any) []any) func(request) any {
 	return func(q request) any {
 		switch {
+		case strings.Contains(q.Query, "issueTypes("):
+			return connectionJSON("Organization", []any{map[string]any{"id": "IT", "name": "Task"}}, false, "")
 		case strings.Contains(q.Query, "projectV2(number:"):
 			n := int(q.Variables["number"].(float64))
 			return map[string]any{"organization": map[string]any{"projectV2": map[string]any{"id": fmt.Sprintf("P%d", n), "number": n}}}
@@ -204,5 +207,44 @@ func TestLaterPageFailure(t *testing.T) {
 	category(t, err, NotFound)
 	if result != nil {
 		t.Fatal("partial collection returned")
+	}
+}
+
+func TestIssueTypeDiscoveryPaginationAndMalformed(t *testing.T) {
+	for _, test := range []string{"valid", "blank ID", "blank name", "duplicate name", "duplicate ID", "missing connection"} {
+		t.Run(test, func(t *testing.T) {
+			base := schemaHandler(t, nil)
+			client := adapter(t, func(q request) any {
+				if !strings.Contains(q.Query, "issueTypes(") {
+					return base(q)
+				}
+				if test == "missing connection" {
+					return map[string]any{"node": map[string]any{"__typename": "Organization"}}
+				}
+				if q.Variables["cursor"] == nil {
+					return connectionJSON("Organization", []any{map[string]any{"id": "TASK", "name": "Task"}}, true, "types-next")
+				}
+				id, name := "BUG", "Bug"
+				switch test {
+				case "blank ID":
+					id = ""
+				case "blank name":
+					name = ""
+				case "duplicate name":
+					name = "Task"
+				case "duplicate ID":
+					id = "TASK"
+				}
+				return connectionJSON("Organization", []any{map[string]any{"id": id, "name": name}}, false, "")
+			})
+			schema, err := client.DiscoverSchema(context.Background(), sourceConfig())
+			if test == "valid" {
+				if err != nil || !reflect.DeepEqual(schema.IssueTypes, []config.IssueType{{ID: "TASK", Name: "Task"}, {ID: "BUG", Name: "Bug"}}) {
+					t.Fatal(schema.IssueTypes, err)
+				}
+			} else {
+				category(t, err, Malformed)
+			}
+		})
 	}
 }

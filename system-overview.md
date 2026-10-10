@@ -130,7 +130,10 @@ classification/Estimate validation and typed normalized planning context in
 durable initial classification, gating, Pending safety, completion reuse, and
 stale-result rejection in `internal/semanticflow`, documented in
 [docs/semantic-integration.md](docs/semantic-integration.md). No production
-provider or semantic GitHub mutation is implemented.
+provider is implemented. Issue #28 adds accepted semantic metadata and deterministic
+Issue Project convergence through explicit Mutator injection, completing Phase #3
+normalization; see [docs/semantic-reconciliation.md](docs/semantic-reconciliation.md).
+Later lifecycle policy remains unimplemented.
 Semantic output is not workflow authority.
 
 A cheap LLM is used only for bounded semantic interpretation: initial

@@ -47,7 +47,7 @@ functions return fresh slices. Any label outside this taxonomy is rejected,
 including labels duplicating Type, Status, Priority, relationships, or automation.
 
 `dependencies`, `good first issue`, and `help wanted` are unmanaged helper labels.
-They must never be emitted by the classifier. Later #28 reconciliation preserves
+They must never be emitted by the classifier. Implemented #28 reconciliation preserves
 unmanaged labels: omission from classification never authorizes their removal.
 This package neither reads nor merges current GitHub labels.
 
@@ -149,6 +149,7 @@ in [semantic-integration.md](semantic-integration.md). Exported strict
 DecodeIssueClassification/DecodePRClassification helpers reuse this package's
 schemas and domains for durable records without model execution.
 #28 owns Issue Type/Priority/Effort/labels convergence, unmanaged preservation,
-Project routing/membership/fields, and GitHub mutations. Neither is implemented
+Project routing/membership/fields, and GitHub mutations in
+[semantic-reconciliation.md](semantic-reconciliation.md). Neither is implemented
 by this policy package. App composition uses the coordinator only with an explicitly
 supplied Runner; the default CLI has no provider.

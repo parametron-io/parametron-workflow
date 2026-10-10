@@ -11,7 +11,9 @@ type Schema struct {
 	Organizations []Organization
 	Repositories  []Repository
 	Projects      []Project
+	IssueTypes    []IssueType
 }
+type IssueType struct{ ID, Name string }
 type Organization struct{ ID, Login string }
 type Repository struct{ ID, Owner, Name string }
 type Project struct {
@@ -41,12 +43,14 @@ type ResolvedConfig struct {
 	Repositories []Repository
 	Engineering  ResolvedProject
 	BugTracker   ResolvedProject
+	IssueTypes   map[string]string
 }
 type ResolvedProject struct {
 	ID            string
 	Number        int
 	Fields        map[FieldRole]string
 	StatusOptions map[StatusRole]string
+	FieldOptions  map[FieldRole]map[string]string
 }
 
 // unique rejects missing and ambiguous matches rather than depending on input
@@ -94,6 +98,15 @@ func resolve(s SourceConfig, schema Schema) (ResolvedConfig, error) {
 		return result, err
 	}
 	result.Organization = org
+	result.IssueTypes = map[string]string{}
+	typeIDs := map[string]bool{}
+	for _, typ := range schema.IssueTypes {
+		if strings.TrimSpace(typ.Name) == "" || strings.TrimSpace(typ.ID) == "" || result.IssueTypes[typ.Name] != "" || typeIDs[typ.ID] {
+			return result, fmt.Errorf("issue_types: blank or duplicate discovery record")
+		}
+		result.IssueTypes[typ.Name] = typ.ID
+		typeIDs[typ.ID] = true
+	}
 	for i, name := range s.Repositories {
 		path := fmt.Sprintf("repositories[%d] %q", i, name)
 		repo, err := unique(schema.Repositories, func(r Repository) bool { return r.Owner == s.Organization && r.Name == name }, path)
@@ -120,7 +133,7 @@ func resolve(s SourceConfig, schema Schema) (ResolvedConfig, error) {
 		if err := requireID(path, project.ID); err != nil {
 			return result, err
 		}
-		resolved := ResolvedProject{ID: project.ID, Number: project.Number, Fields: map[FieldRole]string{}, StatusOptions: map[StatusRole]string{}}
+		resolved := ResolvedProject{ID: project.ID, Number: project.Number, Fields: map[FieldRole]string{}, StatusOptions: map[StatusRole]string{}, FieldOptions: map[FieldRole]map[string]string{}}
 		for _, role := range fieldRoles(profile) {
 			fieldPath := fmt.Sprintf("%s.fields.%s (%q)", path, role, b.Fields[role])
 			field, err := unique(project.Fields, func(f Field) bool { return f.Name == b.Fields[role] }, fieldPath)
@@ -146,6 +159,23 @@ func resolve(s SourceConfig, schema Schema) (ResolvedConfig, error) {
 				}
 			}
 			resolved.Fields[role] = field.ID
+			if field.Kind == SingleSelect {
+				options := map[string]string{}
+				ids := map[string]bool{}
+				for _, option := range field.Options {
+					if strings.TrimSpace(option.Name) == "" || strings.TrimSpace(option.ID) == "" {
+						return result, fmt.Errorf("%s: blank option", fieldPath)
+					}
+					if options[option.Name] != "" {
+						return result, fmt.Errorf("%s: expected exactly one option match, found 2", fieldPath)
+					}
+					if ids[option.ID] {
+						return result, fmt.Errorf("%s: discovered option ID duplicates %s option", fieldPath, role)
+					}
+					options[option.Name], ids[option.ID] = option.ID, true
+				}
+				resolved.FieldOptions[role] = options
+			}
 			if role == Status {
 				for _, status := range statusRoles(profile) {
 					optionPath := fmt.Sprintf("%s.status_options.%s (%q)", path, status, b.StatusOptions[status])

@@ -8,6 +8,14 @@ configuration on failure. `app.Run` uses this boundary before opening SQLite
 and HTTP ingress. The command loads source bindings and file-backed secrets;
 see [runtime.md](runtime.md).
 
+`github.Mutator` is a separate explicit Phase #3 capability implemented by the
+same Transport: SetIssueType, ResolveLabels, AddLabels, RemoveLabels,
+AddProjectItem, RemoveProjectItem, and SetProjectOption. It exposes no arbitrary
+GraphQL, full-label replacement, label creation, relationships, or branch API.
+Inputs and response identities are validated, using the existing error/token/HTTP
+infrastructure with no retries. MutationFake fails on unconfigured hooks.
+Only semanticreconcile receives write authority; Client/observe remain read-only.
+
 ## Normalized data
 
 Repository identity reuses `config.Repository` (node ID, owner login, name).
@@ -48,7 +56,8 @@ endpoint enables local deterministic tests. No `gh` executable is used at runtim
 
 Discovery selects only the configured organization, named repositories, and
 both configured Project numbers. It returns the existing `config.Schema`, with
-live node IDs. It enumerates all pages of each Project's fields, retaining the
+live node IDs. It enumerates organization issueTypes and all pages of each
+Project's fields, retaining the
 configured field names. SINGLE_SELECT, NUMBER, and DATE map explicitly to the
 existing kinds. Unsupported configured kinds fail; unrelated field kinds are
 ignored. Every option of a selected single-select field is retained. Missing
@@ -90,12 +99,12 @@ v2 schema/items, repository metadata, Issues/types/native relationships, and
 Pull Requests. Install the App for every repository whose identities or links
 must be visible. GitHub documents repository Issues and Pull Requests read
 permissions and organization Projects access in its [App Project example](https://docs.github.com/en/issues/planning-and-tracking-with-projects/automating-your-project/automating-projects-using-actions).
-That example also performs writes; its write permissions are not requirements
-of this read-only implementation. Exact minimum installation permissions for
-these GraphQL queries must be verified during deployment following GitHub's
+The default CLI uses only read access. Explicit semantic reconciliation requires
+appropriate Issue/PR metadata and organization Project write access. Exact
+minimum installation permissions must be verified during deployment following GitHub's
 [GraphQL permission guidance](https://docs.github.com/en/apps/creating-github-apps/registering-a-github-app/choosing-permissions-for-a-github-app#choosing-permissions-for-graphql-api-access).
-No write permission is requested here. Later authorized mutation phases will
-specify their own minimum permissions when their API surfaces exist.
+See [semantic-reconciliation.md](semantic-reconciliation.md) for the narrow write
+boundary; no production semantic provider is activated by the CLI.
 
 ## Errors and deterministic tests
 
@@ -121,5 +130,6 @@ credentials/network/CLI, and cover normalization, both Projects, pagination,
 configuration preparation, authentication isolation, and failure boundaries.
 
 Signed webhook ingress, durable worker queues/retries, observation, and startup
-are integrated through `internal/app`. Lifecycle decisions, directive
-parsing, semantic components, and authorized mutations remain later work.
+are integrated through `internal/app`, along with explicit Phase #3 directives,
+semantic acceptance, and authorized metadata/routing reconciliation. Lifecycle
+decisions remain later work.

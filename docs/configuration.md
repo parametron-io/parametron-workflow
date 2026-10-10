@@ -64,8 +64,9 @@ Every shown field and status binding is required. Engineering does not accept
 profile, field and status roles are rejected. Status, Priority and Effort bind
 single-select fields; Estimate and Priority Score bind numeric fields; Start
 Date binds a date field. Status is represented as a single-select field in
-normalized discovery data. Priority/Effort option allowlists and classification
-are outside this binding contract. Native Sub-issues progress is a GitHub UI
+normalized discovery data. Priority/Effort semantic allowlists are validated by
+semanticreconcile at construction; config retains options generically.
+Native Sub-issues progress is a GitHub UI
 projection, not a controller-written custom field binding.
 
 `Parse(io.Reader)` rejects malformed JSON, unknown or duplicate properties, trailing JSON,
@@ -79,7 +80,9 @@ fixed code-owned roles, never new workflow semantics.
 validates source again, then matches organization, repositories, Projects,
 fields and Status options against explicit transport-independent `Schema` data.
 Schema includes organization IDs/logins, repository IDs/owners/names, Project
-IDs/owners/numbers, field IDs/names/kinds, and option IDs/names. Discovery must
+IDs/owners/numbers, field IDs/names/kinds, option IDs/names, and organization
+Issue Type ID/name records. Blank/duplicate Issue Type records are rejected.
+Discovery must
 provide complete relevant schema, including all options; pagination belongs to
 the discovery adapter.
 
@@ -92,7 +95,11 @@ in fixed profile/role and source repository order and returns no partial result.
 `ResolvedConfig` contains the discovered organization and repository identities,
 and separate Engineering/Bug Tracker Project bindings containing Project IDs,
 field IDs keyed by canonical roles and Status option IDs keyed by canonical
-statuses. Later consumers need no repeated name lookup. Its maps/slices are
+statuses, FieldOptions[FieldRole][optionName] for all single-select fields, and
+IssueTypes[name] for organization Issue Types. Nested maps are copied.
+The semantic reconciler requires unique live Phase/Task/Feature/Bug IDs and all
+canonical Priority/Effort options for both Projects. SourceConfig is unchanged.
+Later consumers need no repeated name lookup. Its maps/slices are
 owned by the returned value; consumers should treat it as read-only.
 GitHub IDs are runtime discovery results, never durable user-authored bindings.
 Changing a GitHub field name requires updating the deployment configuration.

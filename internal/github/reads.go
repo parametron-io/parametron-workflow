@@ -229,6 +229,19 @@ func (t *Transport) DiscoverSchema(ctx context.Context, source config.SourceConf
 		return config.Schema{}, failure(Malformed)
 	}
 	result := config.Schema{Organizations: []config.Organization{{ID: org.ID, Login: org.Login}}}
+	types, err := t.connection(ctx, org.ID, "Organization", "issueTypes", "id name")
+	if err != nil {
+		return config.Schema{}, err
+	}
+	seenNames, seenIDs := map[string]bool{}, map[string]bool{}
+	for _, node := range types {
+		var typ config.IssueType
+		if json.Unmarshal(node, &typ) != nil || blank(typ.ID) || blank(typ.Name) || seenNames[typ.Name] || seenIDs[typ.ID] {
+			return config.Schema{}, failure(Malformed)
+		}
+		seenNames[typ.Name], seenIDs[typ.ID] = true, true
+		result.IssueTypes = append(result.IssueTypes, typ)
+	}
 	for _, name := range source.Repositories {
 		r, err := t.Repository(ctx, source.Organization, name)
 		if err != nil {

@@ -3,6 +3,7 @@ package observe
 import (
 	"context"
 	"errors"
+	"maps"
 	"reflect"
 	"sort"
 	"strings"
@@ -91,12 +92,21 @@ func (p *Processor) Process(ctx context.Context, e storage.Event) error {
 	if e.Resource == nil {
 		return ErrBinding
 	}
-	o, err := p.ReadPrimary(ctx, *e.Resource)
+	o, err := p.ReadCurrent(ctx, *e.Resource)
 	if err != nil {
 		return err
 	}
+	return p.consumer.Evaluate(ctx, PolicyInput{e.Delivery.ID, e.Sequence, o})
+}
+
+// ReadCurrent performs complete read-only observation without a policy handoff.
+func (p *Processor) ReadCurrent(ctx context.Context, resource storage.Resource) (ObservedState, error) {
+	o, err := p.ReadPrimary(ctx, resource)
+	if err != nil {
+		return ObservedState{}, err
+	}
 	if o.Presence == Missing {
-		return p.consumer.Evaluate(ctx, PolicyInput{e.Delivery.ID, e.Sequence, o})
+		return o, nil
 	}
 	r := o.Resource
 	for _, project := range []struct {
@@ -109,15 +119,15 @@ func (p *Processor) Process(ctx context.Context, e storage.Event) error {
 		}
 		items, err := p.client.ProjectItems(ctx, r.NodeID, project.binding.ID, fields)
 		if err != nil {
-			return err
+			return ObservedState{}, err
 		}
 		state, err := normalizeProject(project.profile, project.binding, r.NodeID, r.Kind, items)
 		if err != nil {
-			return err
+			return ObservedState{}, err
 		}
 		o.Projects = append(o.Projects, state)
 	}
-	return p.consumer.Evaluate(ctx, PolicyInput{e.Delivery.ID, e.Sequence, o})
+	return o, nil
 }
 
 // ReadPrimary reuses observation identity verification without fetching Projects.
@@ -185,6 +195,7 @@ func snapshot(d config.ResolvedConfig) (config.ResolvedConfig, error) {
 		return config.ResolvedConfig{}, ErrConfiguration
 	}
 	d.Repositories = append([]config.Repository(nil), d.Repositories...)
+	d.IssueTypes = maps.Clone(d.IssueTypes)
 	seen := map[string]bool{}
 	for _, r := range d.Repositories {
 		key := strings.ToLower(r.Name)
@@ -229,6 +240,11 @@ func snapshot(d config.ResolvedConfig) (config.ResolvedConfig, error) {
 			s[role] = id
 		}
 		p.Fields, p.StatusOptions = f, s
+		options := map[config.FieldRole]map[string]string{}
+		for role, values := range p.FieldOptions {
+			options[role] = maps.Clone(values)
+		}
+		p.FieldOptions = options
 		return p, nil
 	}
 	var err error
