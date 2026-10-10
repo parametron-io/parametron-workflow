@@ -149,3 +149,9 @@ consumer; semantic output remains separate from observed GitHub metadata. Integr
 tests inject recording consumers and prove current-state handoff through signed
 HTTP, SQLite, retries, restart, FIFO ordering, and shutdown. Lifecycle policy and
 decision writing remain later phases. See [runtime.md](runtime.md).
+
+Issue #34's standalone [Engineering context](engineering-context.md) reuses
+ReadPrimary for relevant graph participants. Projects are unnecessary for its
+current identities, body intent, and open/closed facts; it performs no lifecycle
+policy handoff or mutations. Native relationship observations never determine
+its authoritative declared child/dependency graph.

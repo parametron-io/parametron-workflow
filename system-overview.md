@@ -11,6 +11,10 @@ and user-facing automation feedback.
 This is a design contract for the planned automation system. It does not claim
 that the controller described here is already implemented.
 
+Issue #34 now implements the read-side declared Engineering graph and accepted
+semantic context described in [docs/engineering-context.md](docs/engineering-context.md).
+Lifecycle decisions and relationship projection remain later work.
+
 The **Bug Tracker** reuses the controller architecture and shared lifecycle
 primitives defined here, but applies a separate Project-specific policy for
 triage, priority scoring, and Ready admission. That policy is defined in

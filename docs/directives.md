@@ -134,6 +134,11 @@ lines is valid default intent with no relationships.
 
 ## Errors and deferred work
 
+Issue #34 consumes current Parent/Blocked-By/Blocks through this parser in a
+standalone read-side resolver. Children are discovered from body Parent across
+configured repositories, independent of native SubIssues. Target/Refs do not
+construct its graph. See [engineering-context.md](engineering-context.md).
+
 Errors support `errors.Is` with `ErrContext`, `ErrDirective`, `ErrConflict`,
 `ErrReference`, and `ErrNoncanonical`. Body errors additionally support
 `errors.As` to `*intent.Error` with one-based Line, allowlisted Directive, and

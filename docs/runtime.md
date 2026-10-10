@@ -139,3 +139,7 @@ remains read-only; explicit Runner + Mutator tests exercise authorized writes.
 Engineering/PR/Bug Tracker lifecycle policy, branch authorization, managed
 feedback, decision writing, App token minting, and distributed coordination
 remain later work.
+
+Issue #34's [Engineering context](engineering-context.md) is standalone and is
+not composed into app or CLI execution. #35 will first consume its facts for
+pure lifecycle policy. Default CLI and Phase #3 composition remain unchanged.
