@@ -43,11 +43,20 @@ const (
 	Closed IssueState = "CLOSED"
 )
 
+type TypeSource string
+
+const (
+	AcceptedSemantic TypeSource = "accepted_semantic"
+	ManualNative     TypeSource = "manual_native"
+)
+
 type IssueNode struct {
-	Resource       storage.Resource
-	State          IssueState
-	Classification semanticpolicy.IssueClassification
-	Intent         intent.Intent
+	Resource               storage.Resource
+	State                  IssueState
+	Type                   semanticpolicy.IssueType
+	TypeSource             TypeSource
+	AcceptedClassification *semanticpolicy.IssueClassification
+	Intent                 intent.Intent
 }
 type ParentEdge struct{ Child, Parent storage.Resource }
 type DependencyEdge struct{ Blocker, Blocked storage.Resource }
@@ -96,8 +105,18 @@ func New(c Config) (*Resolver, error) {
 		names[name], ids[repo.ID] = true, true
 	}
 	sort.Slice(repos, func(i, j int) bool { return strings.ToLower(repos[i].Name) < strings.ToLower(repos[j].Name) })
+	types := make(map[string]string)
+	typeIDs := make(map[string]bool)
+	for _, typ := range semanticpolicy.Types() {
+		id := c.Deployment.IssueTypes[string(typ)]
+		if strings.TrimSpace(id) == "" || typeIDs[id] {
+			return nil, fail(ErrInvalid)
+		}
+		types[string(typ)] = id
+		typeIDs[id] = true
+	}
 	// Retain only the deployment identities used here, never caller-owned maps.
-	c.Deployment = config.ResolvedConfig{Organization: c.Deployment.Organization}
+	c.Deployment = config.ResolvedConfig{Organization: c.Deployment.Organization, IssueTypes: types}
 	return &Resolver{c, repos}, nil
 }
 func identity(r storage.Resource) storage.Resource {
@@ -224,14 +243,24 @@ func (r *Resolver) Resolve(ctx context.Context, root storage.Resource) (Context,
 		if err != nil {
 			return Context{}, err
 		}
-		if !ok {
+		node := IssueNode{Resource: o.Resource, State: IssueState(o.Issue.State), Intent: parsed}
+		if ok {
+			classification, err := validateClassification(accepted.Classification)
+			if err != nil {
+				return Context{}, fail(ErrInvalid)
+			}
+			node.Type, node.TypeSource = classification.Type, AcceptedSemantic
+			node.AcceptedClassification = &classification
+		} else if parsed.Effective().Classification {
 			return Context{}, fail(ErrIncomplete)
+		} else {
+			typ := o.Issue.Type
+			if typ == nil || r.cfg.Deployment.IssueTypes[typ.Name] == "" || typ.ID != r.cfg.Deployment.IssueTypes[typ.Name] {
+				return Context{}, fail(ErrInvalid)
+			}
+			node.Type, node.TypeSource = semanticpolicy.IssueType(typ.Name), ManualNative
 		}
-		classification, err := validateClassification(accepted.Classification)
-		if err != nil {
-			return Context{}, fail(ErrInvalid)
-		}
-		nodes[key] = IssueNode{o.Resource, IssueState(o.Issue.State), classification, parsed}
+		nodes[key] = node
 		add := func(ref intent.IssueRef, kind int) error {
 			target, err := r.reference(ref)
 			if err != nil {
@@ -269,14 +298,14 @@ func (r *Resolver) Resolve(ctx context.Context, root storage.Resource) (Context,
 			}
 		}
 		// Discover incoming one-sided dependencies and children of every reached
-		// accepted Phase. Native SubIssues/Parent/BlockedBy never enter this test.
+		// validated Phase. Native SubIssues/Parent/BlockedBy never enter this test.
 		for _, candidate := range keys {
 			if _, done := nodes[candidate]; done {
 				continue
 			}
 			p := listed[candidate].parsed
 			matches := func(ref intent.IssueRef) bool { return ref.Repository == key.Repository && ref.Number == key.Number }
-			relevant := classification.Type == semanticpolicy.Phase && p.Parent != nil && matches(*p.Parent)
+			relevant := node.Type == semanticpolicy.Phase && p.Parent != nil && matches(*p.Parent)
 			for _, ref := range p.BlockedBy {
 				relevant = relevant || matches(ref)
 			}

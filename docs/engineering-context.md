@@ -35,7 +35,7 @@ relevant. Valid unrelated graph declarations do not demand full validation.
 
 Starting with the requested Issue, resolution expands to declared parents and
 dependencies; incoming one-sided dependency declarations are discovered from
-enumeration too. For every reached accepted Phase, all enumerated Issues whose
+enumeration too. For every reached validated Phase, all enumerated Issues whose
 body Parent points to it become candidates, including children in another
 configured repository. Expansion continues until the relevant graph is complete.
 Native SubIssues is not a complete child contract: projection may be absent or
@@ -104,12 +104,34 @@ The coordinator and loader share the same private validation helpers. Accepted
 label slices are caller-owned. Reading the originating event verifies identity
 only; its body/relationships/state never enter context.
 
-Every relevant node requires durable accepted classification. Missing completion
-fails with ErrIncomplete, even when native Issue Type exists or current
-classification automation is disabled. No model invocation, reclassification,
-or native-Type fallback occurs. Initial accepted classification remains durable
-across ordinary content edits, as #27 defines. Native Type drift cannot change
-accepted Phase/Task/Feature/Bug input. Corrupt completion fails with existing
+After parsing the current body, Type authority follows this precedence:
+
+```text
+accepted semantic completion, when present
+    ↓ otherwise, only when effective Classification is disabled
+validated current native Issue Type
+    ↓ otherwise
+ErrIncomplete
+```
+
+Accepted completion wins even when Classification is now disabled or native
+Type has drifted. Without completion, effective Classification enabled fails
+ErrIncomplete and never trusts native Type. With effective Classification disabled
+(including Automation: false), current human-managed native Type must match both
+the exact canonical Phase/Task/Feature/Bug name and its deployment-resolved node
+ID. Missing, unknown, noncanonical, or mismatched Type fails ErrInvalid. New
+validates nonblank, distinct canonical IDs and retains a defensive copy of only
+those Issue Type bindings alongside organization identity.
+
+IssueNode exposes validated Type and TypeSource (`accepted_semantic` or
+`manual_native`), plus an optional AcceptedClassification. The accepted path
+contains the real validated classification with copied labels; the manual path
+has no accepted classification and fabricates no Priority, Effort, Labels, or
+provenance. This preserves deterministic graph/lifecycle input under
+Automation: false / Classification: false. Native relationships remain
+non-authoritative. No model execution or reclassification occurs. Initial
+accepted classification remains durable across ordinary edits, as #27 defines.
+Corrupt completion fails with existing
 semanticflow.ErrCompletion; persistence failures retain semanticflow's bounded
 categories. GitHub and observation errors propagate through their existing typed
 boundaries.

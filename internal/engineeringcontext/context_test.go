@@ -46,7 +46,7 @@ func deployment() config.ResolvedConfig {
 		}
 		return p
 	}
-	return config.ResolvedConfig{Organization: config.Organization{ID: "org", Login: "parametron-io"}, Repositories: []config.Repository{{ID: "engine", Owner: "parametron-io", Name: "parametron-engine"}, {ID: "freecad", Owner: "parametron-io", Name: "parametron-freecad"}}, Engineering: project("E", false), BugTracker: project("B", true)}
+	return config.ResolvedConfig{Organization: config.Organization{ID: "org", Login: "parametron-io"}, Repositories: []config.Repository{{ID: "engine", Owner: "parametron-io", Name: "parametron-engine"}, {ID: "freecad", Owner: "parametron-io", Name: "parametron-freecad"}}, Engineering: project("E", false), BugTracker: project("B", true), IssueTypes: map[string]string{"Phase": "type-phase", "Task": "type-task", "Feature": "type-feature", "Bug": "type-bug"}}
 }
 func resource(repo string, n int64) storage.Resource {
 	return storage.Resource{Owner: "parametron-io", Repository: repo, Kind: "issue", Number: n}
@@ -215,7 +215,7 @@ func TestIntegratedAuthoritativeContextDeterminism(t *testing.T) {
 		if len(out.Nodes) != 4 || len(out.Parents) != 2 || len(out.Dependencies) != 2 {
 			t.Fatal(out)
 		}
-		if out.Nodes[0].Resource.Repository != engine || out.Nodes[0].Resource.Number != 1 || out.Nodes[1].Classification.Type != semanticpolicy.Phase || out.Nodes[3].State != "CLOSED" {
+		if out.Nodes[0].Resource.Repository != engine || out.Nodes[0].Resource.Number != 1 || out.Nodes[1].Type != semanticpolicy.Phase || out.Nodes[3].State != "CLOSED" {
 			t.Fatal(out)
 		}
 		if out.Parents[0].Parent.Number != 45 || out.Parents[1].Child.Repository != freecad {
@@ -235,7 +235,7 @@ func TestIntegratedAuthoritativeContextDeterminism(t *testing.T) {
 		} else if !bytes.Equal(baseline, data) {
 			t.Fatal("unstable JSON")
 		}
-		out.Nodes[0].Classification.Labels[0] = "docs"
+		out.Nodes[0].AcceptedClassification.Labels[0] = "docs"
 		out.Nodes[0].Intent.BlockedBy[0].Number = 999
 	}
 }
@@ -494,5 +494,139 @@ func TestDeepCycleTraversal(t *testing.T) {
 	edges[[2]storage.Resource{resource(engine, count), resource(engine, 1)}] = true
 	if !cyclic(nodes, edges) {
 		t.Fatal("long cycle missed")
+	}
+}
+
+func TestTypeAuthorityWithoutCompletion(t *testing.T) {
+	for _, tc := range []struct {
+		name, body string
+		native     *github.IssueType
+		want       error
+	}{
+		{"enabled", "", &github.IssueType{ID: "type-task", Name: "Task"}, ErrIncomplete},
+		{"disabled", "Classification: false", &github.IssueType{ID: "type-task", Name: "Task"}, nil},
+		{"automation disabled", "Automation: false", &github.IssueType{ID: "type-task", Name: "Task"}, nil},
+		{"missing", "Classification: false", nil, ErrInvalid},
+		{"unknown", "Classification: false", &github.IssueType{ID: "type-other", Name: "Other"}, ErrInvalid},
+		{"wrong id", "Classification: false", &github.IssueType{ID: "wrong", Name: "Task"}, ErrInvalid},
+		{"mismatched name", "Classification: false", &github.IssueType{ID: "type-task", Name: "Bug"}, ErrInvalid},
+		{"noncanonical name", "Classification: false", &github.IssueType{ID: "type-task", Name: "task"}, ErrInvalid},
+		{"missing id", "Classification: false", &github.IssueType{Name: "Task"}, ErrInvalid},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			v := issue(engine, 1, tc.body)
+			v.Type = tc.native
+			f := setup(t, v)
+			out, err := f.resolve(resource(engine, 1))
+			if tc.want != nil {
+				if !errors.Is(err, tc.want) {
+					t.Fatal(err)
+				}
+				return
+			}
+			if err != nil || len(out.Nodes) != 1 {
+				t.Fatal(out, err)
+			}
+			node := out.Nodes[0]
+			if node.Type != semanticpolicy.Task || node.TypeSource != ManualNative || node.AcceptedClassification != nil || f.runs != 0 {
+				t.Fatal(node, f.runs)
+			}
+		})
+	}
+}
+func TestAcceptedTypePrecedence(t *testing.T) {
+	for _, body := range []string{"", "Classification: false", "Automation: false"} {
+		t.Run(body, func(t *testing.T) {
+			f := setup(t, issue(engine, 1, ""))
+			f.accept(resource(engine, 1), semanticpolicy.Task)
+			v := f.issues[resource(engine, 1)]
+			v.Body = body
+			v.Type = &github.IssueType{ID: "type-bug", Name: "Bug"}
+			f.issues[resource(engine, 1)] = v
+			out, err := f.resolve(resource(engine, 1))
+			if err != nil {
+				t.Fatal(err)
+			}
+			node := out.Nodes[0]
+			if node.Type != semanticpolicy.Task || node.TypeSource != AcceptedSemantic || node.AcceptedClassification == nil || node.AcceptedClassification.Type != semanticpolicy.Task {
+				t.Fatal(node)
+			}
+		})
+	}
+}
+func TestManualPhaseCrossRepositoryDiscoveryStable(t *testing.T) {
+	for _, manualPhase := range []bool{false, true} {
+		t.Run(fmt.Sprint(manualPhase), func(t *testing.T) {
+			phase := issue(engine, 45, "")
+			child := issue(freecad, 1, "Parent: parametron-io/parametron-engine#45")
+			if manualPhase {
+				phase.Body = "Automation: false"
+				phase.Type = &github.IssueType{ID: "type-phase", Name: "Phase"}
+			} else {
+				child.Body += "\nClassification: false"
+				child.Type = &github.IssueType{ID: "type-task", Name: "Task"}
+			}
+			f := setup(t, phase, child)
+			if manualPhase {
+				f.accept(resource(freecad, 1), semanticpolicy.Task)
+			} else {
+				f.accept(resource(engine, 45), semanticpolicy.Phase)
+			}
+			var baseline []byte
+			for n := 0; n < 10; n++ {
+				out, err := f.resolve(resource(engine, 45))
+				if err != nil || len(out.Nodes) != 2 || len(out.Parents) != 1 {
+					t.Fatal(out, err)
+				}
+				manual := out.Nodes[1]
+				if manualPhase {
+					manual = out.Nodes[0]
+				}
+				if manual.TypeSource != ManualNative || manual.AcceptedClassification != nil {
+					t.Fatal(manual)
+				}
+				data, err := json.Marshal(out)
+				if err != nil {
+					t.Fatal(err)
+				}
+				if n == 0 {
+					baseline = data
+				} else if !bytes.Equal(baseline, data) {
+					t.Fatal("unstable JSON")
+				}
+			}
+		})
+	}
+}
+func TestTypeBindingsSnapshot(t *testing.T) {
+	v := issue(engine, 1, "Classification: false")
+	v.Type = &github.IssueType{ID: "type-task", Name: "Task"}
+	f := setup(t, v)
+	c := f.resolver.cfg
+	c.Deployment = deployment()
+	resolver, err := New(c)
+	if err != nil {
+		t.Fatal(err)
+	}
+	c.Deployment.IssueTypes["Task"] = "changed"
+	if _, err := resolver.Resolve(context.Background(), resource(engine, 1)); err != nil {
+		t.Fatal("caller mutation changed bindings", err)
+	}
+	for _, typ := range semanticpolicy.Types() {
+		for _, duplicate := range []bool{false, true} {
+			c.Deployment = deployment()
+			if duplicate {
+				other := "Task"
+				if typ == semanticpolicy.Task {
+					other = "Phase"
+				}
+				c.Deployment.IssueTypes[string(typ)] = c.Deployment.IssueTypes[other]
+			} else {
+				c.Deployment.IssueTypes[string(typ)] = " "
+			}
+			if _, err := New(c); !errors.Is(err, ErrInvalid) {
+				t.Fatal(typ, duplicate, err)
+			}
+		}
 	}
 }
