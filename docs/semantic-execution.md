@@ -14,9 +14,11 @@ The only supported, code-owned cheap capabilities are `ClassifyIssue`
 (`estimate_issue`). Unknown capabilities, including heavy-agent capabilities,
 fail before adapter execution.
 
-`Request{Capability, Input{Title, Body}}` contains selected semantic content only.
-This deliberately small envelope leaves normalized planning-context design to
-#26. It has no provider/model choice, credentials, URLs, commands, headers,
+`Request{Capability, Input{Title, Body, Context}}` contains selected semantic content
+only. #26 supplies optional immutable `ContextJSON` from typed normalized planning
+context; JSON encoding emits it as an object, not prose. Existing named Title/Body
+inputs remain compatible; positional literals need the extra field. It has no
+provider/model choice, credentials, URLs, commands, headers,
 environment, callbacks, or GitHub client. Callers are responsible for selecting
 content; the type cannot prevent a secret being pasted into ordinary prose.
 
@@ -31,9 +33,10 @@ reading, secret loading, GitHub access, or logging is implemented here.
 object. Empty responses, prose, invalid JSON, scalar/array/null responses, and
 trailing values are rejected. The runner does not enforce schema fields, duplicate
 output properties, semantic allowlists, or workflow policy. Even an empty object
-or out-of-domain estimate passes this execution check; #26 must reject unsuitable
-output before it can be accepted. Schema assets describe the intended field
-shape, not implemented semantic validation.
+or out-of-domain estimate passes this execution check; #26's `internal/semanticpolicy`
+rejects unsuitable output before acceptance. See [semantic-policy.md](semantic-policy.md)
+for strict Go-owned validation. Schema assets guide providers; execution does not
+enforce them.
 
 ## Deployment selection and construction
 
@@ -67,12 +70,17 @@ There are no global registries, init hooks, discovery, or plugin loading.
 
 | Capability | Prompt | JSON Schema |
 | --- | --- | --- |
-| classify_issue | `prompts/cheap/classify_issue-v1.txt` | `schemas/model/classify_issue-v1.json` |
-| classify_pr | `prompts/cheap/classify_pr-v1.txt` | `schemas/model/classify_pr-v1.json` |
-| estimate_issue | `prompts/cheap/estimate_issue-v1.txt` | `schemas/model/estimate_issue-v1.json` |
+| classify_issue | `prompts/cheap/classify_issue.txt` | `schemas/model/classify_issue.json` |
+| classify_pr | `prompts/cheap/classify_pr.txt` | `schemas/model/classify_pr.json` |
+| estimate_issue | `prompts/cheap/estimate_issue.txt` | `schemas/model/estimate_issue.json` |
 
-Each selected asset has explicit version `v1` and identity equal to its canonical
-path. Prompt/schema contents are immutable strings in a typed Catalog. Empty or
+Each selected asset has identity equal to its stable canonical path and a digest
+of the exact loaded bytes: SHA-256 formatted as `sha256:<64 lowercase hex digits>`.
+Git provides historical versioning; obsolete v1/v2 copies and contract-version
+fields are removed because no deployed/persisted consumer needs parallel contracts.
+Digests identify actual content even in a dirty checkout. A future build may record
+its controller Git revision separately; this boundary does not invoke Git or add
+runtime revision discovery. Prompt/schema contents are immutable strings in a typed Catalog. Empty or
 missing prompts and missing/invalid JSON object schemas fail with `ErrAssets`,
 without filesystem diagnostics or content in errors. There is no automatic
 working-directory lookup, duplicated asset tree, or generated embedding workaround.
@@ -82,8 +90,9 @@ assets. No installed controller dependency on a developer checkout is introduced
 
 Schemas use JSON Schema draft 2020-12, required named fields, and
 `additionalProperties: false`. Issue classification names type/labels/priority/
-effort; PR classification names labels; estimation names estimate. Semantic
-value restrictions and detailed prompt refinements remain #26 work.
+effort; PR classification names labels; estimation names estimate. #26's canonical
+assets specify exact enums and unique labels. Tests verify content digests and
+schema consistency with Go policy.
 
 ## Cancellation, timeout, and errors
 
@@ -123,7 +132,7 @@ provider switching, backoff, or jitter occurs.
 ## Provenance and test fakes
 
 Every successful result includes capability, provider, model, prompt identity,
-prompt version, schema identity, and schema version. Metadata includes no raw
+prompt digest, schema identity, and schema digest. Metadata includes no raw
 prompt, input, output, credentials, GitHub identifiers, or timestamps. Output is
 returned separately for Go validation. Provenance is not persisted by this package.
 

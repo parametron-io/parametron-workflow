@@ -1,19 +1,27 @@
 package semantic
 
 import (
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"io/fs"
 	"strings"
 )
 
-// Asset content is immutable text. Identity and version are code-owned.
-type Asset struct{ Identity, Version, Content string }
+// Asset identity is its canonical path. Digest identifies the exact loaded bytes.
+// Content is immutable text; Git retains historical contracts.
+type Asset struct{ Identity, Digest, Content string }
 type Assets struct{ Prompt, Schema Asset }
 type Catalog struct{ assets map[Capability]Assets }
 
 func capabilities() []Capability { return []Capability{ClassifyIssue, ClassifyPR, EstimateIssue} }
 func assetPaths(c Capability) (string, string) {
-	return "prompts/cheap/" + string(c) + "-v1.txt", "schemas/model/" + string(c) + "-v1.json"
+	return "prompts/cheap/" + string(c) + ".txt", "schemas/model/" + string(c) + ".json"
+}
+
+func asset(identity string, content []byte) Asset {
+	sum := sha256.Sum256(content)
+	return Asset{Identity: identity, Digest: "sha256:" + hex.EncodeToString(sum[:]), Content: string(content)}
 }
 
 // LoadCatalog reads only fixed canonical paths from an explicitly supplied FS.
@@ -38,7 +46,7 @@ func LoadCatalog(source fs.FS) (Catalog, error) {
 		if json.Unmarshal(schema, &object) != nil || object == nil {
 			return Catalog{}, ErrAssets
 		}
-		catalog.assets[c] = Assets{Asset{promptPath, "v1", string(prompt)}, Asset{schemaPath, "v1", string(schema)}}
+		catalog.assets[c] = Assets{Prompt: asset(promptPath, prompt), Schema: asset(schemaPath, schema)}
 	}
 	return catalog, nil
 }

@@ -1,8 +1,8 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "title": "estimate_issue v1",
+  "title": "estimate_issue",
   "type": "object",
-  "properties": {"estimate": {"type": "integer"}},
+  "properties": {"estimate": {"type": "integer", "enum": [1, 2, 3, 5, 8, 13]}},
   "required": ["estimate"],
   "additionalProperties": false
 }
