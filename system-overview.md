@@ -118,6 +118,15 @@ workflow behavior must continue to operate.
 
 ### 3.2 Cheap semantic model
 
+Issue #25 implements a standalone replaceable execution boundary in
+`internal/semantic` for `classify_issue`, `classify_pr`, and `estimate_issue`.
+Workflow callers request a capability; separate deployment configuration selects
+one cheap provider/model through constructor-injected adapters. Versioned prompt
+and schema assets, bounded execution, and provenance are documented in
+[docs/semantic-execution.md](docs/semantic-execution.md). No production provider,
+classification policy, durable integration, or GitHub mutation is implemented
+by this boundary. Semantic output is not workflow authority.
+
 A cheap LLM is used only for bounded semantic interpretation: initial
 classification and relative work estimation.
 
