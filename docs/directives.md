@@ -57,8 +57,9 @@ dependency, membership, close/reopen and lifecycle processing are outside the
 parser and are not disabled by this switch.
 
 `Intent.CreateBranch` is a separate explicit `Boolean`. Absence means
-unresolved/default-needed, never an effective false. Later normalized-type
-policy owns the defaults: Phase false, Task/Feature/Bug true, PR not applicable.
+unresolved/default-needed, never an effective false. #35 Engineering policy
+resolves Phase false and Task/Feature true; Bug defaults belong to Bug Tracker
+policy, and PR is not applicable.
 The parser accepts explicit true/false without determining applicability.
 
 ## Relationship grammar
@@ -149,5 +150,10 @@ Invalid context is rejected before body parsing.
 #25 owns semantic runner/provider execution; #26 owns validated classification
 and estimation; #27 owns durable semantic integration, stale-result rejection
 and classification-pending safety; #28 owns GitHub metadata/Project convergence.
-None is implemented or wired by this package. Relationship projection, branch
-authorization, and lifecycle policy also remain later work.
+None is implemented or wired by this parser package. #35 now computes pure
+pre-development lifecycle, Create-Branch defaults, execution eligibility, and
+Set-Status ownership in
+[engineering-lifecycle-policy.md](engineering-lifecycle-policy.md). Canonical
+Status and eligibility are independent of Set-Status ownership and Automation
+suppression. Relationship projection, branch creation, and lifecycle mutation
+remain later work.
