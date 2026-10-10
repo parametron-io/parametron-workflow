@@ -7,6 +7,15 @@ success; it does not classify, calculate desired state, mutate GitHub, log input
 or persist fabricated decisions. A completed event means this foundation handoff
 succeeded. Observation and PolicyInput are not authorization.
 
+Supplying `app.Config.Runner` explicitly composes #27's durable semantic coordinator
+using the shared Store and client. `SemanticConsumer` receives enriched input, or
+`SemanticFoundationSink` acknowledges accepted/not-required input without mutation.
+This boundary requires an enriched consumer: an old Consumer cannot be combined
+with Runner, and SemanticConsumer requires Runner. No production provider or CLI
+semantic flags exist. Without Runner, the foundation above is unchanged. See
+[semantic-integration.md](semantic-integration.md) for gating, freshness, durable
+completion, and restart behavior.
+
 ## Command and deployment
 
 ```sh
@@ -79,8 +88,12 @@ The application's non-GitHub classifier uses terminal categories
 `observe_identity`, `observe_repository`, `observe_binding`,
 `observe_observation`, and `observe_configuration` via errors.Is. Unknown local
 errors use terminal `local_processor`. No substring classification or raw error
-string persistence occurs. Event-level outcomes do not crash the application;
-worker infrastructure or HTTP listener/server failures stop the other component
+string persistence occurs.
+Semantic processing uses bounded retryable/terminal categories documented in
+[semantic-integration.md](semantic-integration.md); process cancellation still
+releases the claim rather than creating terminal semantic failure.
+Event-level outcomes do not crash the application; worker infrastructure or
+HTTP listener/server failures stop the other component
 and return a bounded error. Startup failures identify the failed boundary.
 No payloads, signatures, Issue/PR bodies, PolicyInput, credentials, or arbitrary
 provider errors are logged by runtime composition.
@@ -117,8 +130,8 @@ component propagation, and cancellation/reopen. Command tests cover strict file
 loading, missing/malformed config, invalid secrets, and replaceable credentials.
 No test needs real GitHub, credentials, external HTTP, or gh.
 
-Phase 2 documentation is ready for closure. Semantic/model integration,
-Engineering/PR/Bug Tracker lifecycle policy, directives, desired-state
+Phase 2 and injectable initial semantic classification are integrated.
+Engineering/PR/Bug Tracker lifecycle policy, desired-state
 reconciliation, branch authorization, managed feedback, decision writing,
 GitHub mutation APIs, App token minting, and distributed coordination remain
 later work. No GitHub state is mutated by this runtime or its integration tests.

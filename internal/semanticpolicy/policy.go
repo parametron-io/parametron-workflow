@@ -51,7 +51,9 @@ type IssueClassification struct {
 	Priority Priority  `json:"priority"`
 	Effort   Effort    `json:"effort"`
 }
-type PRClassification struct{ Labels []Label }
+type PRClassification struct {
+	Labels []Label `json:"labels"`
+}
 type AcceptedIssue struct {
 	Classification IssueClassification
 	Provenance     semantic.Provenance
@@ -192,6 +194,27 @@ func issue(raw []byte) (IssueClassification, error) {
 	return validateClassification(IssueClassification{t, l, p, e})
 }
 
+// DecodeIssueClassification validates durable classification with the same strict
+// schema and domains as fresh model output; it performs no semantic execution.
+func DecodeIssueClassification(raw []byte) (IssueClassification, error) { return issue(raw) }
+
+// DecodePRClassification is the corresponding durable PR validation boundary.
+func DecodePRClassification(raw []byte) (PRClassification, error) {
+	o, err := object(raw, "labels")
+	if err != nil {
+		return PRClassification{}, err
+	}
+	labels, err := decode[[]Label](o["labels"])
+	if err != nil {
+		return PRClassification{}, err
+	}
+	labels, err = normalizeLabels(labels)
+	if err != nil {
+		return PRClassification{}, err
+	}
+	return PRClassification{labels}, nil
+}
+
 type Service struct{ Runner semantic.Runner }
 
 func (s Service) run(ctx context.Context, c semantic.Capability, input semantic.Input) (semantic.Result, error) {
@@ -223,19 +246,11 @@ func (s Service) ClassifyPR(ctx context.Context, title, body string) (AcceptedPR
 	if err != nil {
 		return AcceptedPR{}, err
 	}
-	o, err := object(r.Output, "labels")
+	c, err := DecodePRClassification(r.Output)
 	if err != nil {
 		return AcceptedPR{}, err
 	}
-	labels, err := decode[[]Label](o["labels"])
-	if err != nil {
-		return AcceptedPR{}, err
-	}
-	labels, err = normalizeLabels(labels)
-	if err != nil {
-		return AcceptedPR{}, err
-	}
-	return AcceptedPR{PRClassification{labels}, r.Provenance}, nil
+	return AcceptedPR{c, r.Provenance}, nil
 }
 func (s Service) EstimateIssue(ctx context.Context, planning PlanningContext) (AcceptedEstimate, error) {
 	input, err := planning.input()

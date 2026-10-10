@@ -126,8 +126,11 @@ and schema assets with content-digest provenance and bounded execution are docum
 [docs/semantic-execution.md](docs/semantic-execution.md). Issue #26 adds strict
 classification/Estimate validation and typed normalized planning context in
 `internal/semanticpolicy`, documented in
-[docs/semantic-policy.md](docs/semantic-policy.md). No production provider,
-durable semantic integration, or semantic GitHub mutation is implemented.
+[docs/semantic-policy.md](docs/semantic-policy.md). Issue #27 implements injectable
+durable initial classification, gating, Pending safety, completion reuse, and
+stale-result rejection in `internal/semanticflow`, documented in
+[docs/semantic-integration.md](docs/semantic-integration.md). No production
+provider or semantic GitHub mutation is implemented.
 Semantic output is not workflow authority.
 
 A cheap LLM is used only for bounded semantic interpretation: initial

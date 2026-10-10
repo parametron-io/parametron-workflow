@@ -51,6 +51,11 @@ ID where configured. A mismatch produces `ErrObservation`, with no policy call.
 The bound historical NodeID is ignored and replaced only in the observation by
 the current primary result's node ID.
 
+`Processor.ReadPrimary(ctx, resource)` shares these checks with normal processing
+and returns primary state without Project reads or consumer calls. #27 uses this
+read-only boundary for post-model content revalidation; its Projects are nil and
+it is not a complete policy observation. See [semantic-integration.md](semantic-integration.md).
+
 Current Issue properties, nullable author/type, parent, sub-issues, blocked-by,
 blocking, and linked PRs are retained. Current PR properties include Draft,
 state, head/base refs and SHAs, author, and closing Issues. Bodies remain unparsed;
@@ -133,7 +138,9 @@ SQLite store. No webhook HTTP server, startup, credentials, or network participa
 `internal/app` integrates source preparation, the shared GitHub client and Store,
 this resolver/processor, worker Run, and signed HTTP ingress. The production
 `app.FoundationSink` accepts PolicyInput and returns success without policy,
-classification, mutations, logs of input, or decision persistence. Integration
+classification, mutations, logs of input, or decision persistence. Supplying
+app.Config.Runner instead composes #27's semantic coordinator and enriched
+consumer; semantic output remains separate from observed GitHub metadata. Integration
 tests inject recording consumers and prove current-state handoff through signed
 HTTP, SQLite, retries, restart, FIFO ordering, and shutdown. Lifecycle policy and
 decision writing remain later phases. See [runtime.md](runtime.md).
