@@ -6,7 +6,7 @@ boundary over `semantic.Runner`. `Service{Runner}` exposes `ClassifyIssue`,
 capability request, invokes Runner once, validates untrusted output, and returns
 a typed accepted result retaining execution provenance. Invalid requests do not
 invoke Runner. There is no retry, persistence, GitHub client, mutation, lifecycle
-progression, or controller runtime wiring. Semantic judgement is not workflow
+progression within this package. Semantic judgement is not workflow
 authority.
 
 The dependency direction is semanticpolicy → semantic and intent; semantic
@@ -143,8 +143,12 @@ ErrInapplicable. Messages contain no untrusted values. Runner errors propagate
 unchanged, retaining cancellation, timeout, provider, and execution-response
 categories. No retryability is decided here.
 
-#27 owns durable processing, pending state, execution gating, retries/restarts,
-current-state revalidation, stale-result rejection, and completion persistence.
+#27 implements durable processing, pending state, execution gating, retries/restarts,
+current-state revalidation, stale-result rejection, and completion persistence
+in [semantic-integration.md](semantic-integration.md). Exported strict
+DecodeIssueClassification/DecodePRClassification helpers reuse this package's
+schemas and domains for durable records without model execution.
 #28 owns Issue Type/Priority/Effort/labels convergence, unmanaged preservation,
 Project routing/membership/fields, and GitHub mutations. Neither is implemented
-by #26, and the semantic service is not wired into app.Run.
+by this policy package. App composition uses the coordinator only with an explicitly
+supplied Runner; the default CLI has no provider.

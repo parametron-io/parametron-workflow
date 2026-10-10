@@ -31,8 +31,9 @@ and a durable worker execution foundation with resource FIFO scheduling,
 current GitHub observation, a normalized policy-input handoff, and independently
 testable deterministic body-directive parsing, and a standalone provider-agnostic
 cheap semantic execution boundary with strict classification and Estimate policy.
-Semantic policy is independently testable and is not durably wired into the
-running controller.
+Durable initial classification is available through an explicitly injected Runner,
+with gating, Pending safety, stale-result rejection, and completion reuse. The
+default CLI retains the no-semantic foundation because no production provider exists.
 Workflow lifecycle capabilities are not yet implemented.
 
 The current design covers the shared controller model, the **Parametron
@@ -84,15 +85,16 @@ Resource identity, current-state observation, and the policy-facing authority
 handoff are documented in [docs/observation.md](docs/observation.md).
 
 Deterministic explicit intent, defaults, references, and parser boundaries are
-documented in [docs/directives.md](docs/directives.md). The parser is not yet
-wired into the runtime.
+documented in [docs/directives.md](docs/directives.md). Explicit semantic composition
+uses the parser at the current-state boundary.
 
 Cheap semantic capabilities, provider injection, canonical prompt/schema assets
 with content-digest provenance,
 timeouts, errors, and test fakes are documented in
-[docs/semantic-execution.md](docs/semantic-execution.md). This boundary is not yet
-wired into the runtime. Strict classification, Estimate ownership, and normalized
+[docs/semantic-execution.md](docs/semantic-execution.md). Strict classification, Estimate ownership, and normalized
 planning context are documented in [docs/semantic-policy.md](docs/semantic-policy.md).
+Durable gating, freshness, completion, and recovery are documented in
+[docs/semantic-integration.md](docs/semantic-integration.md).
 
 ## Development
 
@@ -133,8 +135,8 @@ changes with `nix develop --command gofmt -w <files>`.
 `internal/app` owns schema preparation, one Store, observer/worker/webhook
 construction, HTTP serving, cancellation coordination, and shutdown.
 `app.Prepare` composes live discovery with deterministic configuration resolution.
-Phase 2 is integrated; semantic classification and workflow lifecycle policy
-remain later phases.
+Phase 2 and injectable durable initial classification are integrated. GitHub
+semantic reconciliation and workflow lifecycle policy remain later work.
 
 ## License
 

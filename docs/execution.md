@@ -96,12 +96,14 @@ These are durable claims and at-least-once recovery of unfinished work, not
 exactly-once external effects. Completed events are not intentionally re-executed,
 and delivery deduplication does not reset their state. Later side-effecting
 processors must use appropriate idempotency/provenance protocols; the generic
-storage provenance surface is available but no workflow-specific facts are added.
+storage provenance surface is available. #27's semantic coordinator now uses it
+for initial classification completion; see [semantic-integration.md](semantic-integration.md).
 
 ## Runtime integration
 
 `internal/app` constructs the worker with the production observer, an explicit
-terminal local-error classifier, and a fixed positive retry delay (default 30s).
+local-error classifier (including stable semantic retry/terminal categories),
+and a fixed positive retry delay (default 30s).
 It runs `Worker.Run` with a poll interval of at least 1s (default 1s) beside HTTP
 ingress. The worker retains sole recovery, eligibility, ordering, and settlement
 authority. One process must exclusively own the database; no distributed

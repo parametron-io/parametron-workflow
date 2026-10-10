@@ -16,6 +16,8 @@ import (
 	"github.com/parametron-io/parametron-workflow/internal/config"
 	"github.com/parametron-io/parametron-workflow/internal/github"
 	"github.com/parametron-io/parametron-workflow/internal/observe"
+	"github.com/parametron-io/parametron-workflow/internal/semantic"
+	"github.com/parametron-io/parametron-workflow/internal/semanticflow"
 	"github.com/parametron-io/parametron-workflow/internal/storage"
 	"github.com/parametron-io/parametron-workflow/internal/webhook"
 	"github.com/parametron-io/parametron-workflow/internal/worker"
@@ -37,7 +39,11 @@ type Config struct {
 	PollInterval  time.Duration
 	RetryDelay    time.Duration
 	Consumer      observe.Consumer
-	Clock         func() time.Time
+	// Runner explicitly enables durable semantic integration; the default CLI
+	// retains FoundationSink. SemanticConsumer receives the enriched handoff.
+	Runner           semantic.Runner
+	SemanticConsumer semanticflow.Consumer
+	Clock            func() time.Time
 	// Deployment is the result of Prepare, never an alternative startup input.
 	Deployment *config.ResolvedConfig
 }
@@ -48,7 +54,14 @@ type FoundationSink struct{}
 
 func (FoundationSink) Evaluate(context.Context, observe.PolicyInput) error { return nil }
 
+type SemanticFoundationSink struct{}
+
+func (SemanticFoundationSink) Evaluate(context.Context, semanticflow.PolicyInput) error { return nil }
+
 func classify(err error) worker.Classification {
+	if retryable, category, ok := semanticflow.FailureCategory(err); ok {
+		return worker.Classification{Retryable: retryable, Category: category}
+	}
 	category := "local_processor"
 	for _, item := range []struct {
 		err      error
@@ -67,6 +80,9 @@ func classify(err error) worker.Classification {
 }
 
 func (c Config) validate() error {
+	if c.Runner == nil && c.SemanticConsumer != nil || c.Runner != nil && c.Consumer != nil {
+		return errors.New("app: semantic composition requires Runner and enriched consumer boundary")
+	}
 	if strings.TrimSpace(c.DataDir) == "" {
 		return errors.New("app: data directory required")
 	}
@@ -170,6 +186,24 @@ func compose(ctx context.Context, c Config) (_ *runtime, result error) {
 			result = errors.Join(result, store.Close())
 		}
 	}()
+	if c.Runner != nil {
+		consumer := c.SemanticConsumer
+		if consumer == nil {
+			consumer = SemanticFoundationSink{}
+		}
+		clock := c.Clock
+		if clock == nil {
+			clock = time.Now
+		}
+		coordinator, err := semanticflow.New(semanticflow.Config{Store: store, Runner: c.Runner, Primary: processor, Consumer: consumer, Clock: clock})
+		if err != nil {
+			return nil, err
+		}
+		processor, err = observe.NewProcessor(*prepared.Deployment, c.Client, coordinator)
+		if err != nil {
+			return nil, err
+		}
+	}
 	w, err := worker.New(worker.Config{Store: store, Resolver: resolver, Processor: processor, Classifier: classify, Concurrency: c.Concurrency, Clock: c.Clock,
 		RetrySchedule: func(_ worker.Classification, _ int64, now time.Time) time.Time { return now.Add(c.RetryDelay) }})
 	if err != nil {

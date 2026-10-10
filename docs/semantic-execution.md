@@ -1,7 +1,9 @@
 # Bounded semantic execution
 
 Issue #25 establishes `internal/semantic`, independently usable with only the Go
-standard library. It is not wired into the controller. Semantic output is
+standard library. #27's explicit Runner composition wires it into durable
+classification as documented in [semantic-integration.md](semantic-integration.md).
+The default CLI has no provider. Semantic output is
 untrusted input, not workflow authority: LLM interprets semantic content, Go owns
 policy and mutations, and GitHub records observable state. Observation is not
 authorization.
@@ -154,8 +156,9 @@ implemented or added to the cheap capability set.
 #26 combines parsed explicit intent with semantic judgement and implements exact
 schema/allowlist validation, normalized planning context, and prompt refinements.
 This package does not import `internal/intent`.
-#27 owns runtime/durable integration, classification pending, current-state
-revalidation, stale-result rejection, retries/restarts, and accepted completion.
+#27 implements runtime/durable integration, classification pending, current-state
+revalidation, stale-result rejection, retries/restarts, and accepted completion
+in `internal/semanticflow`.
 #28 owns authorized GitHub metadata and Project-routing convergence.
-No app/worker/webhook wiring, SQLite schema, jobs, decisions, lifecycle policy,
+This execution package introduces no app/worker/webhook wiring, SQLite schema, jobs, decisions, lifecycle policy,
 relationship edges, branch authorization, or GitHub mutations are introduced.

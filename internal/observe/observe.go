@@ -91,14 +91,45 @@ func (p *Processor) Process(ctx context.Context, e storage.Event) error {
 	if e.Resource == nil {
 		return ErrBinding
 	}
-	r := *e.Resource
+	o, err := p.ReadPrimary(ctx, *e.Resource)
+	if err != nil {
+		return err
+	}
+	if o.Presence == Missing {
+		return p.consumer.Evaluate(ctx, PolicyInput{e.Delivery.ID, e.Sequence, o})
+	}
+	r := o.Resource
+	for _, project := range []struct {
+		profile config.Profile
+		binding config.ResolvedProject
+	}{{config.Engineering, p.deployment.Engineering}, {config.BugTracker, p.deployment.BugTracker}} {
+		fields := map[string]config.FieldKind{}
+		for role, id := range project.binding.Fields {
+			fields[id] = fieldKind(role)
+		}
+		items, err := p.client.ProjectItems(ctx, r.NodeID, project.binding.ID, fields)
+		if err != nil {
+			return err
+		}
+		state, err := normalizeProject(project.profile, project.binding, r.NodeID, r.Kind, items)
+		if err != nil {
+			return err
+		}
+		o.Projects = append(o.Projects, state)
+	}
+	return p.consumer.Evaluate(ctx, PolicyInput{e.Delivery.ID, e.Sequence, o})
+}
+
+// ReadPrimary reuses observation identity verification without fetching Projects.
+// Projects is nil: this is a primary read, not a complete policy observation.
+func (p *Processor) ReadPrimary(ctx context.Context, r storage.Resource) (ObservedState, error) {
 	r.Owner, r.Repository, r.NodeID = strings.ToLower(r.Owner), strings.ToLower(r.Repository), ""
 	if r.Number <= 0 || int64(int(r.Number)) != r.Number || (r.Kind != "issue" && r.Kind != "pull_request") {
-		return ErrBinding
+		return ObservedState{}, ErrBinding
 	}
 	repo, err := repository(p.deployment, r)
 	if err != nil {
-		return err
+		return ObservedState{}, err
 	}
 	// Use discovered spelling for the GitHub client, lowercase for durable identity.
 	ref := github.Ref{Owner: repo.Owner, Repository: repo.Name, Number: int(r.Number)}
@@ -124,36 +155,16 @@ func (p *Processor) Process(ctx context.Context, e storage.Event) error {
 	if err != nil {
 		var ge *github.Error
 		if !errors.As(err, &ge) || ge.Category != github.NotFound {
-			return err
+			return ObservedState{}, err
 		}
 		o = ObservedState{Resource: r, Presence: Missing}
-		return p.consumer.Evaluate(ctx, PolicyInput{e.Delivery.ID, e.Sequence, o})
+		return o, nil
 	}
 	if strings.TrimSpace(identity.ID) == "" || identity.Number != ref.Number || !strings.EqualFold(identity.Repository.Owner, repo.Owner) || !strings.EqualFold(identity.Repository.Name, repo.Name) || (repo.ID != "" && identity.Repository.ID != repo.ID) {
-		return ErrObservation
+		return ObservedState{}, ErrObservation
 	}
 	o.Resource.NodeID = identity.ID
-	for _, project := range []struct {
-		profile config.Profile
-		binding config.ResolvedProject
-	}{{config.Engineering, p.deployment.Engineering}, {config.BugTracker, p.deployment.BugTracker}} {
-		fields := map[string]config.FieldKind{}
-		for role, id := range project.binding.Fields {
-			fields[id] = fieldKind(role)
-		}
-		items, err := p.client.ProjectItems(ctx, identity.ID, project.binding.ID, fields)
-		// In particular, not_found here discards the entire observation. The worker
-		// retains its existing classification; no partial state reaches policy.
-		if err != nil {
-			return err
-		}
-		state, err := normalizeProject(project.profile, project.binding, identity.ID, r.Kind, items)
-		if err != nil {
-			return err
-		}
-		o.Projects = append(o.Projects, state)
-	}
-	return p.consumer.Evaluate(ctx, PolicyInput{e.Delivery.ID, e.Sequence, o})
+	return o, nil
 }
 
 func fieldKind(role config.FieldRole) config.FieldKind {

@@ -132,6 +132,10 @@ processing metadata and resource binding changes.
 
 This surface records generic one-shot facts only. Branch creation, PR onboarding,
 managed feedback, and their authorization/recovery protocols remain later work.
+Issue #27 uses this unchanged surface for namespace `semantic.classification`
+and format-1 bounded, canonical initial-classification completion records;
+decoding, gating, and authorization stay in `internal/semanticflow`. See
+[semantic-integration.md](semantic-integration.md). No migration is required.
 A committed record alone does not establish exactly-once execution of an external
 side effect.
 
