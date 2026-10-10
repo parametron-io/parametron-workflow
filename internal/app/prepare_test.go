@@ -22,12 +22,13 @@ func preparationFixture() (config.SourceConfig, config.Schema) {
 			roles = append(roles, config.PriorityScore)
 			statuses = append(statuses, config.ToTriage)
 		} else {
+			roles = append(roles, config.RoadmapOrder)
 			statuses = append(statuses, config.Blocked)
 		}
 		for _, r := range roles {
 			b.Fields[r] = string(r)
 			kind := config.SingleSelect
-			if r == config.Estimate || r == config.PriorityScore {
+			if r == config.Estimate || r == config.PriorityScore || r == config.RoadmapOrder {
 				kind = config.Number
 			}
 			if r == config.StartDate {

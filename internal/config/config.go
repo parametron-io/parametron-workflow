@@ -29,6 +29,7 @@ const (
 	Estimate      FieldRole = "estimate"
 	StartDate     FieldRole = "start_date"
 	PriorityScore FieldRole = "priority_score"
+	RoadmapOrder  FieldRole = "roadmap_order"
 )
 
 type StatusRole string
@@ -49,6 +50,8 @@ func fieldRoles(p Profile) []FieldRole {
 	roles := []FieldRole{Status, Priority, Effort, Estimate, StartDate}
 	if p == BugTracker {
 		roles = append(roles, PriorityScore)
+	} else {
+		roles = append(roles, RoadmapOrder)
 	}
 	return roles
 }

@@ -18,7 +18,7 @@ func fixture() (SourceConfig, Schema) {
 			b.Fields[role] = string(role) + " name"
 			kind := SingleSelect
 			switch role {
-			case Estimate, PriorityScore:
+			case Estimate, PriorityScore, RoadmapOrder:
 				kind = Number
 			case StartDate:
 				kind = Date
@@ -135,6 +135,8 @@ func TestValidate(t *testing.T) {
 		}, "already bound"},
 		{"unknown profile", func(s *SourceConfig) { s.Projects["custom"] = ProjectBinding{} }, "unknown profile"},
 		{"unknown field", func(s *SourceConfig) { s.Projects[Engineering].Fields["custom"] = "Custom" }, "unsupported field"},
+		{"Engineering rejects score", func(s *SourceConfig) { s.Projects[Engineering].Fields[PriorityScore] = "Priority Score" }, "unsupported field"},
+		{"Bug Tracker rejects roadmap", func(s *SourceConfig) { s.Projects[BugTracker].Fields[RoadmapOrder] = "Roadmap Order" }, "unsupported field"},
 		{"contradictory status", func(s *SourceConfig) { s.Projects[BugTracker].StatusOptions[Blocked] = "Blocked" }, "unsupported status"},
 	}
 	for _, tc := range tests {
@@ -174,6 +176,7 @@ func TestResolution(t *testing.T) {
 		{"incompatible status", func(s *Schema) { s.Projects[0].Fields[0].Kind = Date }, "incompatible kind"},
 		{"incompatible date", func(s *Schema) { s.Projects[0].Fields[4].Kind = Number }, "incompatible kind"},
 		{"incompatible score", func(s *Schema) { s.Projects[1].Fields[5].Kind = SingleSelect }, "incompatible kind"},
+		{"incompatible roadmap", func(s *Schema) { s.Projects[0].Fields[5].Kind = SingleSelect }, "fields.roadmap_order"},
 		{"missing option", func(s *Schema) { s.Projects[0].Fields[0].Options = nil }, "status_options.backlog"},
 		{"ambiguous option", func(s *Schema) { f := &s.Projects[0].Fields[0]; f.Options = append(f.Options, f.Options[0]) }, "found 2"},
 		{"exact case", func(s *Schema) { s.Projects[0].Fields[0].Name = "STATUS NAME" }, "found 0"},
@@ -234,5 +237,24 @@ func TestResolvedRepresentation(t *testing.T) {
 	source.Projects[Engineering].StatusOptions[Backlog] = "changed"
 	if got.Engineering.Fields[Status] == "changed" || got.Engineering.StatusOptions[Backlog] == "changed" {
 		t.Fatal("resolved maps alias inputs")
+	}
+}
+
+func TestRoadmapFieldResolution(t *testing.T) {
+	source, schema := fixture()
+	got, err := Resolve(source, schema)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.Engineering.Fields[RoadmapOrder] != "engineering-roadmap_order" || got.Engineering.Fields[PriorityScore] != "" || got.BugTracker.Fields[RoadmapOrder] != "" || got.BugTracker.Fields[PriorityScore] == "" {
+		t.Fatal("profile field isolation", got)
+	}
+	for _, kind := range []FieldKind{SingleSelect, Date} {
+		source, schema = fixture()
+		schema.Projects[0].Fields[5].Kind = kind
+		result, err := Resolve(source, schema)
+		if err == nil || !reflect.DeepEqual(result, ResolvedConfig{}) {
+			t.Fatal("non-number roadmap accepted", result, err)
+		}
 	}
 }

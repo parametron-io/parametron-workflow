@@ -141,5 +141,10 @@ feedback, decision writing, App token minting, and distributed coordination
 remain later work.
 
 Issue #34's [Engineering context](engineering-context.md) is standalone and is
-not composed into app or CLI execution. #35 will first consume its facts for
-pure lifecycle policy. Default CLI and Phase #3 composition remain unchanged.
+not composed into app or CLI execution. #35 consumes its facts for pure lifecycle
+policy. #36 computes roadmap roots, their Phase-only PhaseOrder projection, and
+numeric Roadmap Order separately;
+see [engineering-ordering.md](engineering-ordering.md). Normal Project observation
+supports the required Engineering numeric field. Numeric-field reconciliation
+remains #39; ordering policy is not composed into runtime. Default CLI and Phase #3
+composition remain unchanged.

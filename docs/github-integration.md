@@ -25,6 +25,12 @@ records, excludes PRs, and performs no workflow normalization. Client and Mutato
 are unchanged. ListerFake fails unconfigured calls. See
 [engineering-context.md](engineering-context.md) for authoritative child discovery.
 
+#36 requires Engineering's numeric Roadmap Order binding. Existing configured
+number reads preserve its value for comparison; native Project item position is
+not an Engineering input. There is no special ordered reader. Client and Mutator
+are unchanged. See [engineering-ordering.md](engineering-ordering.md) for pure
+numeric assignments/clears. Numeric-field reconciliation remains #39.
+
 Repository identity reuses `config.Repository` (node ID, owner login, name).
 Issues contain node/repository identity, number, title, unparsed body, OPEN or
 CLOSED state, labels, assignee logins, nullable author and Issue type, nullable

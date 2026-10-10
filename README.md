@@ -42,7 +42,12 @@ with current declarative relationships and durable accepted classification;
 see [docs/engineering-context.md](docs/engineering-context.md). Lifecycle
 Status and execution eligibility are now computed by #35's standalone pure
 [Engineering lifecycle policy](docs/engineering-lifecycle-policy.md).
-GitHub Status/position/branch reconciliation remains later Phase #4 work.
+GitHub Status/Roadmap Order/branch reconciliation remains later Phase #4 work.
+
+#36 orders Phase and standalone Task/Feature roadmap roots, supplies #35's
+Phase-only PhaseOrder, and computes numeric Engineering Roadmap Order;
+see [docs/engineering-ordering.md](docs/engineering-ordering.md). Engineering views
+sort by Roadmap Order ASC. Numeric-field convergence remains #39.
 
 The current design covers the shared controller model, the **Parametron
 Engineering** Project workflow, and a separate **Bug Tracker** policy layer.

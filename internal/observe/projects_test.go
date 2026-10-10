@@ -103,3 +103,40 @@ func TestProjectNormalization(t *testing.T) {
 		}
 	}
 }
+
+func TestRoadmapNumberObservation(t *testing.T) {
+	b := deployment().Engineering
+	for _, tc := range []struct {
+		name    string
+		value   *github.FieldValue
+		invalid bool
+	}{
+		{"unset", nil, false},
+		{"zero", &github.FieldValue{Kind: config.Number, Number: 0}, false},
+		{"roadmap value", &github.FieldValue{Kind: config.Number, Number: 10020}, false},
+		{"non-number", &github.FieldValue{Kind: config.SingleSelect, OptionID: "option"}, true},
+		{"NaN", &github.FieldValue{Kind: config.Number, Number: math.NaN()}, true},
+		{"infinity", &github.FieldValue{Kind: config.Number, Number: math.Inf(1)}, true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			item := github.ProjectItem{ID: "item", ProjectID: b.ID, Content: &github.Content{ID: "issue", Kind: "Issue"}, Values: map[string]github.FieldValue{}}
+			if tc.value != nil {
+				item.Values[b.Fields[config.RoadmapOrder]] = *tc.value
+			}
+			got, err := normalizeProject(config.Engineering, b, "issue", "issue", []github.ProjectItem{item})
+			if tc.invalid {
+				if !errors.Is(err, ErrObservation) {
+					t.Fatal("invalid number accepted", got, err)
+				}
+				return
+			}
+			if err != nil {
+				t.Fatal(err)
+			}
+			value, present := got.Items[0].Fields[config.RoadmapOrder]
+			if present != (tc.value != nil) || present && (value.Kind != config.Number || value.Number != tc.value.Number) {
+				t.Fatal("unset/zero/value distinction", value, present)
+			}
+		})
+	}
+}

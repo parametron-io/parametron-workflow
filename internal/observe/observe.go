@@ -179,7 +179,7 @@ func (p *Processor) ReadPrimary(ctx context.Context, r storage.Resource) (Observ
 
 func fieldKind(role config.FieldRole) config.FieldKind {
 	switch role {
-	case config.Estimate, config.PriorityScore:
+	case config.Estimate, config.PriorityScore, config.RoadmapOrder:
 		return config.Number
 	case config.StartDate:
 		return config.Date
@@ -214,6 +214,7 @@ func snapshot(d config.ResolvedConfig) (config.ResolvedConfig, error) {
 			roles = append(roles, config.PriorityScore)
 			statuses = append(statuses, config.ToTriage)
 		} else {
+			roles = append(roles, config.RoadmapOrder)
 			statuses = append(statuses, config.Blocked)
 		}
 		if len(p.Fields) != len(roles) || len(p.StatusOptions) != len(statuses) {

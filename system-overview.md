@@ -15,8 +15,12 @@ Issue #34 now implements the read-side declared Engineering graph and accepted
 semantic context described in [docs/engineering-context.md](docs/engineering-context.md).
 Issue #35 implements pure deterministic pre-development lifecycle policy in
 [docs/engineering-lifecycle-policy.md](docs/engineering-lifecycle-policy.md).
-GitHub Status/position/branch reconciliation and relationship projection remain
+GitHub Status/Roadmap Order/branch reconciliation and relationship projection remain
 later Phase #4 work.
+
+Issue #36 computes deterministic PhaseOrder and numeric Engineering Roadmap Order
+in [docs/engineering-ordering.md](docs/engineering-ordering.md).
+Actual numeric-field convergence remains #39.
 
 The **Bug Tracker** reuses the controller architecture and shared lifecycle
 primitives defined here, but applies a separate Project-specific policy for
@@ -105,7 +109,7 @@ It owns:
 
 - GitHub Project routing
 - normal Project Status lifecycle policy
-- Project item ordering where enabled
+- Engineering Roadmap Order derived numeric field
 - Phase and child eligibility rules
 - dependency gating
 - authorized development-branch creation
@@ -169,7 +173,7 @@ against configured allowlists and schemas.
 The model does not decide:
 
 - lifecycle Status
-- Project item position
+- Engineering Roadmap Order
 - branch creation
 - dependency eligibility
 - Parent / blocked-by / blocking relationships
@@ -338,7 +342,7 @@ Missing boolean directives use policy defaults.
 | `Validation` | `false` | Heavy implementation/contract validation is opt-in. |
 | `Review` | `false` | Heavy agent review is opt-in. |
 | `Set-Status` | `true` | Allows normal Project lifecycle status ownership and reconciliation. |
-| `Set-Position` | `true` | Allows canonical Project item ordering. |
+| `Set-Position` | `true` | Retained grammar; does not gate Engineering Roadmap Order or Bug Tracker Priority Score. |
 
 ### 8.2 `Create-Branch` defaults
 
@@ -656,7 +660,10 @@ Blocks: <issue-ref>
 
 represent dependency edges.
 
-These relationships affect execution eligibility and Phase dependency order.
+These relationships affect lifecycle/execution eligibility. Dependencies between
+roadmap roots order the complete root graph: Phase, parentless Task, and parentless
+Feature. Phase-owned child dependencies do not order direct children or become
+root edges; invalid cross-level roadmap dependencies fail closed without promotion.
 Cross-repository dependency edges use qualified Issue references and the
 `external` label according to existing repository conventions.
 
@@ -751,14 +758,48 @@ A child whose parent Phase is blocked remains in `Backlog`.
 
 ## 13. Phase and Child Ordering
 
-Phase dependencies define the primary roadmap order.
+Dependencies between top-level roadmap roots define roadmap order.
 
-A stable topological ordering is used for dependency-related Phases. When two
-Phases are unrelated by dependency, existing manual Project position is
-preserved as the stable ordering signal. A final deterministic tie-break may be
-used only when required.
+A stable iterative topological ordering uses dependencies between roadmap roots:
+Phases and parentless Task/Feature, including CLOSED topology evidence. Canonical
+owner, repository, Issue number, then node evidence breaks ties among eligible roots.
+PhaseOrder for #35 is the Phase-only projection of that single traversal.
+Phase-internal Task/Feature membership comes from authoritative #34 Parent edges.
+Native card position,
+manual drag/drop, Project view order, and metadata do not supply roadmap authority.
 
-When a Phase is `Ready`, its children are displayed contiguously with it:
+Engineering requires a controller-owned numeric **Roadmap Order** Project field.
+A human administrator configures the view to sort **Roadmap Order ASC**. GitHub's
+current Projects UI displays the sort field on cards while that sorting is
+active; this presentation behavior is not workflow authority. Roadmap Order is
+recomputable derived state, not identity or provenance. `Set-Position` and
+Automation do not suppress its computation.
+
+Full RoadmapRoots contains every top-level item; PhaseOrder contains every Phase.
+Numeric segments retain OPEN parentless Task/Feature roots and Phases that are
+OPEN or have OPEN authoritative direct Task/Feature children. Retained
+segment bases are `10000 + index * 1000`: 10000, 11000, through 99000. OPEN
+children sort by canonical resource identity and receive base + 10, +20, through
++990. Every primary roadmap Issue slot, including roots, reserves final-digit
++1..+9 offsets as nine generic companion slots. Future companions require an
+explicit contract; #36 neither assigns nor interprets them. Capacity is 90 retained top-level segments
+across mixed Phases/standalone Tasks/standalone Features, and 99 OPEN
+direct children per segment; excess fails closed. Assigned values stay five-digit.
+
+CLOSED roots and direct children have canonical Roadmap Order unset. Remaining
+OPEN siblings and retained segments compact immediately: completing A=10000 and
+all A's children rebases B=11000 to 10000. A CLOSED parent with OPEN children
+retains its segment for those children without assigning the parent itself.
+
+Root-to-root dependencies determine roadmap segments, including Phase → standalone
+Task → Phase chains. A root cannot use another Phase's owned Task/Feature child as
+a dependency endpoint; incorrect cross-level intent fails closed. The controller
+never promotes child edges into Phase edges. Child-to-child and same-Phase
+parent/child dependencies remain lifecycle facts and do not reorder root segments.
+Closing a standalone root clears its value and compacts later mixed-root slots.
+
+When a Phase is `Ready`, its OPEN direct Task/Feature children are displayed
+contiguously with it under Roadmap Order sorting:
 
 ```text
 Ready
@@ -773,15 +814,15 @@ Phase #60
   #62
 ```
 
-### 13.1 Position inheritance after Phase activation
+### 13.1 Numeric anchor after Phase activation
 
 When the first child starts work, the parent Phase moves to `In Progress`.
 Unstarted children may remain `Ready`.
 
-Those Ready children must not become visually detached from the Phase's roadmap
-position.
+Those Ready children must not become visually detached from the Phase's Roadmap
+Order segment.
 
-A child inherits its parent Phase's roadmap position regardless of the
+A child inherits its parent Phase's Roadmap Order segment regardless of the
 parent's current workflow status.
 
 Conceptually:
@@ -789,7 +830,7 @@ Conceptually:
 ```text
 effective child order
 =
-(parent Phase roadmap position, child order within Phase)
+parent retained segment base + canonical direct-child offset
 ```
 
 Therefore, if Phase #45 moves to `In Progress`, its remaining Ready children
@@ -810,6 +851,12 @@ Phase #60
 
 The absence of Phase #45 from the Ready column must not allow a later Phase to
 interleave above #45's remaining Ready work.
+
+For example, #45=10000, #48=10010, #49=10020, and #60=11000. Filtering out #45
+and started #48 leaves #49's unchanged value ahead of #60. Child dependencies
+affect execution eligibility, not numeric sibling order. Cross-repository Parent
+edges use the same rules. #39 will reconcile numeric assignments and clears from
+fresh normal observation; native item-position mutation is not that mechanism.
 
 ---
 
@@ -837,7 +884,10 @@ precedes unranked work, and unranked work sorts by resource identity.
 
 Labels (including area and risk labels) and creation timestamps do not modify
 v1 rank. Numeric weights remain undefined. This order does not reorder the Phase
-roadmap or implement Project position. See
+roadmap or assign Roadmap Order. Parentless Task/Feature are first-class roadmap
+roots under #36's dependency/canonical topology, with OPEN root assignments and
+CLOSED clears. Their dependencies can induce relative Phase order, but #35 still
+receives only Phases as PhaseOrder. See
 [the pure policy contract](docs/engineering-lifecycle-policy.md).
 
 ---
@@ -921,7 +971,8 @@ Issue #48
 ```
 
 If multiple children of the same Phase are concurrently active, they remain
-contiguous under the Phase in stable child/dependency order.
+contiguous under the Phase in canonical resource identity order. Child dependency
+edges affect lifecycle/execution eligibility, not sibling Roadmap Order.
 
 Cross-repository children remain grouped under their parent Phase.
 
@@ -959,7 +1010,8 @@ After a valid binding is accepted, the controller:
 - sets the accepted implementation PR to `In Progress`
 - projects `Target` into the native GitHub Development relationship
 - classifies PR labels through the cheap semantic model when enabled
-- positions the PR with its target work
+- assigns the PR a Roadmap Order companion slot after its Target Issue under
+  Phase #5's allocation/reconciliation policy
 
 Manual Development relationships that contradict `Target` are drift and are
 reconciled back to the canonical relationship.
@@ -991,21 +1043,32 @@ transition.
 
 ---
 
-## 19. Pull Request Position in In Progress
+## 19. Pull Request Roadmap Order Companions
 
-A Draft PR representing an active child is grouped between the Phase and the
-Target Issue:
+An accepted Engineering PR belongs after its Target Issue within that Target's
+reserved +1..+9 companion namespace. For example, conceptual Roadmap Order values
+for a Draft PR representing an active child are:
 
 ```text
 In Progress
 
-Phase #45
-PR #80 (Draft, Target #48)
-Issue #48
+Phase #45                    10000
+Target Issue #48             10010
+PR #80 (Draft, Target #48)   10011
 ```
 
 This visual grouping represents one implementation unit rather than three
 independent Project cards.
+
+Phase #5 owns deterministic Engineering PR companion allocation and numeric-field
+reconciliation. The example does not designate +1 as a PR-specific slot or define
+an exact multiple-PR allocation rule. Every primary roadmap Issue reserves nine
+generic companion slots; PRs are one possible companion type.
+
+#36 assigns primary Roadmap Order values for Phase roots, standalone Task/Feature
+roots, and direct Phase children. It only reserves the companion namespace and
+does not assign or interpret companions. Native Project item position is not the
+Engineering ordering mechanism.
 
 ---
 
@@ -1352,7 +1415,7 @@ Examples of continuous invariants:
 
 - valid Project membership
 - normal lifecycle eligibility
-- canonical Project position when enabled
+- canonical Engineering Roadmap Order assignments and clears
 - Target / Development consistency
 - Parent/dependency relationship consistency where controller-owned
 - Phase closure constraints
@@ -1388,7 +1451,7 @@ review content remain human-owned.
 Typical controller-owned surfaces include:
 
 - Project Status, when `Set-Status` permits normal ownership
-- Project Position, when `Set-Position` permits ownership
+- Engineering Roadmap Order, independent of `Set-Position`
 - workflow-managed Project membership
 - Development relationship derived from `Target`
 - Parent/dependency relationships derived from explicit directives
@@ -1550,7 +1613,7 @@ Target: #48
 → PR added to Project
 → Development relationship projected
 → PR normalized to Draft once
-→ PR positioned between Phase and Issue
+→ Phase #5 allocates PR Roadmap Order after Target within Target's +1..+9 companions
 
 PR #80 Draft → Ready for review
 → PR #80 In Review
@@ -1612,8 +1675,9 @@ workflow state can be derived from explicit relationships, GitHub-native events,
 or stable controller rules.
 
 Phases define bounded engineering objectives and roadmap structure. Children
-inherit Phase workflow membership and roadmap position. Dependencies determine
-execution eligibility. Authorized branch activity starts work. Draft/Ready
+inherit Phase workflow membership and Roadmap Order anchors. Root dependencies
+determine roadmap-root order; dependencies also determine execution eligibility.
+Authorized branch activity starts work. Draft/Ready
 transitions start review. Changes requested returns work to implementation.
 Merge completes normal child work. Phase closure remains an explicit maintainer
 action after all child work is closed.

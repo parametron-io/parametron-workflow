@@ -42,6 +42,7 @@ func deployment() config.ResolvedConfig {
 			p.Fields[config.PriorityScore] = id + "score"
 			p.StatusOptions[config.ToTriage] = id + "triage"
 		} else {
+			p.Fields[config.RoadmapOrder] = id + "roadmap_order"
 			p.StatusOptions[config.Blocked] = id + "blocked"
 		}
 		return p
