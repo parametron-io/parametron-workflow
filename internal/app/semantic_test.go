@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"os"
+	"reflect"
 	"testing"
 	"time"
 
@@ -12,6 +13,7 @@ import (
 	"github.com/parametron-io/parametron-workflow/internal/github"
 	"github.com/parametron-io/parametron-workflow/internal/semantic"
 	"github.com/parametron-io/parametron-workflow/internal/semanticflow"
+	"github.com/parametron-io/parametron-workflow/internal/semanticreconcile"
 	"github.com/parametron-io/parametron-workflow/internal/storage"
 )
 
@@ -104,5 +106,84 @@ func TestSemanticLocalWorkerTaxonomy(t *testing.T) {
 		if got.Category != tc.cat || got.Retryable != tc.retry {
 			t.Fatal(got)
 		}
+	}
+}
+
+func TestExplicitMutatorComposition(t *testing.T) {
+	c := semanticFixture(t)
+	f := c.Client.(*github.Fake)
+	f.ProjectItemsFunc = func(context.Context, string, string, map[string]config.FieldKind) ([]github.ProjectItem, error) {
+		return nil, nil
+	}
+	discover := f.DiscoverSchemaFunc
+	f.DiscoverSchemaFunc = func(ctx context.Context, s config.SourceConfig) (config.Schema, error) {
+		schema, err := discover(ctx, s)
+		for _, name := range []string{"Phase", "Task", "Feature", "Bug"} {
+			schema.IssueTypes = append(schema.IssueTypes, config.IssueType{ID: "type-" + name, Name: name})
+		}
+		for i := range schema.Projects {
+			for j := range schema.Projects[i].Fields {
+				field := &schema.Projects[i].Fields[j]
+				var names []string
+				if field.Name == "priority" {
+					names = []string{"Critical", "High", "Medium", "Low"}
+				}
+				if field.Name == "effort" {
+					names = []string{"XS", "S", "M", "L", "XL", "Unknown"}
+				}
+				for _, name := range names {
+					field.Options = append(field.Options, config.Option{ID: name, Name: name})
+				}
+			}
+		}
+		return schema, err
+	}
+	catalog, err := semantic.LoadCatalog(os.DirFS("../.."))
+	if err != nil {
+		t.Fatal(err)
+	}
+	assets, _ := catalog.Lookup(semantic.ClassifyIssue)
+	c.Runner = &semantic.Fake{ClassifyIssueFunc: func(context.Context, semantic.Input) (semantic.Result, error) {
+		return semantic.Result{Output: json.RawMessage(`{"type":"Task","labels":[],"priority":"Medium","effort":"Unknown"}`), Provenance: semantic.Provenance{Capability: semantic.ClassifyIssue, Provider: "fake", Model: "cheap", PromptIdentity: assets.Prompt.Identity, PromptDigest: assets.Prompt.Digest, SchemaIdentity: assets.Schema.Identity, SchemaDigest: assets.Schema.Digest}}, nil
+	}}
+	ops := []string{}
+	c.Mutator = &github.MutationFake{SetIssueTypeFunc: func(_ context.Context, id, typ string) error { ops = append(ops, "type:"+typ); return nil }, AddProjectItemFunc: func(_ context.Context, p, id string) (string, error) {
+		ops = append(ops, "project:"+p)
+		return "item", nil
+	}, SetProjectOptionFunc: func(_ context.Context, p, item, field, option string) error {
+		ops = append(ops, "field:"+field+":"+option)
+		return nil
+	}}
+	r := openRuntime(t, c)
+	_, err = r.store.InsertDelivery(context.Background(), storage.Delivery{ID: "reconcile", EventName: "issues", Payload: []byte(`{"repository":{"owner":{"login":"parametron-io"},"name":"repo"},"issue":{"number":28}}`), ReceivedAt: time.Unix(1700000000, 0)})
+	if err != nil {
+		t.Fatal(err)
+	}
+	step(t, r)
+	state(t, r, "reconcile", storage.Completed, 1)
+	if !reflect.DeepEqual(ops, []string{"type:type-Task", "project:engineering", "field:priority:Medium", "field:effort:Unknown", "field:status:backlog"}) {
+		t.Fatal(ops)
+	}
+}
+func TestMutatorCompositionValidation(t *testing.T) {
+	c := semanticFixture(t)
+	c.Mutator = &github.MutationFake{}
+	if err := c.validate(); err == nil {
+		t.Fatal("mutator without runner")
+	}
+	c.Runner = &semantic.Fake{}
+	if err := c.validate(); err != nil {
+		t.Fatal(err)
+	}
+	c.SemanticConsumer = SemanticFoundationSink{}
+	if err := c.validate(); err == nil {
+		t.Fatal("ambiguous ownership")
+	}
+	c.Mutator = nil
+	if err := c.validate(); err != nil {
+		t.Fatal("custom consumer path", err)
+	}
+	if got := classify(semanticreconcile.ErrReconcile); got.Category != "semantic_reconcile" || got.Retryable {
+		t.Fatal(got)
 	}
 }

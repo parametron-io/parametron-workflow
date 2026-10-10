@@ -1,4 +1,5 @@
-// Package app composes the read-only controller foundation and owns its lifecycle.
+// Package app composes the controller foundation and explicitly injected semantic
+// convergence. The default CLI remains read-only.
 package app
 
 import (
@@ -18,6 +19,7 @@ import (
 	"github.com/parametron-io/parametron-workflow/internal/observe"
 	"github.com/parametron-io/parametron-workflow/internal/semantic"
 	"github.com/parametron-io/parametron-workflow/internal/semanticflow"
+	"github.com/parametron-io/parametron-workflow/internal/semanticreconcile"
 	"github.com/parametron-io/parametron-workflow/internal/storage"
 	"github.com/parametron-io/parametron-workflow/internal/webhook"
 	"github.com/parametron-io/parametron-workflow/internal/worker"
@@ -42,6 +44,7 @@ type Config struct {
 	// Runner explicitly enables durable semantic integration; the default CLI
 	// retains FoundationSink. SemanticConsumer receives the enriched handoff.
 	Runner           semantic.Runner
+	Mutator          github.Mutator
 	SemanticConsumer semanticflow.Consumer
 	Clock            func() time.Time
 	// Deployment is the result of Prepare, never an alternative startup input.
@@ -70,6 +73,7 @@ func classify(err error) worker.Classification {
 		{observe.ErrIdentity, "observe_identity"}, {observe.ErrRepository, "observe_repository"},
 		{observe.ErrBinding, "observe_binding"}, {observe.ErrObservation, "observe_observation"},
 		{observe.ErrConfiguration, "observe_configuration"},
+		{semanticreconcile.ErrReconcile, "semantic_reconcile"},
 	} {
 		if errors.Is(err, item.err) {
 			category = item.category
@@ -80,7 +84,7 @@ func classify(err error) worker.Classification {
 }
 
 func (c Config) validate() error {
-	if c.Runner == nil && c.SemanticConsumer != nil || c.Runner != nil && c.Consumer != nil {
+	if c.Runner == nil && (c.SemanticConsumer != nil || c.Mutator != nil) || c.Runner != nil && c.Consumer != nil || c.Mutator != nil && c.SemanticConsumer != nil {
 		return errors.New("app: semantic composition requires Runner and enriched consumer boundary")
 	}
 	if strings.TrimSpace(c.DataDir) == "" {
@@ -188,6 +192,12 @@ func compose(ctx context.Context, c Config) (_ *runtime, result error) {
 	}()
 	if c.Runner != nil {
 		consumer := c.SemanticConsumer
+		if c.Mutator != nil {
+			consumer, err = semanticreconcile.New(*prepared.Deployment, processor, c.Mutator)
+			if err != nil {
+				return nil, err
+			}
+		}
 		if consumer == nil {
 			consumer = SemanticFoundationSink{}
 		}

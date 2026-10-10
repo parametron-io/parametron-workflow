@@ -8,8 +8,10 @@ or persist fabricated decisions. A completed event means this foundation handoff
 succeeded. Observation and PolicyInput are not authorization.
 
 Supplying `app.Config.Runner` explicitly composes #27's durable semantic coordinator
-using the shared Store and client. `SemanticConsumer` receives enriched input, or
-`SemanticFoundationSink` acknowledges accepted/not-required input without mutation.
+using the shared Store and client. Runner + explicit Mutator composes #28's
+semantic reconciler when no custom SemanticConsumer exists. A custom
+SemanticConsumer retains the enriched input path; combining it with Mutator is
+rejected. Without either, SemanticFoundationSink acknowledges without mutation.
 This boundary requires an enriched consumer: an old Consumer cannot be combined
 with Runner, and SemanticConsumer requires Runner. No production provider or CLI
 semantic flags exist. Without Runner, the foundation above is unchanged. See
@@ -86,7 +88,7 @@ scheduler, or immediate provider retry. Durable eligibility is checked by Worker
 GitHub transient/rate-limited errors remain retryable under the worker taxonomy.
 The application's non-GitHub classifier uses terminal categories
 `observe_identity`, `observe_repository`, `observe_binding`,
-`observe_observation`, and `observe_configuration` via errors.Is. Unknown local
+`observe_observation`, `observe_configuration`, and `semantic_reconcile` via errors.Is. Unknown local
 errors use terminal `local_processor`. No substring classification or raw error
 string persistence occurs.
 Semantic processing uses bounded retryable/terminal categories documented in
@@ -130,8 +132,10 @@ component propagation, and cancellation/reopen. Command tests cover strict file
 loading, missing/malformed config, invalid secrets, and replaceable credentials.
 No test needs real GitHub, credentials, external HTTP, or gh.
 
-Phase 2 and injectable initial semantic classification are integrated.
-Engineering/PR/Bug Tracker lifecycle policy, desired-state
-reconciliation, branch authorization, managed feedback, decision writing,
-GitHub mutation APIs, App token minting, and distributed coordination remain
-later work. No GitHub state is mutated by this runtime or its integration tests.
+Phase 2 and injectable Phase #3 semantic normalization are integrated, including
+accepted metadata, deterministic Issue routing, and narrow Backlog ingress;
+see [semantic-reconciliation.md](semantic-reconciliation.md). The default CLI
+remains read-only; explicit Runner + Mutator tests exercise authorized writes.
+Engineering/PR/Bug Tracker lifecycle policy, branch authorization, managed
+feedback, decision writing, App token minting, and distributed coordination
+remain later work.

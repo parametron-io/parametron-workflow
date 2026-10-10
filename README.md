@@ -33,7 +33,9 @@ testable deterministic body-directive parsing, and a standalone provider-agnosti
 cheap semantic execution boundary with strict classification and Estimate policy.
 Durable initial classification is available through an explicitly injected Runner,
 with gating, Pending safety, stale-result rejection, and completion reuse. The
-default CLI retains the no-semantic foundation because no production provider exists.
+explicit Runner + Mutator path now reconciles accepted semantic metadata and
+deterministic Issue Project routing, completing Phase #3 normalization.
+The default CLI retains the no-semantic foundation because no production provider exists.
 Workflow lifecycle capabilities are not yet implemented.
 
 The current design covers the shared controller model, the **Parametron
@@ -95,6 +97,8 @@ timeouts, errors, and test fakes are documented in
 planning context are documented in [docs/semantic-policy.md](docs/semantic-policy.md).
 Durable gating, freshness, completion, and recovery are documented in
 [docs/semantic-integration.md](docs/semantic-integration.md).
+Accepted metadata/routing convergence is documented in
+[docs/semantic-reconciliation.md](docs/semantic-reconciliation.md).
 
 ## Development
 
@@ -135,8 +139,8 @@ changes with `nix develop --command gofmt -w <files>`.
 `internal/app` owns schema preparation, one Store, observer/worker/webhook
 construction, HTTP serving, cancellation coordination, and shutdown.
 `app.Prepare` composes live discovery with deterministic configuration resolution.
-Phase 2 and injectable durable initial classification are integrated. GitHub
-semantic reconciliation and workflow lifecycle policy remain later work.
+Phase 2 and injectable Phase #3 semantic normalization are integrated.
+Workflow lifecycle policy remains later work.
 
 ## License
 

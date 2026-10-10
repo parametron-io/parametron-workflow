@@ -37,7 +37,7 @@ Classification's fields are private. `State()` and `Required()` expose gating;
 only in Accepted, with copied label slices. Observed GitHub Type/Priority/Effort/
 labels cannot populate these accessors or bypass Pending. Failed enrichment
 returns Pending with no accepted result and does not reach downstream policy.
-#28 can check Required plus State != Accepted to refuse semantic convergence.
+#28 checks State and matching typed acceptance to refuse Pending convergence.
 Acceptance itself grants no lifecycle, routing, or mutation authority.
 
 ## Durable one-shot completion
@@ -106,7 +106,7 @@ the next normal observation sees Missing and stops classification safely.
 
 Changes only to classifier-owned GitHub output fields are drift rather than
 semantic input changes. They do not invalidate initial judgement. GitHub reads
-are not atomic; #28 must refetch/compare metadata before mutation. The older
+are not atomic; #28 refetches/compares metadata before mutation. The older
 Current observation carried downstream is never mutation authority.
 
 ## Failures, retries, and restart
@@ -150,16 +150,19 @@ same completion. Retry predecessors continue blocking later work in their lane.
 ## App composition and phase boundary
 
 `app.Config.Runner` explicitly enables semantic integration using the shared Store
-and GitHub client. SemanticConsumer receives the enriched input, or the default
-SemanticFoundationSink acknowledges it without mutations. SemanticConsumer requires
+and GitHub client. An explicit Mutator with no custom SemanticConsumer composes
+the semantic reconciler. A custom SemanticConsumer receives enriched input;
+without either, SemanticFoundationSink acknowledges it without mutations.
+Mutator with a custom SemanticConsumer is rejected as ambiguous. Both require
 Runner; the old observation Consumer cannot be combined with Runner. Without
 Runner, FoundationSink/no-semantic runtime remains runnable. No CLI flags,
 production provider, SDK, HTTP model transport, or model CLI is introduced.
 
-#28 owns GitHub Type/Priority/Effort/label convergence, unmanaged-label preservation,
-Project routing/membership/fields, and refetch-before-mutation. Lifecycle, branches,
-eligibility, triage, and Estimate timing remain later work. No GitHub write API,
-classification-pending label, Project Status, or storage migration is added.
+#28 implements GitHub Type/Priority/Effort/label convergence, unmanaged-label
+preservation, Project routing, and narrow unset-Status Backlog ingress; see
+[semantic-reconciliation.md](semantic-reconciliation.md). This completes Phase #3
+normalization. Lifecycle, branches, eligibility, triage, and Estimate timing remain
+later work. No classification-pending label or storage migration is added.
 
 Tests use real file-backed Store, worker, resolver, and observer with GitHub and
 Runner/provider fakes. They cover gating/Pending, both capabilities, deterministic

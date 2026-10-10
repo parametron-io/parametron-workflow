@@ -56,6 +56,11 @@ and returns primary state without Project reads or consumer calls. #27 uses this
 read-only boundary for post-model content revalidation; its Projects are nil and
 it is not a complete policy observation. See [semantic-integration.md](semantic-integration.md).
 
+`Processor.ReadCurrent(ctx, resource)` reuses ReadPrimary and both managed Project
+reads without a Consumer call, payload use, mutation, or policy. Process delegates
+to it. #28 uses it immediately before Issue reconciliation; PR reconciliation
+uses ReadPrimary. Snapshot copies Issue Type and nested field-option maps as well.
+
 Current Issue properties, nullable author/type, parent, sub-issues, blocked-by,
 blocking, and linked PRs are retained. Current PR properties include Draft,
 state, head/base refs and SHAs, author, and closing Issues. Bodies remain unparsed;

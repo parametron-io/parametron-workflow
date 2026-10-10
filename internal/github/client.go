@@ -1,5 +1,5 @@
-// Package github defines read-only, normalized GitHub access. Observation does
-// not authorize mutations; workflow policy is outside this package.
+// Package github defines normalized GitHub access. Client is read-only; Mutator
+// is a separate narrow write capability. Workflow authorization stays in Go policy.
 package github
 
 import (

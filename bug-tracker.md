@@ -123,13 +123,14 @@ Type = Bug
 Labels
 Priority
 Effort
-triageRequired
 ```
 
 The cheap model does not directly write `Priority Score`.
 
-The controller writes the item into the Project, normalizes its initial
-metadata, and evaluates whether triage is required.
+Issue #28 implements accepted Bug metadata normalization and deterministic Bug
+Tracker routing, initializing unset Status to Backlog when Set-Status permits.
+Triage judgement is later policy, not an initial classifier output field; no
+To Triage transition or Priority Score write is implemented by Phase #3.
 
 Conceptually:
 
