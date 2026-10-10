@@ -144,12 +144,14 @@ parser rejection rather than last-declaration-wins. Parent and dependency cycles
 are checked independently using iterative Kahn traversal, including long cycles,
 without recursion proportional to graph depth.
 
-## Boundary left to #35
+## Pure lifecycle consumer
 
-#35 owns Backlog/Blocked/Ready, Phase selection/activation, parent gating,
-execution eligibility, Create-Branch defaults, and Set-Status policy. None is
-computed here. Relationship projection, Project writes/position, branches,
-Start Date, Assignees, and later lifecycle synchronization remain later work.
+#35 now implements Backlog/Blocked/Ready, Phase selection/activation, parent
+gating, execution eligibility, Create-Branch defaults, and Set-Status policy in
+[engineering-lifecycle-policy.md](engineering-lifecycle-policy.md). It consumes
+this Context plus an explicit validated PhaseOrder; #36 will produce that order.
+None is computed by this resolver. Relationship projection, Project writes/position,
+branches, Start Date, Assignees, and later lifecycle synchronization remain later work.
 There are no storage/schema, app/runtime, CLI, dependency, or Nix changes.
 The default CLI and all Phase #3 behavior remain unchanged; this resolver is not
 wired into production execution yet.

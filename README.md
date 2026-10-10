@@ -36,11 +36,13 @@ with gating, Pending safety, stale-result rejection, and completion reuse. The
 explicit Runner + Mutator path now reconciles accepted semantic metadata and
 deterministic Issue Project routing, completing Phase #3 normalization.
 The default CLI retains the no-semantic foundation because no production provider exists.
-Workflow lifecycle capabilities are not yet implemented.
+Workflow lifecycle mutation and reconciliation remain later Phase #4 work.
 Issue #34 supplies a standalone deterministic read-side Engineering context,
 with current declarative relationships and durable accepted classification;
 see [docs/engineering-context.md](docs/engineering-context.md). Lifecycle
-Status and execution eligibility remain #35 work.
+Status and execution eligibility are now computed by #35's standalone pure
+[Engineering lifecycle policy](docs/engineering-lifecycle-policy.md).
+GitHub Status/position/branch reconciliation remains later Phase #4 work.
 
 The current design covers the shared controller model, the **Parametron
 Engineering** Project workflow, and a separate **Bug Tracker** policy layer.
@@ -144,7 +146,8 @@ changes with `nix develop --command gofmt -w <files>`.
 construction, HTTP serving, cancellation coordination, and shutdown.
 `app.Prepare` composes live discovery with deterministic configuration resolution.
 Phase 2 and injectable Phase #3 semantic normalization are integrated.
-Workflow lifecycle policy remains later work.
+Pure pre-development lifecycle policy is available separately; runtime lifecycle
+integration remains later Phase #4 work.
 
 ## License
 

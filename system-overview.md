@@ -13,7 +13,10 @@ that the controller described here is already implemented.
 
 Issue #34 now implements the read-side declared Engineering graph and accepted
 semantic context described in [docs/engineering-context.md](docs/engineering-context.md).
-Lifecycle decisions and relationship projection remain later work.
+Issue #35 implements pure deterministic pre-development lifecycle policy in
+[docs/engineering-lifecycle-policy.md](docs/engineering-lifecycle-policy.md).
+GitHub Status/position/branch reconciliation and relationship projection remain
+later Phase #4 work.
 
 The **Bug Tracker** reuses the controller architecture and shared lifecycle
 primitives defined here, but applies a separate Project-specific policy for
@@ -137,7 +140,8 @@ stale-result rejection in `internal/semanticflow`, documented in
 provider is implemented. Issue #28 adds accepted semantic metadata and deterministic
 Issue Project convergence through explicit Mutator injection, completing Phase #3
 normalization; see [docs/semantic-reconciliation.md](docs/semantic-reconciliation.md).
-Later lifecycle policy remains unimplemented.
+Pre-development lifecycle policy is implemented separately by #35; lifecycle
+mutation and runtime integration remain later Phase #4 work.
 Semantic output is not workflow authority.
 
 A cheap LLM is used only for bounded semantic interpretation: initial
@@ -708,11 +712,14 @@ Phase dependencies define roadmap order as a partial order.
 For a Phase:
 
 ```text
-blocked by another Phase
+any active OPEN blocker
 → Blocked
 
-not blocked
+unblocked and selected current roadmap Phase for its repository
 → Ready
+
+otherwise (OPEN and unblocked)
+→ Backlog
 ```
 
 When a Phase becomes `Ready`, all of its child work items become `Ready`, even
@@ -818,21 +825,20 @@ blocked
 → Blocked
 
 unblocked
-→ deterministic readiness scoring
+→ Ready
 ```
 
-The simple scoring profile may use:
+All unblocked parentless Task/Feature work may be Ready; no capacity limit or
+numeric admission score is defined. The v1 relative readiness order uses accepted
+Priority (Critical, High, Medium, Low), then smaller Effort (XS, S, M, L, XL,
+Unknown), then canonical resource identity. Manual/native items without accepted
+classification remain eligible, with ranking metadata unavailable; ranked work
+precedes unranked work, and unranked work sorts by resource identity.
 
-- Priority as the primary weight
-- selected characteristic/risk labels as small modifiers
-- Effort as a small modifier or tie-break
-- creation time as a final stable tie-break
-
-Area labels such as `runtime` or `docs` do not inherently increase priority.
-Only specifically configured semantic labels may affect scoring.
-
-Exact numeric scoring weights are intentionally deferred to a dedicated policy
-specification. Scoring does not reorder the Phase roadmap.
+Labels (including area and risk labels) and creation timestamps do not modify
+v1 rank. Numeric weights remain undefined. This order does not reorder the Phase
+roadmap or implement Project position. See
+[the pure policy contract](docs/engineering-lifecycle-policy.md).
 
 ---
 
