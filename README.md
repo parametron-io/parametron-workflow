@@ -37,6 +37,10 @@ explicit Runner + Mutator path now reconciles accepted semantic metadata and
 deterministic Issue Project routing, completing Phase #3 normalization.
 The default CLI retains the no-semantic foundation because no production provider exists.
 Workflow lifecycle capabilities are not yet implemented.
+Issue #34 supplies a standalone deterministic read-side Engineering context,
+with current declarative relationships and durable accepted classification;
+see [docs/engineering-context.md](docs/engineering-context.md). Lifecycle
+Status and execution eligibility remain #35 work.
 
 The current design covers the shared controller model, the **Parametron
 Engineering** Project workflow, and a separate **Bug Tracker** policy layer.

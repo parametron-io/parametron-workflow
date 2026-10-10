@@ -18,6 +18,13 @@ Only semanticreconcile receives write authority; Client/observe remain read-only
 
 ## Normalized data
 
+Issue #34 adds a separate `github.IssueLister.ListIssues(ctx, repository)`
+read capability, implemented by Transport using the paginated Repository.issues
+IssueConnection. It validates discovered repository identity and complete Issue
+records, excludes PRs, and performs no workflow normalization. Client and Mutator
+are unchanged. ListerFake fails unconfigured calls. See
+[engineering-context.md](engineering-context.md) for authoritative child discovery.
+
 Repository identity reuses `config.Repository` (node ID, owner login, name).
 Issues contain node/repository identity, number, title, unparsed body, OPEN or
 CLOSED state, labels, assignee logins, nullable author and Issue type, nullable

@@ -170,3 +170,11 @@ metadata, corruption/origin/provenance checks, persistence failures, provider
 categories, in-flight title/body/directive edits, disappearance, output-only drift,
 cancellation, FIFO retries, duplicates/later events, provider outage, and reopening
 after acceptance while the delivery remains Processing.
+
+Issue #34 adds `NewAcceptedLoader(AcceptedStore)` and
+`AcceptedReader.AcceptedIssue(ctx, resource)` for arbitrary Issue read-side
+consumers. The loader requires only Provenance/Event reads, reuses the same
+private completion/origin validation as Coordinator, and returns copied labels.
+Missing completion returns false; corrupt completion fails closed. No Runner,
+reclassification, or mutation is involved. See
+[engineering-context.md](engineering-context.md) for lifecycle-context gating.

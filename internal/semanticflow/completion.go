@@ -91,7 +91,7 @@ func decodeCompletion(data []byte, expected resource) (Classification, error) {
 	}
 	return Classification{state: Accepted, pr: &semanticpolicy.AcceptedPR{Classification: value, Provenance: semantic.Provenance(record.Provenance)}}, nil
 }
-func (c *Coordinator) load(ctx context.Context, p storage.Provenance, r resource) (Classification, error) {
+func loadCompletion(ctx context.Context, store AcceptedStore, p storage.Provenance, r resource) (Classification, error) {
 	key, _ := ResourceKey(storage.Resource{Owner: r.Owner, Repository: r.Repository, Kind: r.Kind, Number: r.Number})
 	if p.Namespace != Namespace || p.Key != key || p.DeliveryID == "" || p.CreatedAt.IsZero() {
 		return Classification{}, ErrCompletion
@@ -101,14 +101,14 @@ func (c *Coordinator) load(ctx context.Context, p storage.Provenance, r resource
 		return Classification{}, err
 	}
 	// The originating delivery must agree with this durable resource fact.
-	if err := c.verifyOrigin(ctx, p.DeliveryID, r); err != nil {
+	if err := verifyCompletionOrigin(ctx, store, p.DeliveryID, r); err != nil {
 		return Classification{}, err
 	}
 	return accepted, nil
 }
 
-func (c *Coordinator) verifyOrigin(ctx context.Context, deliveryID string, r resource) error {
-	event, err := c.cfg.Store.Event(ctx, deliveryID)
+func verifyCompletionOrigin(ctx context.Context, store AcceptedStore, deliveryID string, r resource) error {
+	event, err := store.Event(ctx, deliveryID)
 	if err != nil {
 		return persistence(err)
 	}
@@ -120,4 +120,11 @@ func (c *Coordinator) verifyOrigin(ctx context.Context, deliveryID string, r res
 		return ErrCompletion
 	}
 	return nil
+}
+
+func (c *Coordinator) load(ctx context.Context, p storage.Provenance, r resource) (Classification, error) {
+	return loadCompletion(ctx, c.cfg.Store, p, r)
+}
+func (c *Coordinator) verifyOrigin(ctx context.Context, deliveryID string, r resource) error {
+	return verifyCompletionOrigin(ctx, c.cfg.Store, deliveryID, r)
 }
