@@ -14,9 +14,11 @@ contract without computing lifecycle decisions.
 
 Engineering requires the numeric custom Project field **Roadmap Order**, bound
 through `config.RoadmapOrder` (`roadmap_order`). A human administrator configures
-the Engineering view to sort by **Roadmap Order ASC**. The field need not be
-visible on cards. Bug Tracker instead requires **Priority Score** and continues
-to sort **Priority Score DESC**; Roadmap Order is not a Bug Tracker field role.
+the Engineering view to sort by **Roadmap Order ASC**. GitHub's current Projects
+UI displays the sort field on cards while that sorting is active; this
+presentation behavior is not workflow authority. Bug Tracker instead requires
+**Priority Score** and continues to sort **Priority Score DESC**; Roadmap Order
+is not a Bug Tracker field role.
 
 Roadmap Order is controller-owned, deterministic, recomputable derived state.
 It is mutable current-roadmap placement, never an identifier, historical slot,

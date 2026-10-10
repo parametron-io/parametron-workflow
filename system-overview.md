@@ -769,9 +769,11 @@ Native card position,
 manual drag/drop, Project view order, and metadata do not supply roadmap authority.
 
 Engineering requires a controller-owned numeric **Roadmap Order** Project field.
-A human administrator configures the view to sort **Roadmap Order ASC**; the
-field need not appear on cards. This is recomputable derived state, not identity
-or provenance. Set-Position and Automation do not suppress its computation.
+A human administrator configures the view to sort **Roadmap Order ASC**. GitHub's
+current Projects UI displays the sort field on cards while that sorting is
+active; this presentation behavior is not workflow authority. Roadmap Order is
+recomputable derived state, not identity or provenance. `Set-Position` and
+Automation do not suppress its computation.
 
 Full RoadmapRoots contains every top-level item; PhaseOrder contains every Phase.
 Numeric segments retain OPEN parentless Task/Feature roots and Phases that are
