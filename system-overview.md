@@ -279,14 +279,18 @@ Supported relationship directives are:
 
 ```text
 Parent: <issue-ref>
-Blocked-By: <issue-ref>
-Blocks: <issue-ref>
-Refs: <issue-ref>
+Blocked-By: <issue-ref>...
+Blocks: <issue-ref>...
+Refs: <issue-ref>...
 Target: <issue-ref>
 ```
 
-Where multiple values are later supported, the grammar must remain explicit
-and deterministic rather than free-form prose.
+`Parent` and `Target` are singular. `Blocked-By`, `Blocks`, and `Refs` support
+one or more whitespace-separated references. Repeated lines normalize into a
+deterministic deduplicated collection in first-seen order. Conflicting singular
+declarations fail; comma and semicolon separators are rejected. The implemented
+pure parsing boundary and exact line grammar are documented in
+[docs/directives.md](docs/directives.md).
 
 An absent relationship directive implies no relationship of that directive
 type from the body contract.

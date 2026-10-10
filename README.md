@@ -28,7 +28,8 @@ service foundation, validated deployment configuration, deterministic Project
 schema binding, a replaceable read-only GitHub client with live discovery,
 durable SQLite event and generic provenance storage, signed webhook ingress,
 and a durable worker execution foundation with resource FIFO scheduling,
-current GitHub observation, and a normalized policy-input handoff.
+current GitHub observation, a normalized policy-input handoff, and independently
+testable deterministic body-directive parsing.
 Workflow lifecycle capabilities are not yet implemented.
 
 The current design covers the shared controller model, the **Parametron
@@ -78,6 +79,10 @@ are documented in [docs/execution.md](docs/execution.md).
 
 Resource identity, current-state observation, and the policy-facing authority
 handoff are documented in [docs/observation.md](docs/observation.md).
+
+Deterministic explicit intent, defaults, references, and parser boundaries are
+documented in [docs/directives.md](docs/directives.md). The parser is not yet
+wired into the runtime.
 
 ## Development
 
