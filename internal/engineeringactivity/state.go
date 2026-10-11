@@ -68,5 +68,8 @@ func (c *Controller) ActivityState(ctx context.Context, resource storage.Resourc
 	if err := ctx.Err(); err != nil {
 		return State{}, err
 	}
+	if !accepted {
+		return State{}, nil
+	}
 	return State{Accepted: accepted, Completed: completed, WorkItem: b.Evidence.WorkItem, DeliveryID: first.DeliveryID, Evidence: e}, nil
 }
