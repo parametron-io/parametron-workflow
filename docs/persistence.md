@@ -121,6 +121,21 @@ worker contract and limitations around external effects.
 
 ## Provenance
 
+#37's `internal/engineeringbranch` reuses this generic API without a migration.
+Two immutable namespaces, `engineering_branch_authorization_v1` and
+`engineering_branch_creation_v1`, share a canonical stable key
+`<lowercase-owner>/<lowercase-repository>/issue/<positive-number>`.
+Both contain identical canonical v1 JSON evidence for the work item, repository
+identity, exact branch, default/base ref, and exact base SHA. The first records
+authorization before mutation; the second proves a validated controller create
+response. Completion alone or conflicting metadata/event binding fails closed.
+Both facts retain the original authorization delivery ID. Duplicate/restart
+reads reuse facts without rewriting them under a later event. No arbitrary
+Issue prose, title, or provider error text is recorded. Strict decoding checks
+canonical bytes, supported version, identities, branch/ref/SHA, and the
+originating delivery's durable resource binding. Reservation is not creation.
+The exact partial-failure protocol is in [execution.md](execution.md).
+
 `RecordProvenance` stores namespace, stable key, associated delivery ID, opaque
 metadata bytes, and caller-supplied creation time. A foreign key requires the
 delivery to exist. Resource association is available through that event's binding.

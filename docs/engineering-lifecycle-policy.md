@@ -91,7 +91,11 @@ Project position nor Ready admission.
 modifying Intent. Phase defaults false; Task/Feature default true. Explicit true
 or false overrides the default. Direct Phase implementation requires explicit
 Create-Branch true, a selected Ready Phase, and no active blocker. This is policy
-evidence for #37, which must revalidate current eligibility before mutation.
+evidence for #37, which evaluates caller-supplied authoritative current Input
+before authorization or an unfinished branch creation attempt. Freshness and
+completeness are integration responsibilities; #39 supplies production context
+and PhaseOrder. #37 never constructs activation state from Resolve(root) or
+observed Project Ready. See [execution.md](execution.md).
 Evaluate never inspects, names, or creates a branch.
 
 `StatusOwned` equals current `Intent.Effective().SetStatus`. Canonical Status
@@ -139,8 +143,9 @@ Blocked/Backlog Phases and parentless work. No GitHub fake is needed.
 - #36 implements canonical roadmap-root topology with a Phase-only projection,
   first-class standalone Task/Feature roots, direct-child grouping and
   numeric Roadmap Order with inherited anchors and current-work compaction.
-- #37: consume current eligibility for branch creation, naming, base resolution,
-  durable provenance, retries, and rejection of manual lookalikes.
+- #37 implements standalone exact branch creation from #35 eligibility, naming,
+  base resolution, durable authorization/completion provenance, retries, and
+  rejection of manual lookalikes. Branch creation does not imply In Progress.
 - #38: qualifying authorized development activity, In Progress, Start Date,
   and permitted Assignee initialization.
 - #39: production integration and lifecycle/Roadmap Order/work authorization

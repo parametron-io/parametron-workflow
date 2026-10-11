@@ -136,9 +136,19 @@ Phase 2 and injectable Phase #3 semantic normalization are integrated, including
 accepted metadata, deterministic Issue routing, and narrow Backlog ingress;
 see [semantic-reconciliation.md](semantic-reconciliation.md). The default CLI
 remains read-only; explicit Runner + Mutator tests exercise authorized writes.
-Engineering/PR/Bug Tracker lifecycle policy, branch authorization, managed
+Engineering/PR/Bug Tracker lifecycle integration, managed
 feedback, decision writing, App token minting, and distributed coordination
 remain later work.
+
+#37's `internal/engineeringbranch` is independently usable with explicitly
+supplied current #35 Input, configured repositories, the narrow github.Branches
+capability, and the shared provenance Store. It is not wired into app or CLI;
+the default CLI remains read-only. #39 owns production fresh complete context
+assembly, PhaseOrder, lifecycle reconciliation, and error-classifier composition.
+The root/relevance-scoped #34 resolver alone omits unrelated competing Phases
+and must not be assumed to supply complete repository activation input. #37
+neither changes that resolver nor depends on #36. See
+[execution.md](execution.md) for authorization, completion, and safe recovery.
 
 Issue #34's [Engineering context](engineering-context.md) is standalone and is
 not composed into app or CLI execution. #35 consumes its facts for pure lifecycle
