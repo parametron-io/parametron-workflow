@@ -911,9 +911,29 @@ When eligibility is satisfied, the controller creates the deterministic
 development branch and records its provenance, including the branch creation or
 base SHA.
 
-The exact branch-name format is intentionally deferred, but Issue identity must
-remain part of the deterministic branch identity. Renaming an Issue title must
-not rename an already-authorized branch.
+The deterministic v1 short branch name is `development/issue-<number>` in the
+Issue's configured owning repository. The number is positive base-10 without
+leading zeros; the name is at most 37 ASCII bytes. Task, Feature, and explicitly
+branch-enabled Phase use the same format. Type and title are not identity inputs;
+renaming an Issue cannot rename or replace its authorized branch. One work item
+has at most one controller-authorized development branch.
+
+`internal/engineeringbranch` evaluates caller-supplied authoritative current
+`engineeringpolicy.Input` and requires #35's `ExecutionEligible = true` before
+authorization or an unfinished creation attempt. Observed Project Ready is never
+authority. Production input freshness/completeness and PhaseOrder assembly belong
+to #39; the root/relevance-scoped #34 resolver alone does not supply a complete
+repository activation context. #37 does not depend on #36 or compose runtime.
+
+Before creation, the controller resolves the configured repository's current
+default heads ref and exact commit SHA. It durably reserves that branch/base tuple
+before requesting creation at that exact SHA. A separate immutable completion
+fact proves a validated successful controller create response. Retries reuse
+the reserved name/SHA; completed provenance suppresses all further branch writes.
+Authorization alone plus an existing branch is ambiguous and fails closed, even
+with an exact SHA match. Remote success followed by missing local completion is
+never silently adopted; there is no deletion or destructive recovery.
+See [execution.md](docs/execution.md) for the exact two-fact protocol.
 
 A manually created lookalike branch is not equivalent to an automation-created
 branch and does not authorize lifecycle progression.
@@ -1580,7 +1600,6 @@ must remain usable.
 The following are intentionally not defined by this overview:
 
 - exact numeric readiness-score weights
-- exact deterministic branch-name format
 - future heavy-agent implementation/provider selection
 - advanced security-alert workflow behavior
 

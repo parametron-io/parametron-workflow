@@ -14,7 +14,35 @@ AddProjectItem, RemoveProjectItem, and SetProjectOption. It exposes no arbitrary
 GraphQL, full-label replacement, label creation, relationships, or branch API.
 Inputs and response identities are validated, using the existing error/token/HTTP
 infrastructure with no retries. MutationFake fails on unconfigured hooks.
-Only semanticreconcile receives write authority; Client/observe remain read-only.
+Semanticreconcile receives this Phase #3 write capability; Client/observe remain
+read-only.
+
+#37 adds a separate `github.Branches` capability with `DefaultBranch`, `Branch`,
+and `CreateBranch`. All accept the configured Repository identity; exact lookup
+and creation use short heads names. Transport uses Repository.defaultBranchRef,
+Repository.ref with `refs/heads/<name>`, and the narrow GraphQL
+[createRef](https://docs.github.com/en/graphql/reference/git#createref) mutation
+with repositoryId, fully qualified name, and exact commit oid. No general query,
+update/delete ref, shell, default-branch mutation, or Project mutation is exposed.
+It reuses token/HTTP/context/error infrastructure with no retries. BranchFake
+fails unconfigured calls. Client, Mutator, and their existing fakes are unchanged.
+
+Both enclosing and returned ref repository identities are verified against the
+configured node ID, owner, and name. Ref prefix must be `refs/heads/`, the exact
+requested name must match, target must be Commit, and oid must be 40 lowercase
+hexadecimal digits. Creation also requires returned oid to equal requested oid.
+Default lookup retains the actual default name and SHA in one response. Missing
+repository/ref is NotFound; inconsistent/malformed data is Malformed. Existing
+Conflict, RateLimited, Transient, and cancellation categories propagate.
+Exact lookup returns `github.MissingBranch` only for an explicit null ref after
+repository validation. This typed error includes the validated repository/name
+and unwraps to the existing NotFound category. Generic NotFound (HTTP 404 or
+missing repository) is not proof of branch absence and cannot enable creation.
+Names use a bounded ASCII subset: 1..255 bytes of letters/digits, dot, underscore,
+hyphen, and slash, with no empty, dot-leading, hyphen-leading, dot-ending, or
+`.lock`-ending components, `..`, or `refs/` prefix. Unrepresentable default names
+fail explicitly. Branch eligibility and provenance are owned by
+engineeringbranch, not this capability. See [execution.md](execution.md).
 
 ## Normalized data
 
@@ -106,6 +134,12 @@ without changes to reads or workflow code. Concrete minting is deferred; this
 issue neither persists credentials nor implements speculative token management.
 Semantic/model components receive normalized planning inputs and never receive
 the client transport, token provider, or GitHub credentials.
+
+The standalone #37 branch capability requires repository Contents read access for
+ref/default-branch observation and Contents write access when branch creation is
+activated. Workflows write may additionally be required where GitHub requires it
+for operations affecting workflow files. Exact deployment permissions must be
+verified before production composition.
 
 The current surfaces require read access to organization identity and Projects
 v2 schema/items, repository metadata, Issues/types/native relationships, and

@@ -108,3 +108,127 @@ It runs `Worker.Run` with a poll interval of at least 1s (default 1s) beside HTT
 ingress. The worker retains sole recovery, eligibility, ordering, and settlement
 authority. One process must exclusively own the database; no distributed
 coordination is added. See [runtime.md](runtime.md).
+
+## Authorized development branches
+
+Issue #37 implements the standalone `internal/engineeringbranch` boundary:
+
+```go
+controller, err := engineeringbranch.New(engineeringbranch.Config{
+    Repositories: deployment.Repositories,
+    Branches: transport,
+    Store: store,
+})
+result, err := controller.Ensure(ctx, deliveryID, currentLifecycleInput)
+```
+
+`currentLifecycleInput` is `engineeringpolicy.Input`, including complete current
+Engineering facts and authoritative PhaseOrder. Ensure calls #35 Evaluate itself
+and acts only on Context.Root. Observed Project Status, webhook title/body/state,
+and existing refs cannot be passed as eligibility decisions. New authorization
+and unfinished creation attempts require `ExecutionEligible = true`. Set-Status
+ownership does not replace or suppress canonical branch eligibility. Task and
+Feature retain default Create-Branch true; Phase requires explicit true and
+current eligibility. There are no Status, In Progress, Start Date, Assignee,
+relationship, PR, Roadmap Order, deletion, or default-branch writes.
+
+Freshness/completeness of Input belongs to the caller. #39 owns production
+fresh GitHub observation → complete context → roadmap PhaseOrder → lifecycle →
+reconciliation composition. #37 has no dependency on engineeringorder and does
+not assemble context from #34 Resolve(root). That resolver is relevance-scoped:
+resolving one of two unrelated OPEN Phases can omit its competitor. Its result
+alone is not proof of complete activation input. Integration tests use explicitly
+complete known fixtures and caller-supplied PhaseOrder, not a production assembler.
+No app/worker/CLI composition is introduced by #37.
+
+### Branch identity and evidence
+
+The exact v1 short name is `development/issue-<number>` in the Issue's owning
+configured repository. Positive base-10 Issue numbers use no leading zeros;
+positive int64 gives a maximum of 37 ASCII bytes. Task, Feature, and explicitly
+branch-enabled Phase share the format. Title, Type, labels, ordering, and current
+node ID do not affect it. Equal numbers in different repositories identify
+different repository-local branches. Malformed/unrepresentable resources and
+branch/ref/SHA inputs fail before mutation. Repository bindings are validated
+and copied at construction; runtime node IDs are deployment evidence, not
+hardcoded workflow semantics.
+
+Both immutable facts use stable key
+`<lowercase-owner>/<lowercase-repository>/issue/<number>` with no node ID.
+Namespaces are `engineering_branch_authorization_v1` (reservation) and
+`engineering_branch_creation_v1` (successful creation). Both have identical
+canonical encoding/json bytes for `Evidence`, in this fixed field order:
+
+```text
+version: 1
+work_item: storage.Resource (canonical owner/repository, issue, number, empty NodeID)
+repository: configured Repository (ID, Owner, Name)
+branch: exact authorized short name
+base_ref: exact default short heads name resolved at authorization
+base_sha: exact lowercase 40-hex commit SHA
+```
+
+Each fact carries the originating authorization DeliveryID and its own storage
+CreatedAt. Time is not part of the canonical metadata or branch identity.
+Completion's namespace asserts a validated successful create response at base_sha;
+it is not inferred from a later branch read. Both originating events must have
+the matching durable resource binding. Reads verify namespace/key, canonical JSON,
+version/domain/identity, base ref/SHA, and event identity. Unknown/duplicate JSON
+keys, extra prose, inconsistent completion/reservation, and changed repository
+bindings fail closed. Evidence and returned results contain values rather than
+caller-owned mutable maps/slices/pointers. No Issue prose/title or provider error
+text is persisted.
+
+### Two-fact creation protocol
+
+1. Evaluate the supplied current #35 Input and validate the root, configured
+   repository, and durable triggering delivery binding. Load and strictly
+   validate both facts. If completion exists, require the matching reservation
+   and original delivery, then reuse completion without any branch read/write.
+   Completed provenance remains historical fact if current eligibility changes
+   or the branch is later changed/deleted; this Issue does not recreate it.
+2. Without completion, require current ExecutionEligible. For a new reservation,
+   read the configured repository's current default heads ref and exact commit
+   SHA. Validate repository/ref/Commit identity. Never use a moving base name for
+   creation. For an existing reservation, reuse its exact name/ref/SHA, including
+   after title changes or default-branch changes; do not resolve a new base.
+3. Look up the exact proposed/reserved development name. If present, return
+   ErrAmbiguous without adopting it, even when its SHA equals the base. A manual
+   lookalike before authorization receives neither reservation nor completion.
+   Only typed github.MissingBranch for the matching validated repository/name
+   proves absence. Generic NotFound (including HTTP 404 or missing repository)
+   and other lookup failures propagate without mutation.
+4. After proving absence and checking cancellation, durably record the new
+   reservation. Check cancellation again before external mutation. Existing
+   reservation retries skip this write and retain the original event.
+5. Create the exact branch at the exact reserved SHA. Validate the returned
+   repository, heads name, Commit kind, and SHA. Check cancellation and durably
+   record completion under the original authorization delivery. Only after this
+   succeeds return `Completed = true` and the value evidence.
+
+Authorization alone + existing branch + absent completion always fails closed.
+This may be manual creation, a race, remote success with a lost response, or a
+crash/storage failure/cancellation between remote success and completion. Exact
+name + exact SHA is never sufficient attribution. There is no deletion,
+destructive recovery, or invented successful provenance. If a retryable failure
+leaves the reserved branch absent, later current-eligible attempts may safely
+create that same exact branch from that same SHA. Completed facts suppress
+creation on duplicate delivery and restart, even if the remote branch disappears.
+
+Calls on one Controller serialize with cancellation checked after lock admission.
+The existing worker still owns per-resource lanes, exclusive database/runtime
+ownership, retries, and recovery. Independent live controllers/processes must not
+concurrently execute the same resource. Provenance uniqueness prevents competing
+reservation metadata but does not provide distributed external-effect locking.
+No SQLite transaction is held across GitHub calls. No migration or hidden retry
+is added, and worker recovery behavior remains unchanged.
+
+Local stable errors are ErrInvalid (boundary/identity), ErrProvenance
+(conflicting/corrupt evidence), ErrAmbiguous (unattributable existing ref), and
+ErrStorage (bounded persistence failure). #35 and classified GitHub errors
+propagate; cancellation/deadline remains detectable with errors.Is. The caller
+must provide worker error classification when composing production execution in
+#39. Cancellation is returned as an error, never successful authorization or
+creation. A committed reservation can survive cancellation and be retried; a
+remote success without completion remains ambiguous. If cancellation races a
+committed completion, that durable fact remains valid and can be reused on retry.
