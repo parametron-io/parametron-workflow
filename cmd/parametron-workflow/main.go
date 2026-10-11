@@ -102,7 +102,7 @@ func load(args []string, output io.Writer) (app.Config, error) {
 	if err != nil {
 		return app.Config{}, errors.New("GitHub transport construction failed")
 	}
-	return app.Config{Source: source, Client: client, DataDir: *dataDir, Listen: *listen, WebhookSecret: []byte(secret), Concurrency: *concurrency, PollInterval: *poll, RetryDelay: *retry}, nil
+	return app.Config{Engineering: true, Source: source, Client: client, DataDir: *dataDir, Listen: *listen, WebhookSecret: []byte(secret), Concurrency: *concurrency, PollInterval: *poll, RetryDelay: *retry}, nil
 }
 func run() error {
 	c, err := load(os.Args[1:], os.Stderr)

@@ -1,11 +1,16 @@
-# Controller foundation runtime
+# Controller runtime
 
-Phase 2 is a runnable deterministic controller foundation. It accepts signed
-GitHub notifications durably, executes serialized work, refetches current GitHub
-state, and hands normalized PolicyInput to `app.FoundationSink`. The sink returns
-success; it does not classify, calculate desired state, mutate GitHub, log inputs,
-or persist fabricated decisions. A completed event means this foundation handoff
-succeeded. Observation and PolicyInput are not authorization.
+The default CLI enables production Engineering lifecycle/reconciliation. Signed
+GitHub notifications enter durable storage and the worker routes current resource
+identity before Engineering computes complete desired state and performs authorized
+mutations through narrow capabilities. Observation and PolicyInput are not
+authorization. No production semantic/model provider is implicitly enabled.
+
+Embedded callers opt in through `app.Config.Engineering`; its zero value retains
+the Phase 2 foundation path, where normalized PolicyInput reaches FoundationSink.
+That sink acknowledges without classification, desired-state computation, mutation,
+input logging, or fabricated decision persistence. Completed means the configured
+processing path succeeded, or routing settled an explicitly non-applicable event.
 
 Supplying `app.Config.Runner` explicitly composes #27's durable semantic coordinator
 using the shared Store and client. Runner + explicit Mutator composes #28's
@@ -14,7 +19,11 @@ SemanticConsumer retains the enriched input path; combining it with Mutator is
 rejected. Without either, SemanticFoundationSink acknowledges without mutation.
 This boundary requires an enriched consumer: an old Consumer cannot be combined
 with Runner, and SemanticConsumer requires Runner. No production provider or CLI
-semantic flags exist. Without Runner, the foundation above is unchanged. See
+semantic flags exist. Engineering enablement grants no semantic mutation authority.
+Without Runner, Engineering still runs when the complete graph has Type authority:
+accepted completion, or exact validated native Type with Classification disabled.
+Enabled Classification without accepted completion returns engineeringcontext.ErrIncomplete
+and retries fail closed, including for unrelated Issues/Bugs. See
 [semantic-integration.md](semantic-integration.md) for gating, freshness, durable
 completion, and restart behavior.
 
@@ -58,7 +67,10 @@ JWT signing and installation-token minting remain deferred. The transport uses
 Startup parses the source file, loads secrets, constructs the token source and
 transport, validates process settings, discovers live GitHub schema, calls
 `config.Resolve`, validates observer boundaries, initializes SQLite, constructs
-worker/ingress, and finally binds HTTP. The same client performs discovery and
+Engineering composition when enabled, worker/ingress, and finally binds HTTP.
+Engineering requires IssueLister, Branches, CommitComparison, LifecycleFields,
+NumericFields, and ProjectItemReader on the shared client; missing narrow capabilities
+fail composition before HTTP serving. The same client performs discovery and
 all current Issue/PR/Project reads. Missing, ambiguous, or incompatible schema
 prevents serving; no partial deployment or alternate current-state path exists.
 
@@ -94,6 +106,13 @@ string persistence occurs.
 Semantic processing uses bounded retryable/terminal categories documented in
 [semantic-integration.md](semantic-integration.md); process cancellation still
 releases the claim rather than creating terminal semantic failure.
+Engineering-local `engineering_changed` and `engineering_incomplete` retry.
+Generic `engineering_activity_storage` and `engineering_branch_storage` are
+terminal: no safe transient storage taxonomy is guessed. Graph/deployment,
+policy/order/hierarchy/capacity, provenance/ambiguity, Project identity,
+configuration, and malformed notification failures map to bounded terminal
+Engineering categories. Provider/storage diagnostics never enter stable categories;
+typed GitHub transient/rate-limit classification stays separate.
 Event-level outcomes do not crash the application; worker infrastructure or
 HTTP listener/server failures stop the other component
 and return a bounded error. Startup failures identify the failed boundary.
@@ -117,8 +136,9 @@ pending, retaining claim generations, evidence, and resource bindings. Pending
 work resumes, retry eligibility times remain intact, and completed/failed work
 stays terminal. Stale generations cannot settle a recovered attempt. Unfinished
 handoffs have at-least-once recovery semantics; this foundation does not promise
-exactly-once future external side effects. Later policy must use provenance and
-idempotency protocols for its authorized effects.
+exactly-once external side effects. Engineering uses fresh desired-state
+comparison for ordinary field drift and durable branch/activity provenance for
+one-shot effects; no reconciliation replay log is introduced.
 
 ## Verification and phase boundary
 
@@ -132,32 +152,47 @@ component propagation, and cancellation/reopen. Command tests cover strict file
 loading, missing/malformed config, invalid secrets, and replaceable credentials.
 No test needs real GitHub, credentials, external HTTP, or gh.
 
-Phase 2 and injectable Phase #3 semantic normalization are integrated, including
-accepted metadata, deterministic Issue routing, and narrow Backlog ingress;
-see [semantic-reconciliation.md](semantic-reconciliation.md). The default CLI
-remains read-only; explicit Runner + Mutator tests exercise authorized writes.
-Engineering/PR/Bug Tracker lifecycle integration, managed
-feedback, decision writing, App token minting, and distributed coordination
-remain later work.
+Phase 2, injectable Phase #3 semantic normalization, and Phase #4 Engineering
+Issue lifecycle/reconciliation are integrated and verified. The CLI enables
+Engineering by default and can perform authorized Status, Roadmap Order, branch,
+and first-activity/Start Date mutations. No Runner/provider is supplied by the CLI.
+Explicit Runner + Mutator or custom SemanticConsumer composition remains separate;
+see [semantic-reconciliation.md](semantic-reconciliation.md).
 
-#37's `internal/engineeringbranch` is independently usable with explicitly
-supplied current #35 Input, configured repositories, the narrow github.Branches
-capability, and the shared provenance Store. It is not wired into app or CLI;
-the default CLI remains read-only. #39 owns production fresh complete context
-assembly, PhaseOrder, lifecycle reconciliation, and error-classifier composition.
-The root/relevance-scoped #34 resolver alone omits unrelated competing Phases
-and must not be assumed to supply complete repository activation input. #37
-neither changes that resolver nor depends on #36. See
-[execution.md](execution.md) for authorization, completion, and safe recovery.
+Production Engineering uses deployment-wide ResolveSnapshot, not the root-scoped
+Resolve(root) relevance boundary. Every configured repository's OPEN/CLOSED Issues
+must have Type authority. Complete Context → #36 BuildRoadmapOrder → #35 Evaluate
+→ #36 Evaluate produces current policy and numbers; fresh Project comparisons
+converge only owned drift. Completed activity supplies the OPEN In Progress overlay
+and current direct-child Phase progression. Closed resources have no Status writes.
+Numeric assignments/clears are independent of Set-Position and Status.
 
-Issue #34's [Engineering context](engineering-context.md) is standalone and is
-not composed into app or CLI execution. #35 consumes its facts for pure lifecycle
-policy. #36 computes roadmap roots, their Phase-only PhaseOrder projection, and
-numeric Roadmap Order separately;
-see [engineering-ordering.md](engineering-ordering.md). Normal Project observation
-supports the required Engineering numeric field. Numeric-field reconciliation
-remains #39; ordering policy is not composed into runtime. Default CLI and Phase #3
-composition remain unchanged.
+After successful field convergence, another complete Snapshot and FULL pure
+pipeline run before global EnsureFrom fan-out. Exact eligible targets share that
+fresh Snapshot/PhaseOrder; #37 independently validates eligibility and binds
+cross-target authorization to the actual durable trigger. #38 retains first-activity
+qualification, original push provenance, one-shot Start Date and no assignment.
+See [execution.md](execution.md), [Engineering context](engineering-context.md),
+and [ordering](engineering-ordering.md).
+
+One context-aware deployment-wide process-local lane is acquired before complete
+Engineering state computation and covers downstream semantic mutation when
+explicitly composed, activity, field reconciliation, and branch work. It releases
+on all exits, without SQLite transactions across GitHub I/O. Model enrichment runs
+outside it; enrichment failure does not fall through into Engineering. Worker
+same-resource FIFO alone cannot serialize a plan touching multiple resources.
+The lane is not a distributed/cross-process lock.
+
+Retries resolve fresh complete state and Project observations and apply only
+remaining/current drift. Changed topology wins; no batch provenance, reconciliation
+completion record, replay log, or schema migration was added. One-shot branch and
+activity namespaces retain their separate ownership.
+
+Phase #5 PR onboarding/review/merge/completion and companion ordering, terminal
+close/reopen synchronization, Bug Tracker scoring/admission, nested lifecycle,
+branch deletion/revocation, native Project positioning, heavy agents, automatic
+merge, managed feedback/decision-record persistence, App token minting, and
+distributed coordination remain deferred.
 
 ## Standalone first activity (#38)
 
@@ -166,9 +201,9 @@ engineeringactivity is independently usable with caller-supplied complete curren
 fresh Project observations, narrow lifecycle fields and the shared provenance
 Store. Two immutable facts provide restart/partial-write convergence; accepted
 activity does not bypass current eligibility. Assignees remain unchanged.
-No app, CLI, production worker, schema, dependency or Nix composition is added.
-#39 owns repository-wide current context, #36 PhaseOrder, lifecycle/activity and
-desired-state reconciliation integration. Default runtime behavior is unchanged;
+At #38 standalone completion no app/CLI/worker composition was added. Current
+production Engineering now supplies complete context, PhaseOrder, routing,
+activity and reconciliation while preserving this package's narrow authority;
 see [execution.md](execution.md).
 
 For #38 qualification, the push’s immutable Delivery.ReceivedAt must be strictly
@@ -176,3 +211,10 @@ after the validated #37 successful-creation provenance CreatedAt exposed by its
 read-only Completion value. Processing-time completion alone is insufficient.
 Earlier or equal-time notifications grant no activity and produce no new activity
 provenance or lifecycle writes, including on restart or out-of-order processing.
+
+Stage 2 verification additionally covers complete Snapshot consistency, fresh
+full policy before branch fan-out, canonical global convergence, original-delivery
+activity resume, current-graph parent progression, topology-changing partial
+failure, process-local lane cancellation/semantic overlap, Project/push routing,
+non-applicable settlement, narrow numeric transport, explicit semantic authority,
+terminal storage classification, and default CLI Engineering enablement.

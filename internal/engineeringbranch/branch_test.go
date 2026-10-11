@@ -124,6 +124,156 @@ func (f *fixture) evidence(ns string) (storage.Provenance, Evidence, bool) {
 	}
 	return p, e, ok
 }
+
+func TestEnsureFromCrossTargetOriginAndRestart(t *testing.T) {
+	f := setup(t)
+	trigger := resource(39)
+	f.delivery("trigger", trigger)
+	in := input(sp.Task, "")
+	in.Context.Nodes = append(in.Context.Nodes, node(39, sp.Bug, ""))
+	origin := Origin{DeliveryID: "trigger", Resource: trigger}
+	got, err := f.controller.EnsureFrom(context.Background(), origin, in)
+	if err != nil || !got.Completed || got.Evidence.WorkItem != identity(resource(37)) || got.Evidence.Repository != repo || got.Evidence.BaseRef != "trunk" || got.Evidence.BaseSHA != sha {
+		t.Fatal(got, err)
+	}
+	auth, e, found := f.evidence(authorizationNamespace)
+	done, created, finished := f.evidence(creationNamespace)
+	want, err := json.Marshal(originEvidence{Version: 2, Origin: Origin{DeliveryID: "trigger", Resource: identity(trigger)}, Branch: got.Evidence})
+	if err != nil || !found || !finished || e != created || !bytes.Equal(auth.Metadata, want) || !bytes.Equal(done.Metadata, want) || auth.DeliveryID != "trigger" || done.DeliveryID != "trigger" {
+		t.Fatal(auth, done, err)
+	}
+	if err := f.store.Close(); err != nil {
+		t.Fatal(err)
+	}
+	f.store, err = storage.Open(context.Background(), f.path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	f.controller, err = New(Config{Repositories: []github.Repository{repo}, Store: f.store, Branches: f.fake})
+	if err != nil {
+		t.Fatal(err)
+	}
+	f.calls = nil
+	completion, err := f.controller.Completed(context.Background(), resource(37))
+	if err != nil || !completion.Completed || completion.Evidence != got.Evidence {
+		t.Fatal(completion, err)
+	}
+	again, err := f.controller.EnsureFrom(context.Background(), origin, in)
+	if err != nil || again != got || len(f.calls) != 0 || f.creates != 1 {
+		t.Fatal(again, err, f.calls)
+	}
+}
+
+func TestEnsureFromSameTargetRetainsV1(t *testing.T) {
+	for _, explicit := range []bool{false, true} {
+		f := setup(t)
+		var got Result
+		var err error
+		if explicit {
+			got, err = f.controller.EnsureFrom(context.Background(), Origin{DeliveryID: "first", Resource: resource(37)}, input(sp.Task, ""))
+		} else {
+			got, err = f.ensure("first", input(sp.Task, ""))
+		}
+		if err != nil || !got.Completed {
+			t.Fatal(got, err)
+		}
+		auth, _, _ := f.evidence(authorizationNamespace)
+		want, _ := json.Marshal(got.Evidence)
+		if !bytes.Equal(auth.Metadata, want) {
+			t.Fatal("same-target provenance is not v1", string(auth.Metadata))
+		}
+	}
+}
+
+func TestEnsureFromRejectsInvalidOriginWithoutBranchIO(t *testing.T) {
+	for _, bad := range []string{"fabricated delivery", "different binding", "absent trigger", "outside trigger", "malformed target", "ineligible target"} {
+		t.Run(bad, func(t *testing.T) {
+			f := setup(t)
+			trigger := resource(39)
+			f.delivery("trigger", trigger)
+			in := input(sp.Task, "")
+			in.Context.Nodes = append(in.Context.Nodes, node(39, sp.Bug, ""))
+			origin := Origin{DeliveryID: "trigger", Resource: trigger}
+			switch bad {
+			case "fabricated delivery":
+				origin.DeliveryID = "fabricated"
+			case "different binding":
+				origin.DeliveryID = "first"
+			case "absent trigger":
+				in.Context.Nodes = in.Context.Nodes[:1]
+			case "outside trigger":
+				origin.Resource.Repository = "outside"
+			case "malformed target":
+				in.Context.Root.Kind = "pull_request"
+			case "ineligible target":
+				in.Context.Nodes[0] = node(37, sp.Task, "Create-Branch: false")
+			}
+			got, err := f.controller.EnsureFrom(context.Background(), origin, in)
+			if bad == "ineligible target" {
+				if err != nil {
+					t.Fatal(err)
+				}
+			} else if err == nil {
+				t.Fatal("invalid origin accepted")
+			}
+			if got.Completed || len(f.calls) != 0 || f.creates != 0 {
+				t.Fatal(got, err, f.calls)
+			}
+		})
+	}
+}
+
+func TestEnsureFromV2CorruptionAndEnvelopeMismatch(t *testing.T) {
+	for _, bad := range []string{"origin version", "origin resource", "origin delivery", "v1 v2 mismatch", "different completion", "noncanonical"} {
+		t.Run(bad, func(t *testing.T) {
+			f := setup(t)
+			f.delivery("trigger", resource(39))
+			in := input(sp.Task, "")
+			in.Context.Nodes = append(in.Context.Nodes, node(39, sp.Bug, ""))
+			origin := Origin{DeliveryID: "trigger", Resource: resource(39)}
+			result, err := f.controller.EnsureFrom(context.Background(), origin, in)
+			if err != nil || !result.Completed {
+				t.Fatal(result, err)
+			}
+			f.calls = nil
+			f.controller.store = faultyStore{Store: f.store, read: func(ctx context.Context, ns, k string) (storage.Provenance, error) {
+				p, err := f.store.Provenance(ctx, ns, k)
+				if err != nil {
+					return p, err
+				}
+				if ns != creationNamespace {
+					return p, nil
+				}
+				var wrapped originEvidence
+				if err := json.Unmarshal(p.Metadata, &wrapped); err != nil {
+					t.Fatal(err)
+				}
+				switch bad {
+				case "origin version":
+					wrapped.Version = 3
+				case "origin resource":
+					wrapped.Origin.Resource.Repository = "outside"
+				case "origin delivery":
+					wrapped.Origin.DeliveryID = "fabricated"
+				case "v1 v2 mismatch":
+					p.Metadata, _ = json.Marshal(wrapped.Branch)
+					return p, nil
+				case "different completion":
+					wrapped.Branch.BaseSHA = strings.Repeat("f", 40)
+				case "noncanonical":
+					p.Metadata = append([]byte(" "), p.Metadata...)
+					return p, nil
+				}
+				p.Metadata, err = json.Marshal(wrapped)
+				return p, err
+			}}
+			got, err := f.controller.Completed(context.Background(), resource(37))
+			if !errors.Is(err, ErrProvenance) || got.Completed || len(f.calls) != 0 {
+				t.Fatal(got, err, f.calls)
+			}
+		})
+	}
+}
 func TestAuthorizationUsesCurrentLifecycle(t *testing.T) {
 	cases := []struct {
 		name string

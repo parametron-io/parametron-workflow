@@ -1,5 +1,5 @@
 // Package app composes the controller foundation and explicitly injected semantic
-// convergence. The default CLI remains read-only.
+// convergence and explicitly enabled deployment-wide Engineering execution.
 package app
 
 import (
@@ -15,6 +15,13 @@ import (
 	"time"
 
 	"github.com/parametron-io/parametron-workflow/internal/config"
+	ea "github.com/parametron-io/parametron-workflow/internal/engineeringactivity"
+	eb "github.com/parametron-io/parametron-workflow/internal/engineeringbranch"
+	ec "github.com/parametron-io/parametron-workflow/internal/engineeringcontext"
+	ef "github.com/parametron-io/parametron-workflow/internal/engineeringflow"
+	eo "github.com/parametron-io/parametron-workflow/internal/engineeringorder"
+	ep "github.com/parametron-io/parametron-workflow/internal/engineeringpolicy"
+	er "github.com/parametron-io/parametron-workflow/internal/engineeringreconcile"
 	"github.com/parametron-io/parametron-workflow/internal/github"
 	"github.com/parametron-io/parametron-workflow/internal/observe"
 	"github.com/parametron-io/parametron-workflow/internal/semantic"
@@ -32,6 +39,8 @@ const ShutdownTimeout = 10 * time.Second
 // settings are explicit; the command supplies documented defaults. Client is
 // shared by discovery and observation. Consumer defaults to FoundationSink.
 type Config struct {
+	// Engineering enables Phase-4 composition; zero retains the foundation path.
+	Engineering   bool
 	Source        config.SourceConfig
 	Client        github.Client
 	DataDir       string
@@ -41,8 +50,9 @@ type Config struct {
 	PollInterval  time.Duration
 	RetryDelay    time.Duration
 	Consumer      observe.Consumer
-	// Runner explicitly enables durable semantic integration; the default CLI
-	// retains FoundationSink. SemanticConsumer receives the enriched handoff.
+	// Runner optionally enables durable semantic integration. Engineering runs
+	// without it only when the complete snapshot already has Type authority.
+	// SemanticConsumer receives the enriched handoff.
 	Runner           semantic.Runner
 	Mutator          github.Mutator
 	SemanticConsumer semanticflow.Consumer
@@ -64,6 +74,43 @@ func (SemanticFoundationSink) Evaluate(context.Context, semanticflow.PolicyInput
 func classify(err error) worker.Classification {
 	if retryable, category, ok := semanticflow.FailureCategory(err); ok {
 		return worker.Classification{Retryable: retryable, Category: category}
+	}
+	for _, item := range []struct {
+		err       error
+		category  string
+		retryable bool
+	}{
+		{ec.ErrChanged, "engineering_changed", true},
+		{ec.ErrIncomplete, "engineering_incomplete", true},
+		{ea.ErrStorage, "engineering_activity_storage", false},
+		{eb.ErrStorage, "engineering_branch_storage", false},
+		{ec.ErrDeployment, "engineering_deployment", false},
+		{ec.ErrParentCycle, "engineering_parent_cycle", false},
+		{ec.ErrDependencyCycle, "engineering_dependency_cycle", false},
+		{ec.ErrMissing, "engineering_missing", false},
+		{ec.ErrInvalid, "engineering_graph", false},
+		{ep.ErrInvalid, "engineering_policy", false},
+		{ep.ErrParent, "engineering_parent", false},
+		{ep.ErrLifecycle, "engineering_lifecycle", false},
+		{ep.ErrPhaseOrder, "engineering_phase_order", false},
+		{eo.ErrRoadmapCapacity, "engineering_capacity", false},
+		{eo.ErrRoadmapHierarchy, "engineering_hierarchy", false},
+		{eo.ErrInvalid, "engineering_order", false},
+		{eo.ErrPhaseOrder, "engineering_phase_order", false},
+		{eo.ErrRoadmap, "engineering_roadmap", false},
+		{ea.ErrProvenance, "engineering_activity_provenance", false},
+		{eb.ErrProvenance, "engineering_branch_provenance", false},
+		{eb.ErrAmbiguous, "engineering_branch_ambiguous", false},
+		{ea.ErrProject, "engineering_project", false},
+		{er.ErrProject, "engineering_project", false},
+		{ea.ErrInvalid, "engineering_activity", false},
+		{eb.ErrInvalid, "engineering_branch", false},
+		{er.ErrInvalid, "engineering_configuration", false},
+		{ef.ErrInvalid, "engineering_notification", false},
+	} {
+		if errors.Is(err, item.err) {
+			return worker.Classification{Retryable: item.retryable, Category: item.category}
+		}
 	}
 	category := "local_processor"
 	for _, item := range []struct {
@@ -190,7 +237,7 @@ func compose(ctx context.Context, c Config) (_ *runtime, result error) {
 			result = errors.Join(result, store.Close())
 		}
 	}()
-	if c.Runner != nil {
+	if c.Runner != nil && !c.Engineering {
 		consumer := c.SemanticConsumer
 		if c.Mutator != nil {
 			consumer, err = semanticreconcile.New(*prepared.Deployment, processor, c.Mutator)
@@ -214,7 +261,16 @@ func compose(ctx context.Context, c Config) (_ *runtime, result error) {
 			return nil, err
 		}
 	}
-	w, err := worker.New(worker.Config{Store: store, Resolver: resolver, Processor: processor, Classifier: classify, Concurrency: c.Concurrency, Clock: c.Clock,
+	var resourceResolver worker.ResourceResolver = resolver
+	var eventProcessor worker.Processor = processor
+	if c.Engineering {
+		flow, err := composeEngineering(c, *prepared.Deployment, store, resolver, processor)
+		if err != nil {
+			return nil, err
+		}
+		resourceResolver, eventProcessor = flow, flow
+	}
+	w, err := worker.New(worker.Config{Store: store, Resolver: resourceResolver, Processor: eventProcessor, Classifier: classify, Concurrency: c.Concurrency, Clock: c.Clock,
 		RetrySchedule: func(_ worker.Classification, _ int64, now time.Time) time.Time { return now.Add(c.RetryDelay) }})
 	if err != nil {
 		return nil, err

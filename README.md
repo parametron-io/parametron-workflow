@@ -1,6 +1,6 @@
 # Parametron Workflow
 
-Parametron Workflow is the planned deterministic workflow controller for
+Parametron Workflow is the deterministic workflow controller for
 Parametron's GitHub Issues and Projects.
 
 It is designed to keep engineering workflow state predictable and
@@ -15,7 +15,7 @@ Go owns policy and mutations.
 GitHub records observable state.
 ```
 
-The planned controller uses bounded semantic classification and relative estimation
+The controller contract uses bounded semantic classification and relative estimation
 where free-form engineering text benefits from model judgement. Lifecycle
 transitions, dependency gating, Phase behavior, branch authorization, Pull
 Request binding, review transitions, ordering, reconciliation, and GitHub
@@ -35,24 +35,35 @@ Durable initial classification is available through an explicitly injected Runne
 with gating, Pending safety, stale-result rejection, and completion reuse. The
 explicit Runner + Mutator path now reconciles accepted semantic metadata and
 deterministic Issue Project routing, completing Phase #3 normalization.
-The default CLI retains the no-semantic foundation because no production provider exists.
-Workflow lifecycle mutation and reconciliation remain later Phase #4 work.
-Issue #34 supplies a standalone deterministic read-side Engineering context,
-with current declarative relationships and durable accepted classification;
-see [docs/engineering-context.md](docs/engineering-context.md). Lifecycle
-Status and execution eligibility are now computed by #35's standalone pure
-[Engineering lifecycle policy](docs/engineering-lifecycle-policy.md).
-GitHub Status/Roadmap Order/branch reconciliation remains later Phase #4 work.
+Phase #4 Engineering Issue lifecycle/reconciliation is implemented and verified.
+The default CLI enables complete deployment-wide Engineering Snapshot resolution,
+pure roadmap/lifecycle computation, owned Status and numeric Roadmap Order
+convergence, authorized branches, and first development activity/Start Date.
+It can mutate GitHub through narrow authorized capabilities. It does not activate
+a semantic provider: Runner remains optional and explicitly supplied; Runner-only
+composition uses SemanticFoundationSink unless an explicit Mutator or custom
+SemanticConsumer is supplied. Engineering enablement grants no semantic mutation
+capability. Every enumerated Issue needs accepted semantic Type authority, or exact
+validated native Type with Classification disabled. Enabled Classification
+without completion retries ErrIncomplete; invalid native fallback fails closed. No arbitrary semantic backfill is performed.
 
-#36 orders Phase and standalone Task/Feature roadmap roots, supplies #35's
-Phase-only PhaseOrder, and computes numeric Engineering Roadmap Order;
-see [docs/engineering-ordering.md](docs/engineering-ordering.md). Engineering views
-sort by Roadmap Order ASC. Numeric-field convergence remains #39.
+See [Engineering context](docs/engineering-context.md),
+[pure lifecycle policy](docs/engineering-lifecycle-policy.md),
+[Roadmap Order](docs/engineering-ordering.md), and [execution](docs/execution.md).
+Engineering views sort by Roadmap Order ASC; native card positions are not reconciled.
+One process-local Engineering lane serializes global convergence. Partial failures
+retry from fresh state and apply only current drift.
+
+Phase #5 PR onboarding/review, merge/completion, and PR companion ordering remain
+future. Terminal close/reopen synchronization, nested lifecycle, Bug Tracker
+scoring/admission, branch deletion/revocation, heavy agents, automatic merge,
+native Project positioning, and distributed coordination are deferred. Assignees
+remain unchanged because reliable assignability evidence is unavailable.
 
 The current design covers the shared controller model, the **Parametron
 Engineering** Project workflow, and a separate **Bug Tracker** policy layer.
 
-## Design highlights
+## Design highlights (current and future contract)
 
 - deterministic desired-state reconciliation
 - GitHub Project lifecycle management
@@ -131,8 +142,9 @@ nix develop --command go run ./cmd/parametron-workflow \
 
 Startup validates deployment bindings against live GitHub schema before serving
 signed deliveries at `/webhooks/github` on `127.0.0.1:8080`. One file-backed SQLite
-inbox feeds current-state observation and an explicit foundation sink. The sink
-performs no lifecycle policy or mutations. SIGINT/SIGTERM stop ingress, cancel
+inbox feeds current-state observation and Engineering reconciliation. The CLI
+enables Engineering by default while supplying no semantic Runner. SIGINT/SIGTERM
+stop ingress, cancel
 processing, wait for cleanup, and close SQLite. See [docs/runtime.md](docs/runtime.md)
 for settings, secrets, restart behavior, and deployment requirements.
 
@@ -151,8 +163,10 @@ changes with `nix develop --command gofmt -w <files>`.
 construction, HTTP serving, cancellation coordination, and shutdown.
 `app.Prepare` composes live discovery with deterministic configuration resolution.
 Phase 2 and injectable Phase #3 semantic normalization are integrated.
-Pure pre-development lifecycle policy is available separately; runtime lifecycle
-integration remains later Phase #4 work.
+Pure pre-development lifecycle and ordering packages retain their separate
+ownership; production composes them with Engineering reconciliation, branch
+provenance, and first activity. Embedded callers opt in with Config.Engineering;
+its zero value retains the foundation path.
 
 ## License
 

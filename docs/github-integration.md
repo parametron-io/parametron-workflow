@@ -57,7 +57,7 @@ are unchanged. ListerFake fails unconfigured calls. See
 number reads preserve its value for comparison; native Project item position is
 not an Engineering input. There is no special ordered reader. Client and Mutator
 are unchanged. See [engineering-ordering.md](engineering-ordering.md) for pure
-numeric assignments/clears. Numeric-field reconciliation remains #39.
+numeric assignments/clears and their implemented production convergence.
 
 Repository identity reuses `config.Repository` (node ID, owner login, name).
 Issues contain node/repository identity, number, title, unparsed body, OPEN or
@@ -146,7 +146,10 @@ v2 schema/items, repository metadata, Issues/types/native relationships, and
 Pull Requests. Install the App for every repository whose identities or links
 must be visible. GitHub documents repository Issues and Pull Requests read
 permissions and organization Projects access in its [App Project example](https://docs.github.com/en/issues/planning-and-tracking-with-projects/automating-your-project/automating-projects-using-actions).
-The default CLI uses only read access. Explicit semantic reconciliation requires
+The default CLI enables Engineering: deployment credentials need appropriate
+Project write access for owned Status, Start Date and numeric Roadmap Order,
+and repository write access for authorized branch creation. Explicit semantic
+reconciliation requires
 appropriate Issue/PR metadata and organization Project write access. Exact
 minimum installation permissions must be verified during deployment following GitHub's
 [GraphQL permission guidance](https://docs.github.com/en/apps/creating-github-apps/registering-a-github-app/choosing-permissions-for-a-github-app#choosing-permissions-for-graphql-api-access).
@@ -178,8 +181,10 @@ configuration preparation, authentication isolation, and failure boundaries.
 
 Signed webhook ingress, durable worker queues/retries, observation, and startup
 are integrated through `internal/app`, along with explicit Phase #3 directives,
-semantic acceptance, and authorized metadata/routing reconciliation. Lifecycle
-decisions remain later work.
+semantic acceptance, and authorized metadata/routing reconciliation. Engineering
+lifecycle/reconciliation, branches and first activity are now production-composed;
+PR lifecycle remains Phase #5. Client itself stays read-only: composition requires
+separate narrow capabilities and deterministic Go authorization.
 
 ## First-activity capabilities (#38)
 
@@ -210,10 +215,44 @@ mutation, clear, numeric, position or membership capability is added. #38 never
 receives the full semantic Mutator. Assignment is deliberately absent because
 existing login-only Actor evidence cannot establish human assignability.
 See [execution.md](execution.md) for authorization and partial-write safety.
-These capabilities are not activated by app/CLI; #39 owns composition.
+At #38 standalone completion these capabilities added no app/CLI activation.
+Current production Engineering composition now uses them, without implicitly
+activating the semantic Mutator or a model provider.
 
 For #38 qualification, the push’s immutable Delivery.ReceivedAt must be strictly
 after the validated #37 successful-creation provenance CreatedAt exposed by its
 read-only Completion value. Processing-time completion alone is insufficient.
 Earlier or equal-time notifications grant no activity and produce no new activity
 provenance or lifecycle writes, including on restart or out-of-order processing.
+
+## Numeric Project fields and current item identity
+
+`github.NumericFields` is a separate reusable narrow capability:
+SetProjectNumber(project, item, field, float64) and
+ClearProjectNumber(project, item, field). It grants exact NUMBER set/unset only,
+not arbitrary GraphQL execution or Roadmap policy. engineeringreconcile decides
+when each write/clear is authorized from the exact pure ordering plan.
+
+Transport validates nonblank exact IDs and finite input before mutation, validates
+Project/item association and exact field identity/kind through paginated Project
+fields, then validates mutation result identity. It refetches identity/field kind
+and paginated current item field values AFTER writing. Set requires presence and
+EXACT float equality; clear requires true absence, never numeric zero. Missing,
+duplicate, wrong-kind, nonfinite, or mismatched evidence fails with typed GitHub
+errors. Shared authentication/error/HTTP/context mechanics apply, cancellation is
+detectable and no hidden retry exists. No position, afterId, or item move is exposed.
+
+`github.ProjectItemReader.CurrentProjectItem(ctx, itemID)` is a separate current
+identity read for bounded notification routing. It validates exact item/Project
+identity and returns ContentKind plus Issue identity when present, with no field
+values. Missing item is typed NotFound; malformed content/identity fails closed.
+PR, DraftIssue and null content can be identified without granting Engineering
+Issue authority. engineeringflow validates configured Project/repository and
+refetches current primary Issue identity before binding; payload Status/Roadmap
+values are ignored. See [webhooks.md](webhooks.md) for applicable actions.
+
+The default CLI's shared Transport satisfies Client, IssueLister, Branches,
+CommitComparison, LifecycleFields, NumericFields and ProjectItemReader. Engineering
+composition explicitly requires each capability before serving HTTP, and applies
+policy/provenance checks before authorized mutations. No production semantic
+provider or implicit semantic mutation authority is activated.

@@ -115,3 +115,18 @@ See [github-integration.md](github-integration.md). The command strictly parses
 discovery and resolution before opening ingress; a pre-resolved configuration
 cannot bypass startup validation. Secrets and operational settings remain
 separate from SourceConfig. See [runtime.md](runtime.md).
+
+## Engineering runtime composition
+
+The CLI enables Engineering by default; embedded callers opt in through
+app.Config.Engineering, whose zero value retains the foundation path. There is
+no Engineering CLI flag or additional SourceConfig/schema role. Composition
+requires the existing Engineering Status, Start Date and numeric Roadmap Order
+bindings and distinct exact live Phase/Task/Feature/Bug Type IDs, plus the narrow
+GitHub capabilities described in [runtime.md](runtime.md).
+
+Complete Snapshot resolution requires Type authority for every enumerated Issue,
+including Bugs and unrelated work: accepted semantic completion or exact validated
+native Type only with Classification disabled. Otherwise it fails closed; Project
+membership/labels/Status cannot mark a nonparticipant. Engineering enablement
+supplies no semantic provider or implicit semantic mutation capability.

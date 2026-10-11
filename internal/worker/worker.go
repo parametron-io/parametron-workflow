@@ -12,6 +12,10 @@ import (
 	"github.com/parametron-io/parametron-workflow/internal/storage"
 )
 
+// ErrNotApplicable settles an unsupported notification without binding a
+// fabricated resource or blocking subsequent events in the same Step.
+var ErrNotApplicable = errors.New("worker: notification not applicable")
+
 type ResourceResolver interface {
 	Resolve(context.Context, storage.Event) (storage.Resource, error)
 }
@@ -164,6 +168,15 @@ func (w *Worker) Step(ctx context.Context) (result error) {
 			held = append(held, e)
 			owned[e.Delivery.ID] = e.State.Attempts
 			r, resolveErr := w.cfg.Resolver.Resolve(ctx, e)
+			if errors.Is(resolveErr, ErrNotApplicable) {
+				if err = w.settle(ctx, e, nil); err != nil {
+					return err
+				}
+				if ctx.Err() != nil {
+					return nil
+				}
+				continue
+			}
 			if resolveErr != nil {
 				if err = w.settle(ctx, e, resolveErr); err != nil {
 					return err

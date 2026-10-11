@@ -92,7 +92,8 @@ priority, eligibility, routing, or desired-state calculation is performed.
 
 These are unordered resource facts. Engineering's configured Roadmap Order is
 observed through the existing number path, preserving zero versus unset. It is
-comparison evidence for #39, not #36 policy authority; see
+comparison evidence consumed by implemented #39 reconciliation, not #36 policy
+authority; see
 [engineering-ordering.md](engineering-ordering.md). `ProjectState.Items` retains
 stable-ID normalization; native card position is not an Engineering input.
 
@@ -153,8 +154,12 @@ classification, mutations, logs of input, or decision persistence. Supplying
 app.Config.Runner instead composes #27's semantic coordinator and enriched
 consumer; semantic output remains separate from observed GitHub metadata. Integration
 tests inject recording consumers and prove current-state handoff through signed
-HTTP, SQLite, retries, restart, FIFO ordering, and shutdown. Lifecycle policy and
-decision writing remain later phases. See [runtime.md](runtime.md).
+HTTP, SQLite, retries, restart, FIFO ordering, and shutdown. FoundationSink is
+still the embedded Engineering-disabled default. Production CLI now enables
+Engineering complete Snapshot/policy/reconciliation composition on these read
+boundaries; generic observation remains read-only and has no authorization policy.
+Generic observation still persists no workflow decision or feedback record.
+Those future recording surfaces remain deferred. See [runtime.md](runtime.md).
 
 Issue #34's standalone [Engineering context](engineering-context.md) reuses
 ReadPrimary for relevant graph participants. Projects are unnecessary for its
@@ -171,8 +176,12 @@ before/after/actor data never enters authority. Its Handle boundary refetches
 current exact branch and proves forward ancestry, evaluates caller-supplied
 complete #35 Input, and uses a ReadCurrent-compatible reader for fresh normalized
 Engineering Project state. Missing/ambiguous/archived items fail closed; manual
-Ready/In Progress is comparison data only. Complete repository lifecycle assembly
-and production routing remain #39. See [execution.md](execution.md).
+Ready/In Progress is comparison data only. Production engineeringflow now wraps
+the generic resolver with push and Engineering Project-item routing, uses complete
+ResolveSnapshot and guarded current Project reads, and composes activity with
+reconciliation. Root-scoped Resolve remains unchanged; the separate complete
+Snapshot contains no Project/native relationship authority. See
+[execution.md](execution.md) and [webhooks.md](webhooks.md).
 
 For #38 qualification, the push’s immutable Delivery.ReceivedAt must be strictly
 after the validated #37 successful-creation provenance CreatedAt exposed by its

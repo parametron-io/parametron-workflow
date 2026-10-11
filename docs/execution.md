@@ -132,14 +132,16 @@ Feature retain default Create-Branch true; Phase requires explicit true and
 current eligibility. There are no Status, In Progress, Start Date, Assignee,
 relationship, PR, Roadmap Order, deletion, or default-branch writes.
 
-Freshness/completeness of Input belongs to the caller. #39 owns production
-fresh GitHub observation → complete context → roadmap PhaseOrder → lifecycle →
-reconciliation composition. #37 has no dependency on engineeringorder and does
+Freshness/completeness of Input belongs to the caller. Implemented production
+composition supplies fresh GitHub observation → complete Snapshot context →
+roadmap PhaseOrder → lifecycle → reconciliation. #37 has no dependency on engineeringorder and does
 not assemble context from #34 Resolve(root). That resolver is relevance-scoped:
 resolving one of two unrelated OPEN Phases can omit its competitor. Its result
 alone is not proof of complete activation input. Integration tests use explicitly
-complete known fixtures and caller-supplied PhaseOrder, not a production assembler.
-No app/worker/CLI composition is introduced by #37.
+complete known fixtures and caller-supplied PhaseOrder at the standalone boundary;
+production integration tests now additionally exercise Snapshot/policy/flow assembly.
+At #37 standalone completion no app/worker/CLI composition was introduced;
+current production composition is described below.
 
 ### Branch identity and evidence
 
@@ -157,7 +159,8 @@ Both immutable facts use stable key
 `<lowercase-owner>/<lowercase-repository>/issue/<number>` with no node ID.
 Namespaces are `engineering_branch_authorization_v1` (reservation) and
 `engineering_branch_creation_v1` (successful creation). Both have identical
-canonical encoding/json bytes for `Evidence`, in this fixed field order:
+canonical encoding/json bytes. Same-target authorization retains v1 `Evidence`,
+in this fixed field order:
 
 ```text
 version: 1
@@ -171,13 +174,26 @@ base_sha: exact lowercase 40-hex commit SHA
 Each fact carries the originating authorization DeliveryID and its own storage
 CreatedAt. Time is not part of the canonical metadata or branch identity.
 Completion's namespace asserts a validated successful create response at base_sha;
-it is not inferred from a later branch read. Both originating events must have
-the matching durable resource binding. Reads verify namespace/key, canonical JSON,
+it is not inferred from a later branch read. Both facts retain the original
+authorization delivery, whose durable binding must match the trigger resource.
+Reads verify namespace/key, canonical JSON,
 version/domain/identity, base ref/SHA, and event identity. Unknown/duplicate JSON
 keys, extra prose, inconsistent completion/reservation, and changed repository
 bindings fail closed. Evidence and returned results contain values rather than
 caller-owned mutable maps/slices/pointers. No Issue prose/title or provider error
 text is persisted.
+
+Production global branch convergence uses `EnsureFrom(ctx, Origin, Input)`.
+Origin separates actual triggering DeliveryID/resource from the authorized target
+Context.Root. A delivery can cause another currently eligible work item to receive
+its branch; event observation never supplies eligibility. Same-target Ensure and
+EnsureFrom retain legacy v1 bytes. Cross-target authorization uses canonical
+`{version: 2, origin: {delivery_id, resource}, branch: Evidence}` metadata INSIDE
+the existing `engineering_branch_authorization_v1` and
+`engineering_branch_creation_v1` namespaces. The envelope binds the actual durable
+trigger to exact target branch evidence; creation copies identical authorization
+metadata. Both v1 and v2 are validated/readable, with matching paired metadata and
+original event binding required. No schema migration/new namespace was introduced.
 
 ### Two-fact creation protocol
 
@@ -227,8 +243,8 @@ Local stable errors are ErrInvalid (boundary/identity), ErrProvenance
 (conflicting/corrupt evidence), ErrAmbiguous (unattributable existing ref), and
 ErrStorage (bounded persistence failure). #35 and classified GitHub errors
 propagate; cancellation/deadline remains detectable with errors.Is. The caller
-must provide worker error classification when composing production execution in
-#39. Cancellation is returned as an error, never successful authorization or
+supplies worker error classification through the current app composition.
+Cancellation is returned as an error, never successful authorization or
 creation. A committed reservation can survive cancellation and be retried; a
 remote success without completion remains ambiguous. If cancellation races a
 committed completion, that durable fact remains valid and can be reused on retry.
@@ -239,11 +255,12 @@ Issue #38 implements standalone `internal/engineeringactivity.New(Config)` and
 `Handle(ctx, deliveryID, engineeringpolicy.Input)`. Config supplies configured
 repositories, the resolved Engineering Project, the read-only #37 Completed
 boundary, exact branch/comparison readers, a fresh normalized Project reader,
-`github.LifecycleFields`, and the existing provenance Store. It has no app,
-CLI, generic worker, or repository-wide context assembly composition. The caller
+`github.LifecycleFields`, and the existing provenance Store. At #38 standalone
+completion it added no app/CLI/worker or complete context assembly. The caller
 must provide complete authoritative current Context and PhaseOrder; #38 calls
-#35 Evaluate itself and acts only on Context.Root. #39 owns production routing,
-complete activation context, PhaseOrder, reconciliation and error classification.
+#35 Evaluate itself and acts only on Context.Root. Implemented production composition
+supplies routing, complete activation context, PhaseOrder, reconciliation and
+error classification.
 Resolve(root) remains relevance-scoped and is not a complete activation snapshot.
 
 `ResolvePush(ctx, repositories, Delivery)` returns a candidate Issue with an
@@ -348,4 +365,125 @@ Local stable errors are ErrInvalid, ErrProvenance, ErrStorage and ErrProject.
 file-backed SQLite, #37 creation/completion, explicit complete #35 fixtures and
 fresh Project-reader fakes. They prove restart/partial convergence and negative
 manual-lookalike, base-only and blocked paths. They are standalone boundary tests,
-not production runtime composition or PR lifecycle implementation.
+preserving the package boundary; Stage 2 production composition tests additionally
+exercise the integrated Engineering flow. PR lifecycle remains Phase #5.
+
+## Production Engineering composition
+
+Phase #4 is implemented: app composes engineeringflow with the shared Store,
+resolved deployment, observer and narrow GitHub capabilities. CLI enables it by
+default; embedded callers opt in with Config.Engineering, whose zero value
+retains the foundation path. No semantic Runner
+or provider is automatically activated and narrow Engineering capabilities do not
+grant semantic mutation authority.
+
+Engineering uses complete `ResolveSnapshot`, including every configured
+repository's OPEN and CLOSED Issues (no PR nodes), accepted/native Type authority,
+Bugs as graph facts, and all current declarative edges. It preserves the separate
+root-scoped Resolve API. See [engineering-context.md](engineering-context.md) for
+the E1/materialize/E2 consistency barrier, complete Context projection and
+CheckCurrent; these reads are not transactional GitHub snapshot isolation.
+
+```text
+complete Snapshot → Snapshot.Context(trigger)
+  → #36 BuildRoadmapOrder → #35 Evaluate → #36 Evaluate
+  → #38 push handling / eligible unfinished-activity resume
+  → new complete Snapshot if activity was handled
+  → current field reconciliation (full pure computation + fresh Project comparison)
+  → ANOTHER complete Snapshot and FULL #36/#35/#36 computation
+  → #37 EnsureFrom fan-out to current eligible targets
+```
+
+After field convergence, the fresh full computation is a pre-branch
+authorization barrier. Fresh blockers, Phase activation, Create-Branch directives,
+roadmap hierarchy, segment capacity, and direct-child capacity can stop all branch
+authorization before EnsureFrom. Every target is projected from the SAME fresh
+Snapshot and receives the validated fresh PhaseOrder. #37 still independently
+reevaluates exact target eligibility; observed Status/Roadmap values cannot
+substitute for this pipeline.
+
+### Read-only activity state and Status convergence
+
+`engineeringactivity.ActivityState(ctx, resource)` exposes validated read-only
+State. Completed #37 branch with no accepted first activity yields EMPTY state,
+not work-started authority. Only acceptance populates WorkItem, ORIGINAL push
+DeliveryID, and activity Evidence. Valid paired completion sets Completed=true;
+completion without acceptance, corrupt/mismatched facts, or orphan activity without
+branch completion fails closed. This reader performs no branch/commit/GitHub
+mutation work.
+
+Accepted unfinished activity is not an In Progress overlay. Production can resume
+it only when the target has a current #35 Decision, using the ORIGINAL accepted
+push DeliveryID and unchanged #38 eligibility/branch checks. CLOSED/no-Decision
+acceptance remains durable, skips Handle, supplies no completion/Status authority,
+and allows normal roadmap clearing/compaction. Completion is never fabricated.
+
+Validated COMPLETED first activity overlays desired In Progress for an OPEN exact
+work item, even after a new blocker, inactive parent Phase or Create-Branch false.
+Those facts deny NEW authorization/start, not an already completed start. Manual
+In Progress supplies no activity authority. #35 stays pure Backlog/Blocked/Ready;
+each actual Status write requires its own Set-Status, and CLOSED work has no
+Status reconciliation.
+
+An OPEN Phase is desired In Progress from its own completed activity OR any CURRENT
+direct Task/Feature child's completed activity, even if the child is CLOSED.
+Bugs and non-direct/nested descendants do not contribute. Reparenting moves the
+contribution to the current authoritative parent; the old parent loses it unless
+another qualifying contribution exists. Parent Set-Status independently gates the
+write. No historical parent identity was added to #38 provenance. Assignees stay
+unchanged because reliable human/assignability evidence is unavailable.
+
+### Field drift and partial failure
+
+engineeringreconcile consumes EXACT #36 Assignments/Clear and #35 Status decisions
+plus the completed-activity overlay. It refetches the entire target union and
+validates Snapshot.CheckCurrent plus exact nonarchived Engineering item/field
+identity before writes. Missing/stale numbers converge; matching numbers no-op;
+finite zero/fractional/out-of-domain numbers are drift. Clear truly unsets a field,
+never writes zero. Root/direct-child compaction, standalone roots and CLOSED
+Phase/open-child retained segments follow #36. Roadmap Order is independent of
+Status and Set-Position false. No native Project position/afterId/movement exists.
+See [engineering-ordering.md](engineering-ordering.md) and
+[github-integration.md](github-integration.md) for the narrow number capability.
+
+Failure → retry → fresh complete Snapshot → fresh Project observations → fresh
+desired state → only remaining/current differences. Already successful effects
+become no-ops when current observations prove convergence. Changed topology wins
+over old plans. This is desired-state reconciliation, with no batch provenance,
+reconciliation completion record, replay log, or SQLite schema migration.
+#37/#38 keep their one-shot provenance because observation alone cannot reconstruct
+its authority. No branch adoption, deletion, revocation, or completed-branch
+recreation was added.
+
+### Routing, lane, and semantic coexistence
+
+Production routes canonical configured development push and bounded configured
+Engineering Project-item notifications; see [webhooks.md](webhooks.md). Payload
+fields remain candidate notification evidence. `worker.ErrNotApplicable` settles
+claimed work Completed without binding a fake Resource, calling Processor, or
+persisting a failure category, then continues later eligible work in the SAME Step.
+Cancellation still releases interrupted claims to Pending and recovery is preserved.
+This is routing behavior, not lifecycle policy; no ignored-state schema was added.
+
+One context-aware deployment-wide process-local Engineering lane is acquired
+BEFORE complete state computation. It covers downstream semantic mutation when
+explicitly composed, #38 activity, reconciliation and branch work, releases on all
+exits, and holds no SQLite transaction across GitHub I/O. Worker FIFO is only
+same-resource; it cannot serialize multi-resource plans alone. The lane is not
+a distributed lock or cross-process guarantee.
+
+Runner/model enrichment executes OUTSIDE the lane. Accepted downstream semantic
+mutation executes INSIDE it before Engineering when an explicit Mutator or custom
+SemanticConsumer authorizes that path. Runner-only composition still uses
+SemanticFoundationSink; no implicit semantic GitHub mutation or Snapshot-wide
+semantic backfill exists. Enrichment failure stops that delivery before Engineering.
+PRs follow the foundation/explicit semantic path without Engineering lifecycle.
+
+Engineering-local engineering_changed and engineering_incomplete retry. Generic
+engineering_activity_storage and engineering_branch_storage are terminal; structural
+graph/policy/order/provenance/Project/configuration corruption is terminal with
+bounded categories. Existing typed GitHub transient/rate-limit handling remains
+separate; no provider/storage diagnostics leak into stable categories.
+Phase #5 retains PR onboarding, review, companions, and merge/completion. Terminal
+close/reopen synchronization, nested lifecycle, Bug Tracker scoring/admission,
+heavy agents, automatic merge, and distributed coordination remain deferred.

@@ -68,6 +68,62 @@ func receive[T any](t *testing.T, ch <-chan T) T {
 		return zero
 	}
 }
+
+func TestNotApplicableCompletesUnboundAndContinuesSameStep(t *testing.T) {
+	s := open(t, filepath.Join(t.TempDir(), "db"))
+	insert(t, s, "unsupported", nil)
+	insert(t, s, "supported", nil)
+	resolved, processed := []string{}, []string{}
+	w := makeWorker(t, s, func(ctx context.Context, e storage.Event) (storage.Resource, error) {
+		resolved = append(resolved, e.Delivery.ID)
+		if e.Delivery.ID == "unsupported" {
+			return storage.Resource{}, ErrNotApplicable
+		}
+		return resource, nil
+	}, func(ctx context.Context, e storage.Event) error {
+		processed = append(processed, e.Delivery.ID)
+		if e.Resource == nil || e.Resource.Number != 1 {
+			t.Error(e)
+		}
+		return nil
+	}, nil)
+	if err := w.Step(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	if !reflect.DeepEqual(resolved, []string{"unsupported", "supported"}) || !reflect.DeepEqual(processed, []string{"supported"}) {
+		t.Fatal(resolved, processed)
+	}
+	u := state(t, s, "unsupported")
+	if u.State.Status != storage.Completed || u.Resource != nil || u.State.ErrorCategory != "" || u.State.NextAttemptAt != nil {
+		t.Fatal(u)
+	}
+	if e := state(t, s, "supported"); e.State.Status != storage.Completed || e.Resource == nil {
+		t.Fatal(e)
+	}
+	if err := w.Step(context.Background()); err != nil || len(resolved) != 2 || len(processed) != 1 {
+		t.Fatal(err, resolved, processed)
+	}
+}
+
+func TestNotApplicableCancellationPreservesRecovery(t *testing.T) {
+	s := open(t, filepath.Join(t.TempDir(), "db"))
+	insert(t, s, "unsupported", nil)
+	insert(t, s, "later", nil)
+	ctx, cancel := context.WithCancel(context.Background())
+	w := makeWorker(t, s, func(context.Context, storage.Event) (storage.Resource, error) {
+		cancel()
+		return storage.Resource{}, ErrNotApplicable
+	}, func(context.Context, storage.Event) error { t.Error("processor called"); return nil }, nil)
+	if err := w.Step(ctx); err != nil {
+		t.Fatal(err)
+	}
+	if e := state(t, s, "later"); e.State.Status != storage.Pending || e.Resource != nil {
+		t.Fatal(e)
+	}
+	if e := state(t, s, "unsupported"); e.State.Status != storage.Pending || e.Resource != nil || e.State.ErrorCategory != "" {
+		t.Fatal(e)
+	}
+}
 func TestFIFOAndConcurrentResources(t *testing.T) {
 	s := open(t, filepath.Join(t.TempDir(), "db"))
 	for _, id := range []string{"a", "b", "c", "other"} {

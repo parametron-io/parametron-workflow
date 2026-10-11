@@ -53,6 +53,9 @@ func TestLoad(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	if !c.Engineering {
+		t.Fatal("normal CLI must enable Engineering")
+	}
 	if c.Listen != "127.0.0.1:8080" || c.Concurrency != 1 || c.PollInterval.String() != "1s" || c.RetryDelay.String() != "30s" || string(c.WebhookSecret) != "secret" || c.Source.Organization != "org" {
 		t.Fatal("defaults")
 	}
@@ -74,6 +77,13 @@ func TestLoad(t *testing.T) {
 	_, err = source.Token(context.Background())
 	if err == nil || strings.Contains(err.Error(), "sensitive") {
 		t.Fatal("unsafe credential error")
+	}
+}
+
+func TestNoEngineeringCLIFlag(t *testing.T) {
+	args, _, _, _ := commandFixture(t)
+	if _, err := load(append(args, "--engineering=false"), &bytes.Buffer{}); err == nil {
+		t.Fatal("unexpected Engineering CLI flag")
 	}
 }
 func TestLoadRejectsFiles(t *testing.T) {

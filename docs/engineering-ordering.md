@@ -1,9 +1,10 @@
 # Engineering Roadmap Order
 
 Issue #36 implements pure `internal/engineeringorder` policy. It computes full
-RoadmapRoots, its PhaseOrder projection, and numeric assignments/clears. Actual
-GitHub numeric-field reconciliation remains #39; this policy is not composed
-into app, worker, webhook, semanticflow, semanticreconcile, or CLI execution.
+RoadmapRoots, its PhaseOrder projection, and numeric assignments/clears.
+At #36 standalone completion no runtime integration or number writer was added.
+Production now consumes this unchanged pure authority through Engineering
+reconciliation; the ordering package itself performs no GitHub mutation.
 
 The dependency direction remains `engineeringorder → engineeringpolicy →
 engineeringcontext`. Engineeringpolicy is unaware of engineeringorder. Its
@@ -30,7 +31,8 @@ Roadmap Order values supply no roadmap policy authority or stability signal.
 There is no ProjectOrderReader, CurrentOrder, opaque-position landmark, or
 native-position reconciliation target in #36. Normal resource Project membership
 observation remains sorted by stable item IDs. Roadmap Order is read through the
-existing configured-number field-value mechanism, for future comparison in #39.
+existing configured-number field-value mechanism for current reconciliation
+comparison.
 An absent field remains unset; a present numeric zero remains explicit zero.
 
 ## Stage 1: two-level roadmap topology
@@ -179,7 +181,8 @@ Bugs never receive Engineering assignments or clears. Child dependencies remain
 Retained segments are dense. Starting with A=10000, B=11000, C=12000, completing
 A and all A's direct work produces B=10000, C=11000. Completing B and its work
 then produces C=10000. Full topology can still contain A, B, C. Completed roots
-and direct children appear in Clear so #39 can clear stale field values.
+and direct children appear in Clear, consumed by production reconciliation to
+clear stale field values.
 
 Standalone roots compact identically. Phase A=10000, Task X=11000, Phase B=12000
 becomes Phase A=10000, Phase B=11000 when X closes, with X in Clear. Giving X an
@@ -239,13 +242,40 @@ collections and compare encoding/json bytes. The pure multi-repository fixture
 includes accepted/manual Types, a blocked child, Set-Position false, parentless
 Ready work, a CLOSED child, and a completed earlier segment.
 
-## Boundary left to #39
+## Implemented numeric convergence
 
-#39 owns fresh normal Project observation, recomputation of topology/lifecycle/
-Roadmap Order, current-versus-desired number comparison, missing/stale value
-writes, canonical field clearing, and idempotent retry after partial failure.
-Native item-position mutation and afterId are not Engineering mechanisms.
-#36 adds no number writer, reconciliation loop, persistence/schema migration,
-runtime composition, CLI behavior, dependencies, Nix changes, or nested lifecycle.
-The administrator's view sort is configured
-outside the controller; no live Project is mutated by this revision.
+Production engineeringreconcile consumes EXACT #36 Assignments and Clear from
+complete current Snapshot → BuildRoadmapOrder → #35 Evaluate → #36 Evaluate.
+Fresh Project observations for the complete target union are validated before
+writes, including Snapshot.CheckCurrent primary evidence and exact nonarchived
+Engineering item identity. Missing/stale values converge to the exact desired
+number; matching values are no-ops. Finite zero, fractional, reserved-looking,
+negative, and out-of-domain observations are ordinary drift overwritten by the
+assignment. Nonfinite or incompatible field evidence fails closed.
+
+Clear means truly unset, NEVER numeric zero. Closed roots/direct children clear,
+remaining open siblings compact, completed segments disappear and later mixed
+roots rebase. Parentless Task/Feature roots converge identically. CLOSED
+Phase/open-child retained segments follow the pure policy above. Status changes
+do not independently reorder values; Set-Position false does not suppress any
+assignment, clear, compaction, grouping, or anchor.
+
+The separate reusable github.NumericFields capability sets an exact number or
+clears the exact field, validates Project/item/NUMBER-field identity, and verifies
+post-write current state with exact float equality and paginated reads. See
+[github-integration.md](github-integration.md). There is no native Project position,
+afterId, card-position comparison, or movement.
+
+After field convergence succeeds, production resolves ANOTHER complete Snapshot
+and runs the FULL BuildRoadmapOrder → #35 Evaluate → #36 Evaluate pipeline before
+ANY branch EnsureFrom fan-out. Fresh hierarchy and both segment/direct-child
+capacity errors stop authorization before branch calls, as can fresh blockers,
+activation and Create-Branch changes. Each target uses the SAME fresh Snapshot
+and its validated PhaseOrder; #37 independently rechecks exact eligibility.
+Retry after partial failure recomputes fresh desired state and writes only current
+drift, with changed topology taking precedence over an old plan.
+
+#36 retains pure ownership of topology, hierarchy, capacity, compaction,
+Assignments and Clear; it adds no writer, persistence or runtime assembly itself.
+The administrator's view sort is configured outside the controller. Companion
+interpretation/assignment, PR ordering and nested lifecycle remain deferred.

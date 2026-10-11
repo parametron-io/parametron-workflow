@@ -125,8 +125,13 @@ worker contract and limitations around external effects.
 Two immutable namespaces, `engineering_branch_authorization_v1` and
 `engineering_branch_creation_v1`, share a canonical stable key
 `<lowercase-owner>/<lowercase-repository>/issue/<positive-number>`.
-Both contain identical canonical v1 JSON evidence for the work item, repository
-identity, exact branch, default/base ref, and exact base SHA. The first records
+Both contain identical canonical metadata: same-target authorization retains
+v1 JSON Evidence for the work item, repository identity, exact branch,
+default/base ref, and exact base SHA. Cross-target authorization uses a version-2
+origin envelope in these EXISTING namespaces, binding the actual trigger
+DeliveryID/resource to target v1 branch Evidence. Legacy same-target v1 remains
+readable; paired records must agree exactly. No new namespace/schema migration
+was introduced. The first records
 authorization before mutation; the second proves a validated controller create
 response. Completion alone or conflicting metadata/event binding fails closed.
 Both facts retain the original authorization delivery ID. Duplicate/restart
@@ -210,3 +215,18 @@ after the validated #37 successful-creation provenance CreatedAt exposed by its
 read-only Completion value. Processing-time completion alone is insufficient.
 Earlier or equal-time notifications grant no activity and produce no new activity
 provenance or lifecycle writes, including on restart or out-of-order processing.
+
+## Engineering desired-state reconciliation storage boundary
+
+Engineering composition reuses the unchanged branch and activity namespaces.
+Read-only ActivityState validates accepted/paired completion facts; branch
+completion without accepted activity returns empty activity state. It creates
+no historical parent provenance. Accepted unfinished activity retains the original
+push DeliveryID, including when CLOSED/no-Decision work cannot currently resume.
+
+Ordinary Status/Roadmap Order convergence adds no batch provenance, reconciliation
+completion record, replay log or schema migration. Retry recomputes current desired
+state from complete Snapshot and fresh Project observations. Branch/activity keep
+one-shot provenance because their authority cannot be safely derived from observed
+GitHub state. No SQLite transaction is held across GitHub I/O; the Engineering
+serialization lane is process-local rather than a distributed storage lock.
