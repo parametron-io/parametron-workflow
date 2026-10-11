@@ -145,8 +145,9 @@ the original creation time; conflicting delivery association or metadata returns
 `ErrConflict`. `Provenance` looks up that key. Records can commit atomically with
 processing metadata and resource binding changes.
 
-This surface records generic one-shot facts only. Branch creation, PR onboarding,
-managed feedback, and their authorization/recovery protocols remain later work.
+This surface records generic one-shot facts only. Branch creation and first
+activity use the protocols described here; PR onboarding and managed feedback
+remain later work.
 Issue #27 uses this unchanged surface for namespace `semantic.classification`
 and format-1 bounded, canonical initial-classification completion records;
 decoding, gating, and authorization stay in `internal/semanticflow`. See
@@ -188,3 +189,24 @@ The observer owns resource identity and current-state refetch. `internal/app`
 opens one shared Store at `<data-dir>/workflow.sqlite` and closes it only after
 worker cleanup and admitted HTTP handlers finish. See [runtime.md](runtime.md).
 Storage itself does not choose a production location or interpret resources.
+
+## First-activity provenance (#38)
+
+The unchanged generic API now also stores `engineering_first_activity_v1` and
+`engineering_activity_completion_v1`, keyed canonically per work item by
+owner/repository/issue/number. Identical canonical v1 Evidence bytes contain
+validated #37 branch evidence, the first qualifying current head, immutable
+accepted push ReceivedAt in UTC and its calendar Start Date. Both facts retain
+the original accepted push DeliveryID. No schema migration is needed.
+Acceptance commits before external effects; completion commits only after all
+currently owned effects succeed or are already observed converged. An accepted
+fact alone never suppresses unfinished work or bypasses current eligibility.
+Original event binding, push identity, timestamp/date, paired facts and canonical
+JSON are validated on reads. Partial writes converge from fresh Project state;
+external writes are not atomic with SQLite. See [execution.md](execution.md).
+
+For #38 qualification, the push’s immutable Delivery.ReceivedAt must be strictly
+after the validated #37 successful-creation provenance CreatedAt exposed by its
+read-only Completion value. Processing-time completion alone is insufficient.
+Earlier or equal-time notifications grant no activity and produce no new activity
+provenance or lifecycle writes, including on restart or out-of-order processing.

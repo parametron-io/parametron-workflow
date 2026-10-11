@@ -88,8 +88,8 @@ See [observation.md](observation.md) for the implemented handoff contract.
 
 ## Production transport and discovery
 
-`NewTransport` creates a standard-library `net/http` GraphQL adapter. No REST
-adapter or SDK is needed for this surface. Queries, decoding structs, HTTP,
+`NewTransport` creates a standard-library `net/http` GraphQL adapter. The Client surface uses GraphQL without an SDK; #38 adds only the narrow REST
+commit comparison described below. Queries, decoding structs, HTTP,
 and credentials are private to the adapter. An alternate REST/GraphQL adapter
 can implement the same `Client` without changing workflow policy. Production
 uses HTTPS (the default endpoint is GitHub's GraphQL endpoint); a supplied HTTP
@@ -180,3 +180,40 @@ Signed webhook ingress, durable worker queues/retries, observation, and startup
 are integrated through `internal/app`, along with explicit Phase #3 directives,
 semantic acceptance, and authorized metadata/routing reconciliation. Lifecycle
 decisions remain later work.
+
+## First-activity capabilities (#38)
+
+`github.CommitComparison.CompareCommits` accepts only a configured exact
+Repository and lowercase 40-hex BaseSHA/HeadSHA. Transport verifies both Commit
+objects and their enclosing/nested repository identity through GraphQL, then
+uses GitHub's supported exact-SHA
+[REST comparison](https://docs.github.com/en/rest/commits/commits#compare-two-commits)
+at `GET /repos/{owner}/{repo}/compare/{base}...{head}?per_page=1`.
+Only URL, status, ahead/behind counts, base commit and merge-base SHA are retained.
+The returned API URL must exactly match the requested repository/revisions;
+base commit must match BaseSHA. Counts must be present, nonnegative and consistent
+with identical/ahead/behind/diverged, including revision equality. Ahead requires
+strictly positive ahead count, zero behind count and merge-base equal BaseSHA.
+Behind requires merge-base equal HeadSHA. Unrelated history/API failure and
+malformed identities grant no authority; no history/commit-prose API is exposed.
+The existing private HTTP request mechanics are shared between GraphQL and this
+narrow REST read: token source, cancellation, response limit, redirect refusal,
+error taxonomy and no-hidden-retry policy remain unchanged. REST uses the same
+origin as the GraphQL endpoint; /graphql maps to the API root, and Enterprise
+/api/graphql maps to /api/v3. Other injected endpoint prefixes are retained.
+
+`github.LifecycleFields` exposes only existing SetProjectOption and new
+SetProjectDate. The date setter validates Project/item/field IDs and canonical
+valid YYYY-MM-DD (year at least 1), and validates response item/Project identity.
+It uses the narrow updateProjectV2ItemFieldValue DATE value mutation. No arbitrary
+mutation, clear, numeric, position or membership capability is added. #38 never
+receives the full semantic Mutator. Assignment is deliberately absent because
+existing login-only Actor evidence cannot establish human assignability.
+See [execution.md](execution.md) for authorization and partial-write safety.
+These capabilities are not activated by app/CLI; #39 owns composition.
+
+For #38 qualification, the push’s immutable Delivery.ReceivedAt must be strictly
+after the validated #37 successful-creation provenance CreatedAt exposed by its
+read-only Completion value. Processing-time completion alone is insufficient.
+Earlier or equal-time notifications grant no activity and produce no new activity
+provenance or lifecycle writes, including on restart or out-of-order processing.

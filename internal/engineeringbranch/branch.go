@@ -63,6 +63,15 @@ type Evidence struct {
 	BaseRef    string            `json:"base_ref"`
 	BaseSHA    string            `json:"base_sha"`
 }
+
+// Completion adds only the validated successful-creation provenance time.
+// CreatedAt is immutable controller evidence, not the authorization event time.
+type Completion struct {
+	Completed bool
+	Evidence  Evidence
+	CreatedAt time.Time
+}
+
 type Result struct {
 	// Completed is true only with validated durable creation provenance.
 	Completed bool
@@ -230,18 +239,11 @@ func (c *Controller) Ensure(ctx context.Context, delivery string, in ep.Input) (
 	if err := c.checkDelivery(ctx, delivery, r); err != nil {
 		return Result{}, err
 	}
-	auth, evidence, authorized, err := c.read(ctx, authorizationNamespace, r, repo)
-	if err != nil {
-		return Result{}, err
-	}
-	completion, created, completed, err := c.read(ctx, creationNamespace, r, repo)
+	auth, evidence, authorized, completed, _, err := c.completed(ctx, r, repo)
 	if err != nil {
 		return Result{}, err
 	}
 	if completed {
-		if !authorized || evidence != created || auth.DeliveryID != completion.DeliveryID {
-			return Result{}, ErrProvenance
-		}
 		if err := ctx.Err(); err != nil {
 			return Result{}, err
 		}
@@ -318,4 +320,45 @@ func (c *Controller) Ensure(ctx context.Context, delivery string, in ep.Input) (
 		return Result{}, err
 	}
 	return Result{true, evidence}, nil
+}
+
+// Completed reads validated completed #37 evidence without GitHub calls or
+// creation authority. Authorization alone returns Completed=false.
+func (c *Controller) Completed(ctx context.Context, resource storage.Resource) (Completion, error) {
+	if err := ctx.Err(); err != nil {
+		return Completion{}, err
+	}
+	r := identity(resource)
+	if !validResource(r) {
+		return Completion{}, ErrInvalid
+	}
+	repo, err := c.repository(r)
+	if err != nil {
+		return Completion{}, err
+	}
+	_, e, _, done, createdAt, err := c.completed(ctx, r, repo)
+	if err != nil {
+		return Completion{}, err
+	}
+	if err := ctx.Err(); err != nil {
+		return Completion{}, err
+	}
+	if !done {
+		return Completion{}, nil
+	}
+	return Completion{Completed: true, Evidence: e, CreatedAt: createdAt}, nil
+}
+func (c *Controller) completed(ctx context.Context, r storage.Resource, repo github.Repository) (storage.Provenance, Evidence, bool, bool, time.Time, error) {
+	auth, e, authorized, err := c.read(ctx, authorizationNamespace, r, repo)
+	if err != nil {
+		return auth, e, false, false, time.Time{}, err
+	}
+	completion, created, done, err := c.read(ctx, creationNamespace, r, repo)
+	if err != nil {
+		return auth, e, false, false, time.Time{}, err
+	}
+	if done && (!authorized || e != created || auth.DeliveryID != completion.DeliveryID) {
+		return auth, e, false, false, time.Time{}, ErrProvenance
+	}
+	return auth, e, authorized, done, completion.CreatedAt.UTC(), nil
 }
