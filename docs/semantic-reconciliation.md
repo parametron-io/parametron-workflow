@@ -116,8 +116,12 @@ Runner + explicit Mutator + no custom SemanticConsumer composes the reconciler
 behind semanticflow.Coordinator. Runner + custom SemanticConsumer preserves the
 explicit consumer path. Mutator without Runner, or Mutator together with a custom
 SemanticConsumer, is rejected to avoid ambiguous ownership. Runner alone retains
-SemanticFoundationSink. Default CLI remains FoundationSink/read-only: no provider,
-CLI flags, new dependencies, Nix changes, or GitHub writes are activated by default.
+SemanticFoundationSink. The CLI enables deterministic Engineering mutations but
+supplies no semantic Runner/provider; Engineering enablement does not activate
+this semantic Mutator. No semantic CLI flags exist. With Engineering enabled,
+model enrichment runs outside the process-local lane and explicitly composed
+accepted semantic mutation runs inside it before Engineering reconciliation.
+Enrichment failure stops that delivery; no Snapshot-wide semantic backfill exists.
 
 Tests use real Store, Worker, Processor, Coordinator, and Reconciler with
 synchronized deterministic GitHub fixtures. They prove durable acceptance,
@@ -128,9 +132,11 @@ Transport tests use local HTTP for exact operations/variables, response identity
 errors, credential isolation, and no retry; discovery tests cover pagination and
 malformed/ambiguous records.
 
-Later lifecycle policy remains unimplemented: no relationships, branches,
-Phase activation, readiness/dependencies, PR onboarding/review, close/reopen,
-Bug triage/Priority Score, Estimate, Start Date, or Project position. Priority,
-Effort, and narrow Backlog ingress are the only Project fields written. Other
-fields are neither overwritten nor cleared. Phase closure in GitHub remains the
-merge/issue workflow's responsibility.
+At Phase #3 standalone completion this package introduced no lifecycle, branch,
+activity or PR integration. Its writes remain Type/labels/routing, Priority,
+Effort, and narrow Backlog ingress; it neither writes nor clears other fields.
+Current production Engineering separately owns Phase activation, eligibility,
+Status/Roadmap convergence, branches, and first activity/Start Date. PR onboarding/
+review/completion, terminal close/reopen synchronization, native relationships,
+Bug triage/Priority Score, Estimate execution, and native Project position remain
+deferred. Phase closure belongs to the later PR/completion contract.

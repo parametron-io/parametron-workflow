@@ -23,8 +23,8 @@ There are no retries or partial results. Existing typed github.Error categories,
 HTTP/token infrastructure, response limits, and credential isolation apply.
 `Client` and `Mutator` are unchanged; `ListerFake` fails unconfigured calls.
 
-Every resolution enumerates all configured repositories. Discovery bodies are
-parsed through `intent.Parse` with lowercase owning organization/repository.
+Each root-scoped Resolve call enumerates all configured repositories. Discovery
+bodies are parsed through `intent.Parse` with lowercase owning organization/repository.
 The conservative discovery rule rejects **any invalid recognized directive in
 any enumerated body**, including Target/Refs or booleans, because Parse returns
 no partial intent. Valid unrelated Issues need no accepted classification and
@@ -153,8 +153,56 @@ this Context plus an explicit validated PhaseOrder; #36 now produces that order
 through [engineering-ordering.md](engineering-ordering.md).
 None is computed by this resolver. #36 orders Phase and parentless Task/Feature
 roots, supplies a Phase-only projection to #35, and projects retained roots/children
-to numeric Roadmap Order without Project-position input. Relationship projection, Project field writes,
-branches, Start Date, Assignees, and later lifecycle synchronization remain later work.
-There are no storage/schema, app/runtime, CLI, dependency, or Nix changes.
-The default CLI and all Phase #3 behavior remain unchanged; this resolver is not
-wired into production execution yet.
+to numeric Roadmap Order without Project-position input. At #34 standalone
+completion, no app/runtime/CLI or mutation composition was added. The current
+production path uses the separate complete Snapshot below; it does not broaden
+Resolve(root). Native relationship projection, assignment, and terminal lifecycle
+synchronization are not implemented by this resolver.
+
+## Complete deployment Snapshot and production use
+
+Production Engineering uses `ResolveSnapshot(ctx) (Snapshot, error)`, separately
+from the relevance-scoped `Resolve(ctx, root)` API. It enumerates EVERY configured
+repository, includes OPEN and CLOSED Issues, excludes PR graph nodes, and
+materializes every enumerated Issue through current ReadPrimary. Bugs and otherwise
+unrelated Issues are included as graph/dependency facts. Every node requires the
+Type precedence described above. There is no label, Project, or Status-based
+nonparticipant mechanism and no automatic semantic backfill.
+
+The complete declarative Parent/Blocked-By/Blocks graph is validated for references,
+self-edges and independent cycles, canonically ordered, and returned only on full
+success. Project Status, Roadmap membership, native relationships, and webhook
+payload workflow state supply no authority. Target/Refs do not add graph edges.
+
+The consistency barrier is:
+
+```text
+E1 enumerate all configured repositories
+  ↓ materialize every E1 Issue from current primary state and resolve Type
+E2 enumerate all configured repositories
+  ↓ compare complete membership and relevant facts
+stable Snapshot or ErrChanged
+```
+
+Relevant facts are membership, node/repository identity, exact body, OPEN/CLOSED
+state, and native Type evidence where native fallback supplied authority.
+Appearance of accepted semantic completion for a native-fallback node during the
+attempt also returns ErrChanged. Missing/changed current primary state rejects
+the attempt; no partial Snapshot escapes on any error. This detects bounded drift
+between reads; it does not provide transactional GitHub snapshot isolation.
+
+`Snapshot.Context(root)` canonicalizes semantic Issue identity, ignores caller
+NodeID authority, and selects current Snapshot node evidence. It returns the
+COMPLETE graph with only Root changed, including unrelated competitors, Bugs,
+and closed facts. Mutable intent pointers/lists and classification labels are
+deep-copied for caller independence. Invalid/missing roots fail closed.
+
+`Snapshot.CheckCurrent(resource, observation)` compares current primary identity,
+body and state against Snapshot evidence, plus native Type only when fallback
+supplied Type authority. Missing/drifted primary state returns ErrChanged;
+invalid observation shape returns ErrInvalid. It neither compares Project values
+nor treats them as authority. The production reconciler refetches its full target
+union and uses this check before field writes; activity Project reads are guarded
+by the same check. Production recomputes a second complete Snapshot and the full
+pure pipeline after field convergence before branch fan-out; see
+[execution.md](execution.md).

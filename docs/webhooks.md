@@ -111,10 +111,42 @@ error, rejecting signed/zero/overflow/leading-zero number aliases. Names are
 validated through engineeringbranch.Name. Candidate binding is not authorization;
 payload SHAs and actors are ignored. Main, arbitrary branches and tags do not
 become workflow activity. No generic commit event or generic worker ignored state
-is added. #39 owns production routing/composition; see [execution.md](execution.md).
+was added by standalone #38. Production now composes this candidate routing with
+current #38 qualification and Engineering reconciliation; see
+[execution.md](execution.md).
 
 For #38 qualification, the push’s immutable Delivery.ReceivedAt must be strictly
 after the validated #37 successful-creation provenance CreatedAt exposed by its
 read-only Completion value. Processing-time completion alone is insufficient.
 Earlier or equal-time notifications grant no activity and produce no new activity
 provenance or lifecycle writes, including on restart or out-of-order processing.
+
+## Production Engineering notification routing
+
+Ingress still stores signed notification evidence only. engineeringflow wraps the
+generic Issue/PR resolver and production-routes configured canonical
+`refs/heads/development/issue-<number>` pushes to candidate Issues. Ordinary/main/
+unrelated pushes are safely non-applicable; malformed canonical development
+candidates fail closed. Payload before/after SHAs and actor/commit data are not
+activity authority: current #38 provenance, eligibility, branch and ancestry
+checks remain required.
+
+For `projects_v2_item`, the supported Stage-1 routing actions are exactly:
+created, edited, reordered, archived, restored. Unsupported actions, including
+deleted, are non-applicable. Project must be the configured Engineering Project.
+The payload supplies candidate item/Project IDs only; ProjectItemReader refetches
+CURRENT item/content identity, then ReadPrimary verifies current configured
+repository/resource evidence before binding. Payload Status/Roadmap Order values
+are ignored, even when signed.
+
+Unrelated Projects, current PR/DraftIssue/no content, repositories outside the
+deployment, unavailable/deleted items (typed NotFound), and missing current Issue
+become non-applicable. Malformed supported identity, configured repository-ID
+mismatch or changed primary binding fails closed through the bounded error path.
+An accepted archived notification does not authorize an archived-item write:
+reconciliation still requires exact current nonarchived Engineering membership.
+
+Worker.ErrNotApplicable settles the claimed notification Completed without a fake
+Resource binding, Processor call or persisted failure category, and continues
+later eligible work in the same Step. Cancellation/recovery remains unchanged;
+this is a routing contract, not lifecycle authority or a new storage state.

@@ -4,7 +4,8 @@ Issue #35 implements `internal/engineeringpolicy.Evaluate(Input) (Plan, error)`.
 It consumes #34's `engineeringcontext.Context` and an explicit
 `PhaseOrder []storage.Resource`. It computes canonical pre-development policy
 without GitHub reads/writes, model execution, persistence, clock, randomness,
-filesystem access, or runtime integration. The default CLI is unchanged.
+filesystem access, or runtime assembly. At #35 standalone completion the CLI
+was unchanged; production now consumes this pure API through Engineering composition.
 
 LLM interprets semantic content. Go owns policy and mutations. GitHub records
 observable state. Observation is not authorization: observed Project Status or
@@ -93,15 +94,15 @@ or false overrides the default. Direct Phase implementation requires explicit
 Create-Branch true, a selected Ready Phase, and no active blocker. This is policy
 evidence for #37, which evaluates caller-supplied authoritative current Input
 before authorization or an unfinished branch creation attempt. Freshness and
-completeness are integration responsibilities; #39 supplies production context
-and PhaseOrder. #37 never constructs activation state from Resolve(root) or
+completeness are integration responsibilities; implemented production composition
+supplies complete Snapshot context and PhaseOrder. #37 never constructs activation state from Resolve(root) or
 observed Project Ready. See [execution.md](execution.md).
 Evaluate never inspects, names, or creates a branch.
 
 `StatusOwned` equals current `Intent.Effective().SetStatus`. Canonical Status
 and ExecutionEligible are independent of that ownership flag. Set-Status false
-can yield Ready, StatusOwned false, ExecutionEligible true. It suppresses future
-ordinary Status writes, not canonical computation or branch policy.
+can yield Ready, StatusOwned false, ExecutionEligible true. It suppresses ordinary
+Status writes, not canonical computation or branch policy.
 
 Automation false does not disable deterministic lifecycle, dependencies, Parent,
 Set-Status, or Create-Branch. Type authority remains #34's accepted-semantic or
@@ -138,7 +139,7 @@ shuffled evaluations and a pure multi-repository integration fixture using
 engine Phase #45 / Tasks #48 and #49 and freecad Phase #60 / Feature #61, plus
 Blocked/Backlog Phases and parentless work. No GitHub fake is needed.
 
-## Remaining Phase #4 boundaries
+## Phase #4 package ownership and production integration
 
 - #36 implements canonical roadmap-root topology with a Phase-only projection,
   first-class standalone Task/Feature roots, direct-child grouping and
@@ -149,8 +150,10 @@ Blocked/Backlog Phases and parentless work. No GitHub fake is needed.
 - #38 implements standalone qualifying authorized development activity, owned
   In Progress, parent Phase progression and one-shot Start Date; Assignee
   initialization is suppressed for insufficient reliable assignability evidence.
-- #39: production integration and lifecycle/Roadmap Order/work authorization
-  reconciliation, including fresh context and numeric-field observation.
+- Production integration consumes complete Snapshot → #36 BuildRoadmapOrder →
+  #35 Evaluate → #36 Evaluate, then fresh Project comparison and authorized
+  lifecycle/Roadmap Order/work authorization convergence. A second complete
+  Snapshot and FULL pipeline precede branch fan-out.
 
 No Status/Project mutation, relationship projection, close/reopen policy,
 PR lifecycle, Bug Tracker lifecycle, Estimate execution, storage migration,
@@ -168,10 +171,35 @@ Decision, never native relationship drift. Direct Phase activity writes only the
 Phase target. Completed #37 evidence, current exact branch and strict forward
 ancestry are also required. Start Date and durable retries are described in
 [execution.md](execution.md). Assignee initialization is suppressed for
-insufficient human/assignability evidence. Production assembly remains #39.
+insufficient human/assignability evidence. Production assembly is implemented
+in engineeringflow and app; the standalone package does not own assembly.
 
 For #38 qualification, the push’s immutable Delivery.ReceivedAt must be strictly
 after the validated #37 successful-creation provenance CreatedAt exposed by its
 read-only Completion value. Processing-time completion alone is insufficient.
 Earlier or equal-time notifications grant no activity and produce no new activity
 provenance or lifecycle writes, including on restart or out-of-order processing.
+
+## Completed-activity Status overlay
+
+The pure Evaluate API still emits only Backlog, Blocked, and Ready. Production
+reconciliation overlays desired In Progress for an OPEN exact work item with
+validated COMPLETED first activity. Later blockers, inactive parent, or
+Create-Branch false prevent new starts but do not erase that completed start.
+Observed manual In Progress is never equivalent to activity evidence. Each Status
+write still requires that resource's StatusOwned; CLOSED resources have no Status
+reconciliation.
+
+An OPEN Phase is desired In Progress from its own completed activity OR any
+CURRENT direct Task/Feature child's completed activity, including a CLOSED child.
+Bugs and non-direct/nested descendants do not progress ancestors. Current
+reparenting moves the contribution; an old parent loses it unless another
+qualifying contribution exists. Parent Set-Status independently gates its write.
+No historical parent identity was added to activity provenance.
+
+Accepted unfinished activity is not an overlay. Production resumes with its
+ORIGINAL push DeliveryID only when a current #35 Decision exists, retaining
+#38's current eligibility and branch checks. CLOSED/no-Decision acceptance stays
+durable, skips Handle, creates no In Progress authority or completion, and does
+not prevent normal reconciliation/roadmap clearing. See [execution.md](execution.md).
+PR/review/completion and terminal close/reopen synchronization remain Phase #5.

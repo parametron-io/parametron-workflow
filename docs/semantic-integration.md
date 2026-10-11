@@ -154,15 +154,28 @@ and GitHub client. An explicit Mutator with no custom SemanticConsumer composes
 the semantic reconciler. A custom SemanticConsumer receives enriched input;
 without either, SemanticFoundationSink acknowledges it without mutations.
 Mutator with a custom SemanticConsumer is rejected as ambiguous. Both require
-Runner; the old observation Consumer cannot be combined with Runner. Without
-Runner, FoundationSink/no-semantic runtime remains runnable. No CLI flags,
-production provider, SDK, HTTP model transport, or model CLI is introduced.
+Runner; the old observation Consumer cannot be combined with Runner. With
+Engineering disabled and no Runner, FoundationSink retains the no-semantic path.
+The CLI now enables deterministic Engineering, without a Runner/provider or implicit
+semantic mutation capability. No semantic CLI flags, production provider, SDK,
+HTTP model transport, or model CLI is introduced.
 
 #28 implements GitHub Type/Priority/Effort/label convergence, unmanaged-label
 preservation, Project routing, and narrow unset-Status Backlog ingress; see
 [semantic-reconciliation.md](semantic-reconciliation.md). This completes Phase #3
-normalization. Lifecycle, branches, eligibility, triage, and Estimate timing remain
-later work. No classification-pending label or storage migration is added.
+normalization. At Phase #3 completion lifecycle/branch composition was deferred;
+current Engineering composition now uses complete Snapshot, lifecycle, ordering,
+branches and activity, without moving those authorities into semanticflow.
+Triaging and Estimate timing remain deferred. No classification-pending label or
+storage migration is added.
+
+With Engineering enabled, Runner/model enrichment runs OUTSIDE the process-local
+Engineering lane. Successful accepted downstream semantic mutation runs INSIDE it
+before Engineering reconciliation when an explicit Mutator or custom SemanticConsumer
+is supplied. Runner-only retains SemanticFoundationSink. Enrichment failure stops
+that delivery before Engineering; no arbitrary Snapshot-wide semantic backfill or
+implicit model/provider activation exists. Every Snapshot Issue still needs Type
+authority; see [engineering-context.md](engineering-context.md).
 
 Tests use real file-backed Store, worker, resolver, and observer with GitHub and
 Runner/provider fakes. They cover gating/Pending, both capabilities, deterministic

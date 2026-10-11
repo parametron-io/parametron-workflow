@@ -1,26 +1,37 @@
 # Parametron Engineering Workflow System Overview
 
-This document defines the planned workflow automation model for the public
-GitHub Project **Parametron Engineering**.
+This document defines the workflow automation contract for the public GitHub
+Project **Parametron Engineering**, including current implementation and future
+PR lifecycle behavior.
 
 It describes the controller authority model, issue and pull-request lifecycle,
 Phase behavior, deterministic ordering and reconciliation, semantic
 classification, declarative body directives, GitHub relationship projection,
 and user-facing automation feedback.
 
-This is a design contract for the planned automation system. It does not claim
-that the controller described here is already implemented.
+Issue #39 completes the implemented and verified Phase #4 Engineering Issue
+lifecycle/reconciliation integration gate. Production composition uses a complete deployment-wide Snapshot,
+pure roadmap/lifecycle policy, owned Status and numeric Roadmap Order convergence,
+authorized branch creation, and first qualifying development activity.
+The default CLI enables Engineering reconciliation and can perform authorized
+mutations through narrow GitHub capabilities. It does not activate a production
+semantic provider or implicitly grant semantic mutation authority.
 
-Issue #34 now implements the read-side declared Engineering graph and accepted
-semantic context described in [docs/engineering-context.md](docs/engineering-context.md).
-Issue #35 implements pure deterministic pre-development lifecycle policy in
-[docs/engineering-lifecycle-policy.md](docs/engineering-lifecycle-policy.md).
-GitHub Status/Roadmap Order/branch reconciliation and relationship projection remain
-later Phase #4 work.
+The package contracts remain separate: [Engineering context](docs/engineering-context.md)
+owns current declarative facts, [lifecycle policy](docs/engineering-lifecycle-policy.md)
+owns pre-development decisions, [ordering](docs/engineering-ordering.md) owns
+roadmap topology and numbers, and [execution](docs/execution.md) describes branch
+and activity provenance plus production reconciliation.
 
-Issue #36 computes deterministic PhaseOrder and numeric Engineering Roadmap Order
-in [docs/engineering-ordering.md](docs/engineering-ordering.md).
-Actual numeric-field convergence remains #39.
+Phase #5 remains the PR onboarding, review, merge/completion, and PR Roadmap Order
+companion boundary. Repository-native terminal close/reopen synchronization,
+nested-child lifecycle, Bug Tracker scoring/admission, branch deletion/revocation,
+native Project position reconciliation, heavy agents, automatic merge, and
+distributed coordination are deferred. Declarative graph facts are current;
+this completion does not claim native relationship projection is implemented.
+Assignee initialization is suppressed while reliable assignability evidence is
+unavailable. Future sections below specify contracts rather than implemented
+Phase #4 behavior.
 
 The **Bug Tracker** reuses the controller architecture and shared lifecycle
 primitives defined here, but applies a separate Project-specific policy for
@@ -69,7 +80,9 @@ validated controller policy decision.
 
 ## 2. System Shape
 
-The planned controller is an event-driven Go service with durable local state.
+The controller is an event-driven Go service with durable local state. The
+following shared architecture includes future decision/feedback recording;
+Engineering reconciliation has no batch completion record or replay log.
 
 ```text
 GitHub event
@@ -144,8 +157,14 @@ stale-result rejection in `internal/semanticflow`, documented in
 provider is implemented. Issue #28 adds accepted semantic metadata and deterministic
 Issue Project convergence through explicit Mutator injection, completing Phase #3
 normalization; see [docs/semantic-reconciliation.md](docs/semantic-reconciliation.md).
-Pre-development lifecycle policy is implemented separately by #35; lifecycle
-mutation and runtime integration remain later Phase #4 work.
+Pure pre-development lifecycle policy is composed with Engineering reconciliation
+in production. Accepted semantic Type can feed deterministic Engineering without
+another model call. Every enumerated Issue, including unrelated work and Bugs,
+requires Type authority: accepted semantic completion, or exact validated native
+Type only when Classification is disabled. Enabled Classification without
+accepted completion returns ErrIncomplete; invalid native fallback fails closed.
+Labels, Project membership, and Status cannot designate
+nonparticipants. No Snapshot-wide semantic backfill is performed.
 Semantic output is not workflow authority.
 
 A cheap LLM is used only for bounded semantic interpretation: initial
@@ -218,8 +237,14 @@ At minimum, the controller should be able to persist:
 Delivery identity must be unique so repeated webhook deliveries do not repeat
 one-shot side effects.
 
-Events affecting the same Issue or Pull Request must be serialized in resource
-order. Unrelated resources may be processed concurrently.
+Events affecting the same Issue or Pull Request are serialized in resource order
+by the worker. Because one Engineering plan can mutate multiple resources, one
+context-aware deployment-wide process-local Engineering lane is acquired before
+complete state computation and covers downstream semantic mutation when explicitly
+composed, activity handling, reconciliation, and branch work. It releases on all
+exits and holds no SQLite transaction across GitHub I/O. Model enrichment runs
+outside the lane; enrichment failure stops that delivery before Engineering.
+This is not a distributed lock or cross-process serialization guarantee.
 
 ---
 
@@ -729,8 +754,10 @@ otherwise (OPEN and unblocked)
 → Backlog
 ```
 
-When a Phase becomes `Ready`, all of its child work items become `Ready`, even
-when an individual child still has a sibling or other work-item blocker.
+When a Phase becomes `Ready`, its OPEN direct Task/Feature children become
+`Ready`, even when an individual child still has a sibling or other work-item
+blocker. Bugs remain dependency facts without Engineering Status decisions;
+CLOSED children receive no Status reconciliation.
 
 This is intentional:
 
@@ -745,14 +772,17 @@ execution eligible
 A blocked child therefore remains visible as `Ready` under an active Phase but
 cannot begin execution until its blocker clears.
 
-The normal organizational expectation remains **one active Phase per
-repository**, unless there is an explicit reason otherwise. An active Phase may
-still have multiple child work items in progress concurrently.
+The implemented policy selects at most **one active Phase per repository**
+from the validated PhaseOrder. An active Phase may still have multiple child
+work items in progress concurrently.
 
-If the parent Phase is not active, its children must not independently advance
-to `Ready` or `In Progress`.
-
-A child whose parent Phase is blocked remains in `Backlog`.
+If the parent Phase is not active, unstarted children cannot independently
+advance to `Ready` or begin authorized development activity. A child whose parent
+Phase is blocked has pre-development Status `Backlog`. Validated completed first
+activity remains durable started-work evidence: under normal Status ownership,
+an OPEN started child stays desired `In Progress` despite later parent inactivity,
+blockers, or Create-Branch false. Those facts prevent new starts; they do not
+erase a completed start. Observed manual In Progress supplies no such evidence.
 
 ---
 
@@ -855,8 +885,12 @@ interleave above #45's remaining Ready work.
 For example, #45=10000, #48=10010, #49=10020, and #60=11000. Filtering out #45
 and started #48 leaves #49's unchanged value ahead of #60. Child dependencies
 affect execution eligibility, not numeric sibling order. Cross-repository Parent
-edges use the same rules. #39 will reconcile numeric assignments and clears from
-fresh normal observation; native item-position mutation is not that mechanism.
+edges use the same rules. Production reconciliation consumes exact assignments
+and Clear from the pure ordering plan against fresh normal Project observation.
+Missing/stale assignments are written; matches are no-ops; finite zero,
+fractional, or out-of-domain values are drift. Clear truly unsets the field,
+never writes numeric zero. Set-Position false does not suppress this convergence.
+No native item-position, afterId, card comparison, or movement is used.
 
 ---
 
@@ -875,8 +909,9 @@ unblocked
 → Ready
 ```
 
-All unblocked parentless Task/Feature work may be Ready; no capacity limit or
-numeric admission score is defined. The v1 relative readiness order uses accepted
+All unblocked parentless Task/Feature work may be Ready; no lifecycle admission
+capacity or numeric admission score is defined. Roadmap encoding retains its
+separate bounded segment capacity. The v1 relative readiness order uses accepted
 Priority (Critical, High, Medium, Low), then smaller Effort (XS, S, M, L, XL,
 Unknown), then canonical resource identity. Manual/native items without accepted
 classification remain eligible, with ranking metadata unavailable; ranked work
@@ -921,9 +956,17 @@ has at most one controller-authorized development branch.
 `internal/engineeringbranch` evaluates caller-supplied authoritative current
 `engineeringpolicy.Input` and requires #35's `ExecutionEligible = true` before
 authorization or an unfinished creation attempt. Observed Project Ready is never
-authority. Production input freshness/completeness and PhaseOrder assembly belong
-to #39; the root/relevance-scoped #34 resolver alone does not supply a complete
-repository activation context. #37 does not depend on #36 or compose runtime.
+authority. Production supplies complete Snapshot context and validated PhaseOrder;
+the root/relevance-scoped resolver alone does not supply complete activation input.
+The branch package retains its standalone target eligibility/provenance authority
+and does not depend on the ordering package or assemble runtime itself.
+
+Global convergence can authorize another eligible target from the actual durable
+trigger. Same-target provenance remains v1; cross-target origin metadata uses a
+version-2 envelope in the existing branch authorization/creation v1 namespaces,
+binding the actual trigger DeliveryID/resource to exact target branch evidence.
+Legacy same-target v1 records remain readable; no namespace or schema migration
+was added. Observation of an event never supplies branch eligibility.
 
 Before creation, the controller resolves the configured repository's current
 default heads ref and exact commit SHA. It durably reserves that branch/base tuple
@@ -967,8 +1010,8 @@ On first authorized development activity:
 - the work item becomes `In Progress`
 - its parent Phase becomes `In Progress`, when applicable
 - Start Date is initialized once
-- an appropriate Assignee may be initialized from reliable GitHub actor context
-  when policy permits
+- Assignee initialization requires reliable human/assignability evidence; current
+  policy suppresses assignment because that evidence is unavailable
 
 Start Date is not reset by later commits, review rework, or subsequent
 transitions.
@@ -996,8 +1039,27 @@ Start Date initializes only when absent and preserves an existing valid value;
 it is never cleared. Assignees remain unchanged because available login-only
 actor evidence cannot prove human repository assignability. No assignment API is
 introduced. See [execution.md](docs/execution.md) for canonical facts and recovery.
-Production routing, complete activation context and reconciliation remain #39;
-no PR lifecycle or production Engineering composition is implemented by #38.
+The activity package's standalone completion introduced no runtime or PR lifecycle
+composition. Production now composes routing, complete activation context, policy,
+activity, and desired-state reconciliation; PR lifecycle remains Phase #5.
+
+The read-only ActivityState boundary returns empty state when there is no accepted
+first activity, even with completed branch creation. Only validated acceptance
+populates WorkItem, original push DeliveryID, and Evidence; matching paired
+completion sets Completed. Orphan/corrupt/mismatched facts fail closed without
+branch/commit/GitHub mutation work.
+
+Completed activity overlays desired In Progress for OPEN work only. An OPEN Phase
+also progresses from any CURRENT direct Task/Feature child's completed activity,
+even when that child is CLOSED. Bugs and non-direct descendants do not contribute.
+Reparenting moves contribution to the current authoritative parent; no historical
+parent was added to activity provenance. The parent's own Set-Status independently
+gates its write. CLOSED resources receive no Status reconciliation.
+
+Accepted unfinished activity supplies no overlay. Production resumes it only when
+the target has a current lifecycle Decision, using the original accepted push
+DeliveryID and all unfinished activity checks. CLOSED/no-Decision acceptance stays
+durable without Handle or fabricated completion; roadmap clearing continues.
 
 ---
 
@@ -1026,6 +1088,10 @@ parent Phase roadmap anchor described earlier.
 ---
 
 ## 18. Pull Request Binding and Onboarding
+
+Sections 18–25 describe future Phase #5 PR/completion contracts. Phase #4 supports
+direct Phase branch/activity work, but does not enforce terminal closure gates or
+close/reopen synchronization. PR companions remain unassigned reserved slots.
 
 A Pull Request does not become valid workflow implementation work merely by
 being opened or manually moved on the Project board.
@@ -1419,7 +1485,8 @@ event
 It does not use a "reset to Backlog and replay" strategy.
 
 If an item is manually placed in an invalid state, it moves directly to its
-canonical state.
+canonical state. The examples below concern work without completed first-activity
+evidence; completed activity supplies the In Progress overlay described above.
 
 Examples:
 
@@ -1438,8 +1505,72 @@ child manually moved to Ready while parent Phase is inactive
 → direct correction to Backlog
 ```
 
-The controller only reconciles fields it owns and only where the relevant
-ownership directive permits normal reconciliation.
+The controller only reconciles fields it owns. Set-Status gates normal Status
+writes; numeric Roadmap Order remains an unconditional controller-owned invariant,
+independent of Status and Set-Position.
+
+### 26.1 Implemented Engineering reconciliation
+
+Production uses the separate `engineeringcontext.ResolveSnapshot` boundary:
+
+```text
+E1: enumerate every configured repository (OPEN and CLOSED Issues, no PRs)
+  ↓ materialize every E1 Issue from current primary state and resolve Type
+E2: enumerate every configured repository again
+  ↓ compare complete membership and relevant facts
+stable complete Snapshot, or ErrChanged (no partial result)
+```
+
+Membership, node identity, exact body, OPEN/CLOSED state, and native Type evidence
+when fallback supplies authority participate in the barrier. Appearance of accepted
+semantic completion for a native-fallback Issue also causes ErrChanged. This is
+not transactional GitHub snapshot isolation. Bugs remain graph/dependency facts;
+Project Status/membership and native relationships confer no graph authority.
+Snapshot.Context canonicalizes semantic root identity, ignores caller NodeID,
+uses current Snapshot evidence, deep-copies nested mutable values, and retains
+the COMPLETE graph with only Root changed. Resolve(root) remains relevance-scoped.
+
+```text
+complete Snapshot → complete Context
+  → BuildRoadmapOrder (#36) → Evaluate (#35) → Evaluate (#36)
+  → fresh Project comparison → authorized field reconciliation
+```
+
+The reconciler refetches the complete write-target union and checks primary facts
+against Snapshot.CheckCurrent before drift writes. Exact Engineering membership,
+nonarchived item identity, and field evidence are required; it does not guess or
+create membership. The numeric capability validates exact Project/item/NUMBER
+field identity and verifies current set/unset state after writing, with pagination,
+finite-value checks, exact float equality, typed errors, cancellation, and no
+hidden retry or arbitrary GraphQL mutation surface.
+
+After field convergence succeeds, ANOTHER complete Snapshot and the FULL
+BuildRoadmapOrder → lifecycle Evaluate → numeric Evaluate pipeline run before
+any EnsureFrom fan-out. Fresh blockers, Phase activation, Create-Branch directives,
+hierarchy, segment capacity, and direct-child capacity can stop authorization
+before branch calls. Every target uses the SAME fresh Snapshot and validated
+fresh PhaseOrder; the branch package independently reevaluates exact eligibility.
+
+Canonical configured development push notifications and bounded Engineering
+Project-item notifications are production-routed. Supported Project actions are
+created, edited, reordered, archived, and restored. Current item/content/Issue
+identity is refetched; payload Status/Roadmap fields never enter authority.
+Unsupported deleted actions, unrelated Projects, PR/DraftIssue/no content, and
+unavailable items become non-applicable as defined by routing. Ordinary/unrelated
+pushes are non-applicable; malformed canonical development candidates fail closed.
+Payload before/after SHAs are not activity authority. Worker.ErrNotApplicable
+settles Completed without fake binding, Processor call, or failure category and
+continues later eligible work in the same Step, preserving cancellation/recovery.
+
+Failure → retry → fresh complete Snapshot → fresh Project observations → new
+desired state → only remaining/current drift. Successful effects become no-ops
+when current state proves convergence; changed topology wins over the old plan.
+There is no reconciliation batch provenance, completion record, replay log, or
+SQLite migration. Branch/activity retain one-shot provenance because observation
+alone cannot safely reconstruct their authority. Runtime Engineering-local
+changed/incomplete categories retry; generic activity/branch storage failures and
+structural/policy/provenance/Project/configuration corruption are bounded terminal
+failures. Typed GitHub transient/rate-limit behavior remains separate.
 
 ---
 
@@ -1634,7 +1765,8 @@ and lifecycle model defined here.
 
 ## 34. End-to-End Example
 
-A normal Phase child flow is:
+The full intended Phase child flow below includes future Phase #5 PR, review,
+merge, and terminal synchronization after the implemented first-activity boundary:
 
 ```text
 Phase #45 unblocked

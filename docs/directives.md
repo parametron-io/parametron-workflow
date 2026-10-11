@@ -155,5 +155,7 @@ pre-development lifecycle, Create-Branch defaults, execution eligibility, and
 Set-Status ownership in
 [engineering-lifecycle-policy.md](engineering-lifecycle-policy.md). Canonical
 Status and eligibility are independent of Set-Status ownership and Automation
-suppression. Relationship projection, branch creation, and lifecycle mutation
-remain later work.
+suppression. Production Engineering now consumes current intent through complete
+Snapshot and pure policy before branch/activity and field reconciliation. The
+parser itself adds no workflow authority. Native relationship projection and
+terminal close/reopen synchronization remain deferred.
