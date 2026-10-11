@@ -138,3 +138,50 @@ func TestListIssuesRequiresDiscoveredIdentity(t *testing.T) {
 		category(t, err, Permanent)
 	}
 }
+
+func TestListIssuesNullableNativeTypeEvidence(t *testing.T) {
+	for _, name := range []string{"nil", "valid", "blank ID", "whitespace ID", "blank name", "missing name"} {
+		t.Run(name, func(t *testing.T) {
+			c := adapter(t, func(q request) any {
+				if strings.Contains(q.Query, "repository(owner:") {
+					return map[string]any{"repository": repoJSON()}
+				}
+				if !strings.Contains(q.Query, "issueType{id name}") {
+					t.Error("missing native Type selection", q)
+				}
+				w := listedJSON("I", 1, "CLOSED")
+				var typ any
+				if name != "nil" {
+					v := map[string]any{"id": "T", "name": "Task"}
+					switch name {
+					case "blank ID":
+						v["id"] = ""
+					case "whitespace ID":
+						v["id"] = " T"
+					case "blank name":
+						v["name"] = " "
+					case "missing name":
+						delete(v, "name")
+					}
+					typ = v
+				}
+				w["issueType"] = typ
+				return connectionJSON("Repository", []any{w}, false, "")
+			})
+			got, err := c.ListIssues(context.Background(), Repository{ID: "R", Owner: "org", Name: "repo"})
+			if name != "nil" && name != "valid" {
+				category(t, err, Malformed)
+				return
+			}
+			if err != nil || len(got) != 1 || got[0].State != "CLOSED" {
+				t.Fatal(got, err)
+			}
+			if name == "nil" && got[0].Type != nil {
+				t.Fatal(got)
+			}
+			if name == "valid" && (got[0].Type == nil || *got[0].Type != (IssueType{ID: "T", Name: "Task"})) {
+				t.Fatal(got)
+			}
+		})
+	}
+}
