@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"maps"
+	"math"
 	"reflect"
 	"sort"
 	"strings"
@@ -134,7 +135,7 @@ func (p *Processor) ReadCurrent(ctx context.Context, resource storage.Resource) 
 // Projects is nil: this is a primary read, not a complete policy observation.
 func (p *Processor) ReadPrimary(ctx context.Context, r storage.Resource) (ObservedState, error) {
 	r.Owner, r.Repository, r.NodeID = strings.ToLower(r.Owner), strings.ToLower(r.Repository), ""
-	if r.Number <= 0 || int64(int(r.Number)) != r.Number || (r.Kind != "issue" && r.Kind != "pull_request") {
+	if !validResourceNumber(r.Number) || (r.Kind != "issue" && r.Kind != "pull_request") {
 		return ObservedState{}, ErrBinding
 	}
 	repo, err := repository(p.deployment, r)
@@ -322,3 +323,8 @@ func normalizePR(v github.PullRequest) github.PullRequest {
 }
 
 var _ worker.Processor = (*Processor)(nil)
+
+// validResourceNumber checks positivity and platform-int range without narrowing.
+func validResourceNumber(number int64) bool {
+	return number > 0 && number <= math.MaxInt
+}

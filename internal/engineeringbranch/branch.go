@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"math"
 	"reflect"
 	"strings"
 	"sync"
@@ -114,7 +115,7 @@ func identity(r storage.Resource) storage.Resource {
 	return r
 }
 func validResource(r storage.Resource) bool {
-	return r.Owner != "" && r.Repository != "" && r.Owner == strings.ToLower(r.Owner) && r.Repository == strings.ToLower(r.Repository) && r.Kind == "issue" && r.Number > 0 && int64(int(r.Number)) == r.Number && r.NodeID == "" && github.ValidBranchRepository(github.Repository{ID: "validation", Owner: r.Owner, Name: r.Repository})
+	return r.Owner != "" && r.Repository != "" && r.Owner == strings.ToLower(r.Owner) && r.Repository == strings.ToLower(r.Repository) && r.Kind == "issue" && validIssueNumber(r.Number) && r.NodeID == "" && github.ValidBranchRepository(github.Repository{ID: "validation", Owner: r.Owner, Name: r.Repository})
 }
 
 // Name contains repository-local stable Issue identity, independent of Type/title.
@@ -361,4 +362,9 @@ func (c *Controller) completed(ctx context.Context, r storage.Resource, repo git
 		return auth, e, false, false, time.Time{}, ErrProvenance
 	}
 	return auth, e, authorized, done, completion.CreatedAt.UTC(), nil
+}
+
+// validIssueNumber checks positivity and platform-int range without narrowing.
+func validIssueNumber(number int64) bool {
+	return number > 0 && number <= math.MaxInt
 }

@@ -6,9 +6,11 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"math"
 	"math/rand"
 	"path/filepath"
 	"reflect"
+	"strconv"
 	"strings"
 	"sync"
 	"testing"
@@ -816,5 +818,23 @@ func TestCompletedExposesValidatedCreationTime(t *testing.T) {
 	}}
 	if r, err := f.controller.Completed(context.Background(), resource(37)); !errors.Is(err, ErrProvenance) || r.Completed || !r.CreatedAt.IsZero() {
 		t.Fatal(r, err)
+	}
+}
+
+func TestPlatformIntNumberBoundaries(t *testing.T) {
+	for _, tc := range []struct {
+		number int64
+		want   bool
+	}{
+		{-1, false}, {0, false}, {1, true}, {math.MaxInt32, true}, {int64(math.MaxInt32) + 1, strconv.IntSize == 64}, {math.MaxInt64, strconv.IntSize == 64},
+	} {
+		r := resource(tc.number)
+		name, err := Name(r)
+		if (err == nil) != tc.want {
+			t.Fatalf("Name(%d)=%q, %v; want accepted=%v", tc.number, name, err, tc.want)
+		}
+		if tc.want && name != "development/issue-"+strconv.FormatInt(tc.number, 10) {
+			t.Fatal(name)
+		}
 	}
 }
