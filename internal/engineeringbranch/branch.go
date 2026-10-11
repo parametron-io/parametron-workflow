@@ -79,6 +79,18 @@ type Result struct {
 	Evidence  Evidence
 }
 
+// Origin separates an actual durable Engineering notification from the work
+// item authorized by the current complete #35 input.
+type Origin struct {
+	DeliveryID string           `json:"delivery_id"`
+	Resource   storage.Resource `json:"resource"`
+}
+type originEvidence struct {
+	Version int      `json:"version"`
+	Origin  Origin   `json:"origin"`
+	Branch  Evidence `json:"branch"`
+}
+
 func absent(v any) bool {
 	if v == nil {
 		return true
@@ -181,14 +193,27 @@ func (c *Controller) read(ctx context.Context, ns string, r storage.Resource, re
 	var e Evidence
 	// Re-encoding equality enforces strict shape, version, duplicate-key rejection,
 	// canonical bytes, and no arbitrary prose, unknown fields or trailing values.
-	if json.Unmarshal(p.Metadata, &e) != nil {
-		return p, e, false, ErrProvenance
-	}
+	decodeErr := json.Unmarshal(p.Metadata, &e)
 	canonical, err := json.Marshal(e)
+	trigger := r
+	if decodeErr != nil || !bytes.Equal(canonical, p.Metadata) {
+		var wrapped originEvidence
+		if json.Unmarshal(p.Metadata, &wrapped) != nil {
+			return p, e, false, ErrProvenance
+		}
+		canonical, err = json.Marshal(wrapped)
+		if wrapped.Version != 2 || wrapped.Origin.DeliveryID != p.DeliveryID || !validResource(wrapped.Origin.Resource) {
+			return p, e, false, ErrProvenance
+		}
+		if _, err := c.repository(wrapped.Origin.Resource); err != nil {
+			return p, e, false, ErrProvenance
+		}
+		e, trigger = wrapped.Branch, wrapped.Origin.Resource
+	}
 	if err != nil || !bytes.Equal(canonical, p.Metadata) || !validateEvidence(e, r, repo) || p.Namespace != ns || p.Key != key(r) || p.DeliveryID == "" || p.CreatedAt.IsZero() {
 		return p, Evidence{}, false, ErrProvenance
 	}
-	if err := c.checkDelivery(ctx, p.DeliveryID, r); err != nil {
+	if err := c.checkDelivery(ctx, p.DeliveryID, trigger); err != nil {
 		return p, Evidence{}, false, err
 	}
 	return p, e, true, nil
@@ -201,7 +226,27 @@ func (c *Controller) record(ctx context.Context, ns, delivery string, e Evidence
 	if err != nil {
 		return ErrProvenance
 	}
-	_, err = c.store.RecordProvenance(ctx, storage.Provenance{Namespace: ns, Key: key(e.WorkItem), DeliveryID: delivery, Metadata: data, CreatedAt: c.clock()})
+	if ns == creationNamespace {
+		repo, err := c.repository(e.WorkItem)
+		if err != nil {
+			return ErrProvenance
+		}
+		p, authorized, found, err := c.read(ctx, authorizationNamespace, e.WorkItem, repo)
+		if err != nil {
+			return err
+		}
+		if !found || p.DeliveryID != delivery || authorized != e {
+			return ErrProvenance
+		}
+		data = p.Metadata
+	}
+	return c.persist(ctx, ns, delivery, e.WorkItem, data)
+}
+func (c *Controller) persist(ctx context.Context, ns, delivery string, resource storage.Resource, data []byte) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	_, err := c.store.RecordProvenance(ctx, storage.Provenance{Namespace: ns, Key: key(resource), DeliveryID: delivery, Metadata: data, CreatedAt: c.clock()})
 	if errors.Is(err, storage.ErrConflict) {
 		return ErrProvenance
 	}
@@ -217,6 +262,14 @@ func (c *Controller) record(ctx context.Context, ns, delivery string, e Evidence
 // when current eligibility has changed; authorization alone never proves creation.
 // Callers must use the existing worker's exclusive, per-resource execution lanes.
 func (c *Controller) Ensure(ctx context.Context, delivery string, in ep.Input) (Result, error) {
+	return c.EnsureFrom(ctx, Origin{DeliveryID: delivery, Resource: identity(in.Context.Root)}, in)
+}
+
+// EnsureFrom retains target-only policy evaluation and binds new authorization
+// to the actual trigger. Same-target calls keep their readable v1 provenance.
+func (c *Controller) EnsureFrom(ctx context.Context, origin Origin, in ep.Input) (Result, error) {
+	delivery := origin.DeliveryID
+	origin.Resource = identity(origin.Resource)
 	if err := ctx.Err(); err != nil {
 		return Result{}, err
 	}
@@ -237,7 +290,22 @@ func (c *Controller) Ensure(ctx context.Context, delivery string, in ep.Input) (
 	if err != nil {
 		return Result{}, err
 	}
-	if err := c.checkDelivery(ctx, delivery, r); err != nil {
+	if !validResource(origin.Resource) {
+		return Result{}, ErrInvalid
+	}
+	if _, err := c.repository(origin.Resource); err != nil {
+		return Result{}, err
+	}
+	found := false
+	for _, n := range in.Context.Nodes {
+		if identity(n.Resource) == origin.Resource {
+			found = true
+		}
+	}
+	if !found {
+		return Result{}, ErrInvalid
+	}
+	if err := c.checkDelivery(ctx, delivery, origin.Resource); err != nil {
 		return Result{}, err
 	}
 	auth, evidence, authorized, completed, _, err := c.completed(ctx, r, repo)
@@ -299,7 +367,18 @@ func (c *Controller) Ensure(ctx context.Context, delivery string, in ep.Input) (
 		return Result{}, err
 	}
 	if !authorized {
-		if err := c.record(ctx, authorizationNamespace, delivery, evidence); err != nil {
+		var err error
+		if origin.Resource == r {
+			err = c.record(ctx, authorizationNamespace, delivery, evidence)
+		} else {
+			var data []byte
+			data, err = json.Marshal(originEvidence{Version: 2, Origin: origin, Branch: evidence})
+			if err != nil {
+				return Result{}, ErrProvenance
+			}
+			err = c.persist(ctx, authorizationNamespace, delivery, r, data)
+		}
+		if err != nil {
 			return Result{}, err
 		}
 		auth.DeliveryID = delivery
@@ -358,7 +437,7 @@ func (c *Controller) completed(ctx context.Context, r storage.Resource, repo git
 	if err != nil {
 		return auth, e, false, false, time.Time{}, err
 	}
-	if done && (!authorized || e != created || auth.DeliveryID != completion.DeliveryID) {
+	if done && (!authorized || e != created || auth.DeliveryID != completion.DeliveryID || !bytes.Equal(auth.Metadata, completion.Metadata)) {
 		return auth, e, false, false, time.Time{}, ErrProvenance
 	}
 	return auth, e, authorized, done, completion.CreatedAt.UTC(), nil

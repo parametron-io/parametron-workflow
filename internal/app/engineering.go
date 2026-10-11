@@ -1,0 +1,105 @@
+package app
+
+import (
+	"reflect"
+	"time"
+
+	"github.com/parametron-io/parametron-workflow/internal/config"
+	ea "github.com/parametron-io/parametron-workflow/internal/engineeringactivity"
+	eb "github.com/parametron-io/parametron-workflow/internal/engineeringbranch"
+	ec "github.com/parametron-io/parametron-workflow/internal/engineeringcontext"
+	ef "github.com/parametron-io/parametron-workflow/internal/engineeringflow"
+	er "github.com/parametron-io/parametron-workflow/internal/engineeringreconcile"
+	"github.com/parametron-io/parametron-workflow/internal/github"
+	"github.com/parametron-io/parametron-workflow/internal/observe"
+	"github.com/parametron-io/parametron-workflow/internal/semanticflow"
+	"github.com/parametron-io/parametron-workflow/internal/semanticreconcile"
+	"github.com/parametron-io/parametron-workflow/internal/storage"
+	"github.com/parametron-io/parametron-workflow/internal/worker"
+)
+
+func missingCapability(v any) bool {
+	if v == nil {
+		return true
+	}
+	r := reflect.ValueOf(v)
+	return r.Kind() == reflect.Pointer && r.IsNil()
+}
+
+// Engineering uses narrow capabilities on the same shared client/transport,
+// deployment and Store. Validation completes before serving HTTP.
+func composeEngineering(c Config, d config.ResolvedConfig, store *storage.Store, resolver worker.ResourceResolver, reader *observe.Processor) (*ef.Flow, error) {
+	lister, ok := c.Client.(github.IssueLister)
+	if !ok || missingCapability(lister) {
+		return nil, er.ErrInvalid
+	}
+	branches, ok := c.Client.(github.Branches)
+	if !ok || missingCapability(branches) {
+		return nil, er.ErrInvalid
+	}
+	comparison, ok := c.Client.(github.CommitComparison)
+	if !ok || missingCapability(comparison) {
+		return nil, er.ErrInvalid
+	}
+	fields, ok := c.Client.(github.LifecycleFields)
+	if !ok || missingCapability(fields) {
+		return nil, er.ErrInvalid
+	}
+	numbers, ok := c.Client.(github.NumericFields)
+	if !ok || missingCapability(numbers) {
+		return nil, er.ErrInvalid
+	}
+	items, ok := c.Client.(github.ProjectItemReader)
+	if !ok || missingCapability(items) {
+		return nil, er.ErrInvalid
+	}
+	accepted, err := semanticflow.NewAcceptedLoader(store)
+	if err != nil {
+		return nil, err
+	}
+	snapshots, err := ec.New(ec.Config{Deployment: d, Primary: reader, Lister: lister, Accepted: accepted})
+	if err != nil {
+		return nil, err
+	}
+	branch, err := eb.New(eb.Config{Repositories: d.Repositories, Branches: branches, Store: store, Clock: c.Clock})
+	if err != nil {
+		return nil, err
+	}
+	activityCfg := ea.Config{Repositories: d.Repositories, Project: d.Engineering, Provenance: branch, Branches: branches, Comparison: comparison, Projects: reader, Fields: fields, Store: store}
+	activity, err := ea.New(activityCfg)
+	if err != nil {
+		return nil, err
+	}
+	reconciler, err := er.New(er.Config{Project: d.Engineering, Projects: reader, Activity: activity, Fields: fields, Numbers: numbers})
+	if err != nil {
+		return nil, err
+	}
+	flowCfg := ef.Config{Deployment: d, Resolver: resolver, Reader: reader, Foundation: reader, Snapshot: snapshots, Reconciler: reconciler, Activity: activityCfg, ProjectItems: items, Branches: branch}
+	if c.Runner != nil {
+		consumer := c.SemanticConsumer
+		mutator := c.Mutator
+		if mutator != nil {
+			consumer, err = semanticreconcile.New(d, reader, mutator)
+			if err != nil {
+				return nil, err
+			}
+		}
+		if consumer == nil {
+			consumer = SemanticFoundationSink{}
+		}
+		clock := c.Clock
+		if clock == nil {
+			clock = time.Now
+		}
+		coordinator, err := semanticflow.New(semanticflow.Config{Store: store, Runner: c.Runner, Primary: reader, Consumer: consumer, Clock: clock})
+		if err != nil {
+			return nil, err
+		}
+		foundation, err := observe.NewProcessor(d, c.Client, coordinator)
+		if err != nil {
+			return nil, err
+		}
+		flowCfg.Foundation, flowCfg.Enricher, flowCfg.Semantic = foundation, coordinator, consumer
+	}
+	return ef.New(flowCfg)
+}

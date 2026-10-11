@@ -11,6 +11,7 @@ import (
 type ListedIssue struct {
 	Identity
 	Title, Body, State string
+	Type               *IssueType
 }
 
 // IssueLister is deliberately separate from Client and all mutation capabilities.
@@ -42,7 +43,7 @@ func (t *Transport) ListIssues(ctx context.Context, expected Repository) ([]List
 	if actual != expected {
 		return nil, failure(Malformed)
 	}
-	nodes, err := t.connection(ctx, expected.ID, "Repository", "issues", "__typename "+identitySelection+" title body state")
+	nodes, err := t.connection(ctx, expected.ID, "Repository", "issues", "__typename "+identitySelection+" title body state issueType{id name}")
 	if err != nil {
 		return nil, err
 	}
@@ -53,6 +54,7 @@ func (t *Transport) ListIssues(ctx context.Context, expected Repository) ([]List
 			wireIdentity
 			Typename           string `json:"__typename"`
 			Title, Body, State *string
+			IssueType          *IssueType
 		}
 		if json.Unmarshal(raw, &w) != nil || w.Typename != "Issue" || w.Title == nil || w.Body == nil || w.State == nil || (*w.State != "OPEN" && *w.State != "CLOSED") {
 			return nil, failure(Malformed)
@@ -66,7 +68,10 @@ func (t *Transport) ListIssues(ctx context.Context, expected Repository) ([]List
 		}
 		numbers[i.Number], ids[i.ID] = true, true
 		i.Repository = expected
-		out = append(out, ListedIssue{i, *w.Title, *w.Body, *w.State})
+		if w.IssueType != nil && (!validIDs(w.IssueType.ID) || blank(w.IssueType.Name)) {
+			return nil, failure(Malformed)
+		}
+		out = append(out, ListedIssue{Identity: i, Title: *w.Title, Body: *w.Body, State: *w.State, Type: w.IssueType})
 	}
 	sort.Slice(out, func(i, j int) bool { return out[i].Number < out[j].Number })
 	return out, nil
