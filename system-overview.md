@@ -959,7 +959,7 @@ current eligibility is revalidated
 Issue → In Progress
 ```
 
-The commit or push event is observation. The controller rechecks current
+The push notification is observation. The controller rechecks current
 workflow and dependency state before authorizing the transition.
 
 On first authorized development activity:
@@ -973,7 +973,31 @@ On first authorized development activity:
 Start Date is not reset by later commits, review rework, or subsequent
 transitions.
 
-If the work item is currently blocked, a commit does not override the blocker.
+If the work item is currently blocked, a push does not override the blocker.
+
+Issue #38 implements this as standalone engineeringactivity, with complete current
+#35 Input supplied by the caller. It requires validated completed #37 provenance,
+requires the push’s immutable Delivery.ReceivedAt to be strictly after the validated
+#37 successful-creation provenance CreatedAt, refetches the exact authorized
+branch, and proves strict forward ancestry from
+its recorded BaseSHA; SHA inequality, branch-name match and observed Project
+In Progress never authorize a start. Processing-time existence of completion
+alone is insufficient: earlier or equal-time pushes produce no activity facts or
+lifecycle writes, including after restart or delayed processing. Every unfinished
+attempt re-evaluates #35
+ExecutionEligible. Target and applicable parent Status each require their own
+Set-Status ownership. A directly implemented Phase is only the target.
+
+Immutable first-activity acceptance precedes external writes; separate completion
+follows converged authorized effects. Retries revalidate current eligibility and
+compare fresh exact Engineering items to finish only remaining effects. The first
+qualifying current head and UTC date of durable Delivery.ReceivedAt never change.
+Start Date initializes only when absent and preserves an existing valid value;
+it is never cleared. Assignees remain unchanged because available login-only
+actor evidence cannot prove human repository assignability. No assignment API is
+introduced. See [execution.md](docs/execution.md) for canonical facts and recovery.
+Production routing, complete activation context and reconciliation remain #39;
+no PR lifecycle or production Engineering composition is implemented by #38.
 
 ---
 

@@ -6,9 +6,11 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"math"
 	"math/rand"
 	"path/filepath"
 	"reflect"
+	"strconv"
 	"strings"
 	"sync"
 	"testing"
@@ -719,5 +721,120 @@ func TestGenericNotFoundDoesNotProveBranchAbsence(t *testing.T) {
 				t.Fatal("unverified absence produced authorization")
 			}
 		})
+	}
+}
+
+func TestReadOnlyCompletedEvidence(t *testing.T) {
+	for _, state := range []string{"absent", "authorization", "completed", "creation-only", "corrupt", "conflict", "delivery"} {
+		t.Run(state, func(t *testing.T) {
+			f := setup(t)
+			if state != "absent" {
+				f.reserve()
+			}
+			if state != "absent" && state != "authorization" {
+				_, err := f.ensure("first", input(sp.Task, ""))
+				if err != nil {
+					t.Fatal(err)
+				}
+			}
+			if state == "creation-only" || state == "corrupt" || state == "conflict" || state == "delivery" {
+				f.controller.store = faultyStore{Store: f.store, read: func(ctx context.Context, ns, k string) (storage.Provenance, error) {
+					if state == "creation-only" && ns == authorizationNamespace {
+						return storage.Provenance{}, storage.ErrNotFound
+					}
+					p, err := f.store.Provenance(ctx, ns, k)
+					if err != nil {
+						return p, err
+					}
+					if ns == creationNamespace {
+						switch state {
+						case "corrupt":
+							p.Metadata = []byte(`{"version":1,"unknown":true}`)
+						case "conflict":
+							var e Evidence
+							json.Unmarshal(p.Metadata, &e)
+							e.BaseSHA = strings.Repeat("c", 40)
+							p.Metadata, _ = json.Marshal(e)
+						case "delivery":
+							p.DeliveryID = "missing"
+						}
+					}
+					return p, nil
+				}}
+			}
+			// Any accidental read or write capability use fails through empty fake hooks.
+			f.controller.branches = github.BranchFake{}
+			result, err := f.controller.Completed(context.Background(), resource(37))
+			valid := state == "absent" || state == "authorization" || state == "completed"
+			if (err == nil) != valid || result.Completed != (state == "completed") {
+				t.Fatal(result, err)
+			}
+			if result.Completed {
+				result.Evidence.BaseSHA = "caller change"
+				again, err := f.controller.Completed(context.Background(), resource(37))
+				if err != nil || again.Evidence.BaseSHA != sha {
+					t.Fatal(again, err)
+				}
+			}
+		})
+	}
+}
+
+func TestCompletedExposesValidatedCreationTime(t *testing.T) {
+	f := setup(t)
+	f.reserve() // Authorization's provenance time is now.
+	creationTime := now.Add(time.Hour)
+	f.controller.clock = func() time.Time { return creationTime }
+	if r, err := f.ensure("first", input(sp.Task, "")); err != nil || !r.Completed {
+		t.Fatal(r, err)
+	}
+	completion, err := f.controller.Completed(context.Background(), resource(37))
+	if err != nil || !completion.Completed || !completion.CreatedAt.Equal(creationTime) || completion.CreatedAt.Location() != time.UTC {
+		t.Fatal(completion, err)
+	}
+	// Timestamp is loaded from durable creation completion, never from a new clock.
+	if err := f.store.Close(); err != nil {
+		t.Fatal(err)
+	}
+	f.store, err = storage.Open(context.Background(), f.path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	f.controller, err = New(Config{Repositories: []github.Repository{repo}, Store: f.store, Branches: github.BranchFake{}, Clock: func() time.Time { return creationTime.Add(24 * time.Hour) }})
+	if err != nil {
+		t.Fatal(err)
+	}
+	again, err := f.controller.Completed(context.Background(), resource(37))
+	if err != nil || again != completion {
+		t.Fatal(again, err)
+	}
+	again.CreatedAt = time.Time{}
+	f.controller.store = faultyStore{Store: f.store, read: func(ctx context.Context, ns, k string) (storage.Provenance, error) {
+		p, err := f.store.Provenance(ctx, ns, k)
+		if ns == creationNamespace {
+			p.CreatedAt = time.Time{}
+		}
+		return p, err
+	}}
+	if r, err := f.controller.Completed(context.Background(), resource(37)); !errors.Is(err, ErrProvenance) || r.Completed || !r.CreatedAt.IsZero() {
+		t.Fatal(r, err)
+	}
+}
+
+func TestPlatformIntNumberBoundaries(t *testing.T) {
+	for _, tc := range []struct {
+		number int64
+		want   bool
+	}{
+		{-1, false}, {0, false}, {1, true}, {math.MaxInt32, true}, {int64(math.MaxInt32) + 1, strconv.IntSize == 64}, {math.MaxInt64, strconv.IntSize == 64},
+	} {
+		r := resource(tc.number)
+		name, err := Name(r)
+		if (err == nil) != tc.want {
+			t.Fatalf("Name(%d)=%q, %v; want accepted=%v", tc.number, name, err, tc.want)
+		}
+		if tc.want && name != "development/issue-"+strconv.FormatInt(tc.number, 10) {
+			t.Fatal(name)
+		}
 	}
 }

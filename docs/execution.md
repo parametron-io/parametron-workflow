@@ -232,3 +232,120 @@ must provide worker error classification when composing production execution in
 creation. A committed reservation can survive cancellation and be retried; a
 remote success without completion remains ambiguous. If cancellation races a
 committed completion, that durable fact remains valid and can be reused on retry.
+
+## First authorized development activity
+
+Issue #38 implements standalone `internal/engineeringactivity.New(Config)` and
+`Handle(ctx, deliveryID, engineeringpolicy.Input)`. Config supplies configured
+repositories, the resolved Engineering Project, the read-only #37 Completed
+boundary, exact branch/comparison readers, a fresh normalized Project reader,
+`github.LifecycleFields`, and the existing provenance Store. It has no app,
+CLI, generic worker, or repository-wide context assembly composition. The caller
+must provide complete authoritative current Context and PhaseOrder; #38 calls
+#35 Evaluate itself and acts only on Context.Root. #39 owns production routing,
+complete activation context, PhaseOrder, reconciliation and error classification.
+Resolve(root) remains relevance-scoped and is not a complete activation snapshot.
+
+`ResolvePush(ctx, repositories, Delivery)` returns a candidate Issue with an
+applicable boolean, a non-applicable result, or ErrInvalid. Only event name
+`push` and exact `refs/heads/development/issue-<positive-decimal-number>` apply.
+Owner/name must match deployment case-insensitively and are returned lowercase.
+The number must fit positive int64 and platform int, with no sign or leading
+zeros. Name is checked against engineeringbranch.Name. Main, arbitrary branches,
+tags and other event names are non-applicable; malformed candidate numbers or
+repository identities fail. Duplicate keys at parsed identity levels fail.
+Before/after SHAs, titles, commits and actor fields are ignored. Candidate
+identity is notification evidence only. No generic commit event or ignored-push
+worker state is introduced. Existing Issue/PR resolution remains unchanged.
+
+The qualification rule is conjunctive:
+
+1. Require a durable push delivery bound to the exact candidate resource.
+2. Read validated completed #37 provenance through engineeringbranch.Completed.
+   It shares Ensure's private strict decoder and paired-fact validator, checks
+   both original durable delivery bindings, matching metadata/delivery, configured
+   repository, work-item identity, exact name/base ref/SHA. Authorization alone
+   is insufficient. No branch is created or adopted by the read API.
+3. Require the candidate push’s immutable Delivery.ReceivedAt to be strictly
+   after the validated successful-creation provenance CreatedAt. Completed returns
+   only typed Completion (Evidence plus this UTC creation-completion time), never
+   arbitrary storage provenance. Processing-time existence of #37 completion is
+   insufficient: a push accepted on a manual lookalike before controller creation,
+   or at the same acceptance time as completion, grants no activity. Reject it
+   without activity facts or Status/Date/parent writes, even when the currently
+   authorized branch has since advanced. Reloaded activity facts also validate
+   this ordering for their original delivery.
+4. For every unfinished attempt require the exact root #35 Decision and current
+   ExecutionEligible. An active blocker, inactive parent or Create-Branch false
+   suppresses all remaining effects, even with an accepted first-activity fact.
+5. Refetch the exact authorized repository/name. Missing branch or head equal to
+   BaseSHA grants no activity. Compare the exact BaseSHA/current HeadSHA through
+   github.CommitComparison. Only validated strictly ahead ancestry qualifies;
+   behind/diverged, unrelated/unverifiable history or malformed evidence fail
+   closed. SHA inequality alone is never sufficient. Stale payload SHAs cannot
+   override current reads. #38 never repairs deleted/replaced branches.
+6. Read fresh normalized Engineering state for the target and any owned parent
+   write. Require exact current Issue/node/repository evidence and exactly one
+   nonarchived Project item. Missing/ambiguous identities return ErrProject;
+   no membership is guessed or created.
+
+### Activity facts and partial-write convergence
+
+Two immutable namespaces share key
+`<lowercase-owner>/<lowercase-repository>/issue/<number>`:
+`engineering_first_activity_v1` records acceptance before any external write;
+`engineering_activity_completion_v1` records successful completion afterwards.
+Both carry identical canonical encoding/json bytes for Evidence in fixed order:
+`version` (1), `branch` (the existing typed #37 Evidence), `head_sha` (first
+qualifying current head), `received_at` (original Delivery.ReceivedAt in UTC),
+`start_date` (that timestamp's UTC YYYY-MM-DD). Both retain the original accepted
+push DeliveryID, and CreatedAt uses its ReceivedAt. Reads strictly validate
+canonical bytes, version/domain/identity, original push candidate/binding and
+immutable timestamp/date source. Unknown/duplicate keys and conflicting facts
+fail ErrProvenance. No prose, commit messages, provider diagnostics, payload copy,
+actor or mutable Project state is persisted. No migration is required.
+
+The first committed acceptance wins permanently. Later/duplicate/out-of-order
+notifications never change its head, date or delivery. Acceptance alone is not
+completion and never bypasses unfinished current eligibility or branch checks.
+Completion requires matching acceptance. Once complete, later notifications
+return the historical result without further lifecycle writes; general drift
+reconciliation belongs to #39. A completed transition is not a new start even
+when a later head changes or the branch disappears.
+
+Target In Progress is written only when its StatusOwned is true. A Task/Feature's
+exact authoritative ParentPhase from #35 may also become In Progress only when
+that parent's Decision owns Status. Native relationships, Project proximity and
+Roadmap Order never select a parent. Direct Phase implementation progresses only
+itself, with no second parent write. Set-Status false suppresses only that
+resource's Status write; it neither changes eligibility nor blocks Start Date.
+An already converged In Progress option is not rewritten. Observed manual
+In Progress or Ready never creates activity provenance without qualification.
+
+Start Date is initialization, separate from Status authority. If absent, use the
+UTC calendar date of the immutable first accepted qualifying notification's
+Delivery.ReceivedAt. Author timestamps and processing time have no authority.
+Preserve any existing valid DATE value; never overwrite or clear it. Later
+commits, delayed pushes, retries on later days, review/rework or later Status
+changes cannot reset it after completion. Assignees always remain unchanged:
+current Actor only carries a login and notification actors do not prove reliable
+human identity plus repository assignability. No assignment capability or actor
+provenance is introduced; existing assignees are preserved.
+
+Status, Date and parent Status are independent external effects. No SQLite
+transaction spans GitHub calls. After any failure/cancellation/storage failure,
+restart reloads the original acceptance and revalidates current policy and branch,
+then refetches Project state and writes only remaining differences. A Status
+success followed by Date failure does not repeat converged Status; Date success
+followed by parent failure preserves Date. Storage failure never manufactures
+completion. Cancellation remains detectable and checks run before subsequent
+effects and provenance writes. Callers own retries/recovery/classification, with
+exclusive database/resource-lane ownership; one Controller serializes its calls.
+There are no hidden retries or distributed effect locks.
+
+Local stable errors are ErrInvalid, ErrProvenance, ErrStorage and ErrProject.
+#35 and typed GitHub errors propagate. Focused integration tests use real
+file-backed SQLite, #37 creation/completion, explicit complete #35 fixtures and
+fresh Project-reader fakes. They prove restart/partial convergence and negative
+manual-lookalike, base-only and blocked paths. They are standalone boundary tests,
+not production runtime composition or PR lifecycle implementation.

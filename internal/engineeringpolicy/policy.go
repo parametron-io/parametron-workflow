@@ -5,6 +5,7 @@ package engineeringpolicy
 import (
 	"encoding/json"
 	"errors"
+	"math"
 	"slices"
 	"sort"
 	"strings"
@@ -100,7 +101,7 @@ func validName(s string) bool {
 	return true
 }
 func validResource(r storage.Resource) bool {
-	return r.Owner == "parametron-io" && validName(r.Repository) && r.Kind == "issue" && r.Number > 0 && int64(int(r.Number)) == r.Number && strings.TrimSpace(r.NodeID) != "" && r.NodeID == strings.TrimSpace(r.NodeID)
+	return r.Owner == "parametron-io" && validName(r.Repository) && r.Kind == "issue" && validIssueNumber(r.Number) && strings.TrimSpace(r.NodeID) != "" && r.NodeID == strings.TrimSpace(r.NodeID)
 }
 
 type graph struct {
@@ -318,4 +319,9 @@ func cyclic(nodes map[storage.Resource]ec.IssueNode, edges map[[2]storage.Resour
 		}
 	}
 	return visited != len(nodes)
+}
+
+// validIssueNumber checks positivity and platform-int range without narrowing.
+func validIssueNumber(number int64) bool {
+	return number > 0 && number <= math.MaxInt
 }

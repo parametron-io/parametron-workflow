@@ -4,9 +4,11 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"math"
 	"math/rand"
 	"reflect"
 	"slices"
+	"strconv"
 	"testing"
 
 	ec "github.com/parametron-io/parametron-workflow/internal/engineeringcontext"
@@ -545,5 +547,19 @@ func TestPureIntegrationAndDeterminism(t *testing.T) {
 	after, _ = json.Marshal(in)
 	if string(original) != string(after) {
 		t.Fatal("output aliases input")
+	}
+}
+
+func TestPlatformIntNumberBoundaries(t *testing.T) {
+	for _, tc := range []struct {
+		number int64
+		want   bool
+	}{
+		{-1, false}, {0, false}, {1, true}, {math.MaxInt32, true}, {int64(math.MaxInt32) + 1, strconv.IntSize == 64}, {math.MaxInt64, strconv.IntSize == 64},
+	} {
+		n := node("engine", tc.number, sp.Task)
+		if got := validResource(n.Resource); got != tc.want {
+			t.Fatalf("number %d: got %v, want %v", tc.number, got, tc.want)
+		}
 	}
 }

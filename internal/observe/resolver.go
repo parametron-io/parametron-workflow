@@ -113,7 +113,7 @@ func (r *Resolver) Resolve(ctx context.Context, e storage.Event) (storage.Resour
 		kind = "pull_request"
 	}
 	var number int64
-	if json.Unmarshal(candidate["number"], &number) != nil || number <= 0 || int64(int(number)) != number {
+	if json.Unmarshal(candidate["number"], &number) != nil || !validResourceNumber(number) {
 		return storage.Resource{}, ErrIdentity
 	}
 	resource := storage.Resource{Owner: strings.ToLower(login), Repository: strings.ToLower(name), Kind: kind, Number: number}

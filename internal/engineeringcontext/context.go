@@ -5,6 +5,7 @@ package engineeringcontext
 import (
 	"context"
 	"errors"
+	"math"
 	"reflect"
 	"sort"
 	"strings"
@@ -139,7 +140,7 @@ func less(a, b storage.Resource) bool {
 }
 func (r *Resolver) authorize(v storage.Resource) (storage.Resource, error) {
 	v = identity(v)
-	if v.Kind != "issue" || v.Number <= 0 || int64(int(v.Number)) != v.Number {
+	if v.Kind != "issue" || !validIssueNumber(v.Number) {
 		return v, fail(ErrInvalid)
 	}
 	for _, repo := range r.repositories {
@@ -349,4 +350,9 @@ func (r *Resolver) Resolve(ctx context.Context, root storage.Resource) (Context,
 		return less(a.Blocked, b.Blocked)
 	})
 	return out, nil
+}
+
+// validIssueNumber checks positivity and platform-int range without narrowing.
+func validIssueNumber(number int64) bool {
+	return number > 0 && number <= math.MaxInt
 }

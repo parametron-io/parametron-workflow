@@ -6,9 +6,11 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"math"
 	"math/rand"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -628,6 +630,25 @@ func TestTypeBindingsSnapshot(t *testing.T) {
 			if _, err := New(c); !errors.Is(err, ErrInvalid) {
 				t.Fatal(typ, duplicate, err)
 			}
+		}
+	}
+}
+
+func TestPlatformIntNumberBoundaries(t *testing.T) {
+	for _, tc := range []struct {
+		number int64
+		want   bool
+	}{
+		{-1, false}, {0, false}, {1, true}, {math.MaxInt32, true}, {int64(math.MaxInt32) + 1, strconv.IntSize == 64}, {math.MaxInt64, strconv.IntSize == 64},
+	} {
+		r := storage.Resource{Owner: "parametron-io", Repository: "engine", Kind: "issue", Number: tc.number}
+		resolver := &Resolver{repositories: []config.Repository{{ID: "R", Owner: r.Owner, Name: r.Repository}}}
+		got, err := resolver.authorize(r)
+		if (err == nil) != tc.want {
+			t.Fatalf("number %d: got %v, want accepted=%v", tc.number, err, tc.want)
+		}
+		if tc.want && got != r {
+			t.Fatal(got)
 		}
 	}
 }

@@ -161,3 +161,21 @@ ReadPrimary for relevant graph participants. Projects are unnecessary for its
 current identities, body intent, and open/closed facts; it performs no lifecycle
 policy handoff or mutations. Native relationship observations never determine
 its authoritative declared child/dependency graph.
+
+## Standalone development activity (#38)
+
+The generic Issue/PR resolver remains unchanged and does not resolve pushes.
+engineeringactivity.ResolvePush separately derives only a candidate Issue from
+an exact canonical development heads ref in a configured repository. Payload
+before/after/actor data never enters authority. Its Handle boundary refetches
+current exact branch and proves forward ancestry, evaluates caller-supplied
+complete #35 Input, and uses a ReadCurrent-compatible reader for fresh normalized
+Engineering Project state. Missing/ambiguous/archived items fail closed; manual
+Ready/In Progress is comparison data only. Complete repository lifecycle assembly
+and production routing remain #39. See [execution.md](execution.md).
+
+For #38 qualification, the push’s immutable Delivery.ReceivedAt must be strictly
+after the validated #37 successful-creation provenance CreatedAt exposed by its
+read-only Completion value. Processing-time completion alone is insufficient.
+Earlier or equal-time notifications grant no activity and produce no new activity
+provenance or lifecycle writes, including on restart or out-of-order processing.

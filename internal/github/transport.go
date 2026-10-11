@@ -12,7 +12,8 @@ import (
 	"time"
 )
 
-// Transport is the production GraphQL adapter. All decoding and query mechanics
+// Transport implements GraphQL and narrow exact-SHA REST comparison. Decoding
+// and request mechanics
 // remain private. It performs no retries and refuses redirects.
 type Transport struct {
 	endpoint string
@@ -48,63 +49,13 @@ func (t *Transport) query(ctx context.Context, query string, variables map[strin
 	if err := ctx.Err(); err != nil {
 		return contextFailure(ctx, err, Transient)
 	}
-	token, err := t.tokens.Token(ctx)
-	if err != nil {
-		var classified *Error
-		if errors.As(err, &classified) {
-			switch classified.Category {
-			case NotFound, Unauthorized, Forbidden, RateLimited, Conflict, Malformed, Transient, Permanent:
-				return contextFailure(ctx, err, classified.Category)
-			}
-		}
-		return contextFailure(ctx, err, Unauthorized)
-	}
-	if strings.TrimSpace(token) == "" || strings.ContainsAny(token, "\r\n") {
-		return failure(Unauthorized)
-	}
 	body, err := json.Marshal(map[string]any{"query": query, "variables": variables})
 	if err != nil {
 		return failure(Permanent)
 	}
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, t.endpoint, bytes.NewReader(body))
+	data, err := t.request(ctx, http.MethodPost, t.endpoint, body)
 	if err != nil {
-		return contextFailure(ctx, err, Permanent)
-	}
-	req.Header.Set("Authorization", "Bearer "+token)
-	req.Header.Set("User-Agent", "parametron-workflow")
-	req.Header.Set("Accept", "application/vnd.github+json")
-	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("X-GitHub-Api-Version", "2022-11-28")
-	resp, err := t.http.Do(req)
-	if err != nil {
-		return contextFailure(ctx, err, Transient)
-	}
-	defer resp.Body.Close()
-	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		c := Permanent
-		switch {
-		case resp.StatusCode == 401:
-			c = Unauthorized
-		case resp.StatusCode == 429 || ((resp.StatusCode == 403) && (resp.Header.Get("X-RateLimit-Remaining") == "0" || resp.Header.Get("Retry-After") != "")):
-			c = RateLimited
-		case resp.StatusCode == 403:
-			c = Forbidden
-		case resp.StatusCode == 404:
-			c = NotFound
-		case resp.StatusCode == 409 || resp.StatusCode == 412:
-			c = Conflict
-		case resp.StatusCode >= 500:
-			c = Transient
-		}
-		return &Error{Category: c, Status: resp.StatusCode}
-	}
-	const limit = 8 << 20
-	data, err := io.ReadAll(io.LimitReader(resp.Body, limit+1))
-	if err != nil {
-		return contextFailure(ctx, err, Transient)
-	}
-	if len(data) > limit {
-		return failure(Malformed)
+		return err
 	}
 	var envelope struct {
 		Data   json.RawMessage
@@ -198,4 +149,65 @@ func (t *Transport) connection(ctx context.Context, id, typ, field, selection st
 		seen[p.EndCursor] = true
 		cursor = p.EndCursor
 	}
+}
+
+func (t *Transport) request(ctx context.Context, method, endpoint string, body []byte) ([]byte, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, contextFailure(ctx, err, Transient)
+	}
+	token, err := t.tokens.Token(ctx)
+	if err != nil {
+		var classified *Error
+		if errors.As(err, &classified) {
+			switch classified.Category {
+			case NotFound, Unauthorized, Forbidden, RateLimited, Conflict, Malformed, Transient, Permanent:
+				return nil, contextFailure(ctx, err, classified.Category)
+			}
+		}
+		return nil, contextFailure(ctx, err, Unauthorized)
+	}
+	if strings.TrimSpace(token) == "" || strings.ContainsAny(token, "\r\n") {
+		return nil, failure(Unauthorized)
+	}
+	req, err := http.NewRequestWithContext(ctx, method, endpoint, bytes.NewReader(body))
+	if err != nil {
+		return nil, contextFailure(ctx, err, Permanent)
+	}
+	req.Header.Set("Authorization", "Bearer "+token)
+	req.Header.Set("User-Agent", "parametron-workflow")
+	req.Header.Set("Accept", "application/vnd.github+json")
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("X-GitHub-Api-Version", "2022-11-28")
+	resp, err := t.http.Do(req)
+	if err != nil {
+		return nil, contextFailure(ctx, err, Transient)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		c := Permanent
+		switch {
+		case resp.StatusCode == 401:
+			c = Unauthorized
+		case resp.StatusCode == 429 || ((resp.StatusCode == 403) && (resp.Header.Get("X-RateLimit-Remaining") == "0" || resp.Header.Get("Retry-After") != "")):
+			c = RateLimited
+		case resp.StatusCode == 403:
+			c = Forbidden
+		case resp.StatusCode == 404:
+			c = NotFound
+		case resp.StatusCode == 409 || resp.StatusCode == 412:
+			c = Conflict
+		case resp.StatusCode >= 500:
+			c = Transient
+		}
+		return nil, &Error{Category: c, Status: resp.StatusCode}
+	}
+	const limit = 8 << 20
+	data, err := io.ReadAll(io.LimitReader(resp.Body, limit+1))
+	if err != nil {
+		return nil, contextFailure(ctx, err, Transient)
+	}
+	if len(data) > limit {
+		return nil, failure(Malformed)
+	}
+	return data, nil
 }

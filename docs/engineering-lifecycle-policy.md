@@ -146,11 +146,32 @@ Blocked/Backlog Phases and parentless work. No GitHub fake is needed.
 - #37 implements standalone exact branch creation from #35 eligibility, naming,
   base resolution, durable authorization/completion provenance, retries, and
   rejection of manual lookalikes. Branch creation does not imply In Progress.
-- #38: qualifying authorized development activity, In Progress, Start Date,
-  and permitted Assignee initialization.
+- #38 implements standalone qualifying authorized development activity, owned
+  In Progress, parent Phase progression and one-shot Start Date; Assignee
+  initialization is suppressed for insufficient reliable assignability evidence.
 - #39: production integration and lifecycle/Roadmap Order/work authorization
   reconciliation, including fresh context and numeric-field observation.
 
 No Status/Project mutation, relationship projection, close/reopen policy,
 PR lifecycle, Bug Tracker lifecycle, Estimate execution, storage migration,
 external dependency, or Nix change is added by #35.
+
+## First-activity consumer (#38)
+
+Standalone engineeringactivity now evaluates this unchanged #35 Input itself
+before every unfinished transition. Exact root ExecutionEligible is required;
+observed Ready/In Progress and previously accepted activity never override an
+active blocker, inactive parent or Create-Branch false. Target/parent Status
+writes each require their own StatusOwned. Set-Status false affects writes only;
+Start Date initialization remains separate. ParentPhase comes from the validated
+Decision, never native relationship drift. Direct Phase activity writes only the
+Phase target. Completed #37 evidence, current exact branch and strict forward
+ancestry are also required. Start Date and durable retries are described in
+[execution.md](execution.md). Assignee initialization is suppressed for
+insufficient human/assignability evidence. Production assembly remains #39.
+
+For #38 qualification, the push’s immutable Delivery.ReceivedAt must be strictly
+after the validated #37 successful-creation provenance CreatedAt exposed by its
+read-only Completion value. Processing-time completion alone is insufficient.
+Earlier or equal-time notifications grant no activity and produce no new activity
+provenance or lifecycle writes, including on restart or out-of-order processing.

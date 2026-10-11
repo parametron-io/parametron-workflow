@@ -158,3 +158,21 @@ see [engineering-ordering.md](engineering-ordering.md). Normal Project observati
 supports the required Engineering numeric field. Numeric-field reconciliation
 remains #39; ordering policy is not composed into runtime. Default CLI and Phase #3
 composition remain unchanged.
+
+## Standalone first activity (#38)
+
+engineeringactivity is independently usable with caller-supplied complete current
+#35 Input, read-only completed #37 evidence, exact current branch/ancestry reads,
+fresh Project observations, narrow lifecycle fields and the shared provenance
+Store. Two immutable facts provide restart/partial-write convergence; accepted
+activity does not bypass current eligibility. Assignees remain unchanged.
+No app, CLI, production worker, schema, dependency or Nix composition is added.
+#39 owns repository-wide current context, #36 PhaseOrder, lifecycle/activity and
+desired-state reconciliation integration. Default runtime behavior is unchanged;
+see [execution.md](execution.md).
+
+For #38 qualification, the push’s immutable Delivery.ReceivedAt must be strictly
+after the validated #37 successful-creation provenance CreatedAt exposed by its
+read-only Completion value. Processing-time completion alone is insufficient.
+Earlier or equal-time notifications grant no activity and produce no new activity
+provenance or lifecycle writes, including on restart or out-of-order processing.

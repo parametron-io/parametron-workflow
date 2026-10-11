@@ -100,3 +100,21 @@ observer refetches current GitHub state before normalized policy handoff.
 HTTP/worker lifetime, and closes the shared Store after cleanup. New requests
 through the shutdown admission gate receive 503; otherwise unknown routes
 receive 404. See [runtime.md](runtime.md).
+
+## Standalone push identity (#38)
+
+Ingress is unchanged. The independently usable engineeringactivity.ResolvePush
+recognizes only GitHub's `push` event and canonical
+`refs/heads/development/issue-<positive-number>` in configured repositories.
+It returns applicable candidate, non-applicable, or a bounded malformed-identity
+error, rejecting signed/zero/overflow/leading-zero number aliases. Names are
+validated through engineeringbranch.Name. Candidate binding is not authorization;
+payload SHAs and actors are ignored. Main, arbitrary branches and tags do not
+become workflow activity. No generic commit event or generic worker ignored state
+is added. #39 owns production routing/composition; see [execution.md](execution.md).
+
+For #38 qualification, the push’s immutable Delivery.ReceivedAt must be strictly
+after the validated #37 successful-creation provenance CreatedAt exposed by its
+read-only Completion value. Processing-time completion alone is insufficient.
+Earlier or equal-time notifications grant no activity and produce no new activity
+provenance or lifecycle writes, including on restart or out-of-order processing.

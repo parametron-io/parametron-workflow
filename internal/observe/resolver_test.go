@@ -3,7 +3,9 @@ package observe
 import (
 	"context"
 	"errors"
+	"math"
 	"reflect"
+	"strconv"
 	"testing"
 
 	"github.com/parametron-io/parametron-workflow/internal/config"
@@ -116,5 +118,32 @@ func TestConstruction(t *testing.T) {
 				t.Fatal(err)
 			}
 		})
+	}
+}
+
+func TestPlatformIntNumberBoundaries(t *testing.T) {
+	for _, tc := range []struct {
+		number int64
+		want   bool
+	}{
+		{-1, false}, {0, false}, {1, true}, {math.MaxInt32, true}, {int64(math.MaxInt32) + 1, strconv.IntSize == 64}, {math.MaxInt64, strconv.IntSize == 64},
+	} {
+		resolver, err := NewResolver(deployment())
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, kind := range []string{"issue", "pull_request"} {
+			payload := []byte("{" + prefix + "\"" + kind + "\":{\"number\":" + strconv.FormatInt(tc.number, 10) + "}}")
+			got, err := resolver.Resolve(context.Background(), storage.Event{Delivery: storage.Delivery{Payload: payload}})
+			if (err == nil) != tc.want {
+				t.Fatalf("%s number %d: got %v, want accepted=%v", kind, tc.number, err, tc.want)
+			}
+			if tc.want && (got.Number != tc.number || got.Kind != kind) {
+				t.Fatal(got)
+			}
+		}
+		if validResourceNumber(tc.number) != tc.want {
+			t.Fatal("primary-reader number gate disagrees")
+		}
 	}
 }
