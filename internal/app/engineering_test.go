@@ -27,6 +27,39 @@ import (
 
 type appNarrowFields struct{ t *testing.T }
 
+func (f appNarrowFields) AddProjectItem(context.Context, string, string) (string, error) {
+	f.t.Error("Issue semantic composition unexpectedly added PR membership")
+	return "", errors.New("unexpected onboarding")
+}
+func (f appNarrowFields) ConvertPullRequestToDraft(context.Context, string) error {
+	f.t.Error("Issue semantic composition unexpectedly converted a PR")
+	return errors.New("unexpected onboarding")
+}
+func (f appNarrowFields) CurrentPullRequestProjectItem(context.Context, string) (github.PullRequestProjectItem, error) {
+	f.t.Error("Issue semantic composition unexpectedly read a PR item")
+	return github.PullRequestProjectItem{}, errors.New("unexpected onboarding")
+}
+func (f appNarrowFields) User(context.Context, string) (github.Actor, error) {
+	f.t.Error("Issue semantic composition unexpectedly checked a PR developer")
+	return github.Actor{}, errors.New("unexpected onboarding")
+}
+func (f appNarrowFields) OrganizationMembership(context.Context, config.Organization, string) (github.Membership, error) {
+	f.t.Error("Issue semantic composition unexpectedly checked membership")
+	return github.Membership{}, errors.New("unexpected onboarding")
+}
+func (f appNarrowFields) RepositoryPermission(context.Context, github.Repository, string) (github.Permission, error) {
+	f.t.Error("Issue semantic composition unexpectedly checked permission")
+	return github.Permission{}, errors.New("unexpected onboarding")
+}
+
+// Deliberately grants only onboarding writes; it does not implement Mutator.
+type appOnboardingCapabilities interface {
+	github.DraftConverter
+	github.DeveloperReads
+	github.PullRequestProjectItemReader
+	AddProjectItem(context.Context, string, string) (string, error)
+}
+
 func (f appNarrowFields) SetProjectOption(context.Context, string, string, string, string) error {
 	f.t.Error("unexpected Engineering Status write on CLOSED Issue")
 	return nil
@@ -128,7 +161,7 @@ func TestEngineeringSemanticCompositionUsesOnlyExplicitMutationAuthority(t *test
 				i := current(39)
 				return []github.ListedIssue{{Identity: i.Identity, Title: i.Title, Body: i.Body, State: i.State, Type: i.Type}}, ctx.Err()
 			}}
-			c.Client = engineeringCapabilityClient{Client: base, IssueLister: lister, Branches: github.BranchFake{}, CommitComparison: narrow, LifecycleFields: narrow, NumericFields: narrow, ProjectItemReader: narrow}
+			c.Client = engineeringCapabilityClient{Client: base, IssueLister: lister, Branches: github.BranchFake{}, CommitComparison: narrow, LifecycleFields: narrow, NumericFields: narrow, ProjectItemReader: narrow, appOnboardingCapabilities: narrow}
 			c.Engineering = true
 			r := openRuntime(t, c)
 			for _, id := range []string{"first", "later"} {
@@ -158,6 +191,7 @@ func TestEngineeringSemanticCompositionUsesOnlyExplicitMutationAuthority(t *test
 
 // The CLI's production Transport must satisfy every narrow Engineering capability.
 var _ interface {
+	appOnboardingCapabilities
 	github.Client
 	github.IssueLister
 	github.Branches
@@ -192,6 +226,7 @@ func TestEngineeringFailureClassification(t *testing.T) {
 }
 
 type engineeringCapabilityClient struct {
+	appOnboardingCapabilities
 	github.Client
 	github.IssueLister
 	github.Branches

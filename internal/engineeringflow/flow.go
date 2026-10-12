@@ -162,12 +162,30 @@ func (f *Flow) Process(ctx context.Context, e storage.Event) error {
 		if f.cfg.Onboarding == nil {
 			return f.cfg.Foundation.Process(ctx, e)
 		}
+		var enriched semanticflow.PolicyInput
+		semantic := e.Delivery.EventName != "projects_v2_item" && f.cfg.Enricher != nil
 		if e.Delivery.EventName != "projects_v2_item" {
-			if err := f.cfg.Foundation.Process(ctx, e); err != nil {
+			if semantic {
+				o, err := f.cfg.Reader.ReadCurrent(ctx, *e.Resource)
+				if err != nil {
+					return err
+				}
+				enriched, err = f.cfg.Enricher.Enrich(ctx, observe.PolicyInput{DeliveryID: e.Delivery.ID, Sequence: e.Sequence, Observed: o})
+				if err != nil {
+					return err
+				}
+			} else if err := f.cfg.Foundation.Process(ctx, e); err != nil {
 				return err
 			}
 		}
-		return f.withLane(ctx, func() error { return f.cfg.Onboarding.Handle(ctx, e) })
+		return f.withLane(ctx, func() error {
+			if semantic {
+				if err := f.cfg.Semantic.Evaluate(ctx, enriched); err != nil {
+					return err
+				}
+			}
+			return f.cfg.Onboarding.Handle(ctx, e)
+		})
 	}
 	if e.Resource.Kind != "issue" {
 		return ErrInvalid
