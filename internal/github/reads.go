@@ -152,7 +152,7 @@ func (t *Transport) Issue(ctx context.Context, ref Ref) (Issue, error) {
 	if err != nil {
 		return Issue{}, err
 	}
-	nodes, err := t.connection(ctx, i.ID, "Issue", "assignees", "login")
+	nodes, err := t.connection(ctx, i.ID, "Issue", "assignees", "login id type:__typename")
 	if err != nil {
 		return Issue{}, err
 	}
@@ -188,8 +188,9 @@ func (t *Transport) PullRequest(ctx context.Context, ref Ref) (PullRequest, erro
 		IsDraft                                          *bool
 		HeadRefName, HeadRefOid, BaseRefName, BaseRefOid *string
 		Author                                           *Actor
+		HeadRepository                                   *wireRepository
 	}
-	err := t.resource(ctx, ref, "pullRequest", identitySelection+` title body state isDraft headRefName headRefOid baseRefName baseRefOid author{login}`, &w)
+	err := t.resource(ctx, ref, "pullRequest", identitySelection+` title body state isDraft headRefName headRefOid baseRefName baseRefOid author{login ... on Node{id} type:__typename} headRepository{`+repositorySelection+`}`, &w)
 	if err != nil {
 		return PullRequest{}, err
 	}
@@ -208,7 +209,14 @@ func (t *Transport) PullRequest(ctx context.Context, ref Ref) (PullRequest, erro
 	if err != nil {
 		return PullRequest{}, err
 	}
-	return PullRequest{ClosingIssues: closing, Identity: i, Title: *w.Title, Body: *w.Body, State: *w.State, Draft: *w.IsDraft, HeadRef: *w.HeadRefName, HeadSHA: *w.HeadRefOid, BaseRef: *w.BaseRefName, BaseSHA: *w.BaseRefOid, Author: w.Author, Labels: labels}, nil
+	var head Repository
+	if w.HeadRepository != nil {
+		head, err = w.HeadRepository.normalized()
+		if err != nil {
+			return PullRequest{}, err
+		}
+	}
+	return PullRequest{HeadRepository: head, ClosingIssues: closing, Identity: i, Title: *w.Title, Body: *w.Body, State: *w.State, Draft: *w.IsDraft, HeadRef: *w.HeadRefName, HeadSHA: *w.HeadRefOid, BaseRef: *w.BaseRefName, BaseSHA: *w.BaseRefOid, Author: w.Author, Labels: labels}, nil
 }
 
 const fieldSelection = `__typename ... on ProjectV2FieldCommon{id name dataType} ... on ProjectV2SingleSelectField{options{id name}}`
