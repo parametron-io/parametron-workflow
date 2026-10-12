@@ -131,7 +131,7 @@ candidates fail closed. Payload before/after SHAs and actor/commit data are not
 activity authority: current #38 provenance, eligibility, branch and ancestry
 checks remain required.
 
-For `projects_v2_item`, the supported Stage-1 routing actions are exactly:
+For `projects_v2_item`, the supported routing actions are exactly:
 created, edited, reordered, archived, restored. Unsupported actions, including
 deleted, are non-applicable. Project must be the configured Engineering Project.
 The payload supplies candidate item/Project IDs only; ProjectItemReader refetches
@@ -139,10 +139,17 @@ CURRENT item/content identity, then ReadPrimary verifies current configured
 repository/resource evidence before binding. Payload Status/Roadmap Order values
 are ignored, even when signed.
 
-Unrelated Projects, current PR/DraftIssue/no content, repositories outside the
-deployment, unavailable/deleted items (typed NotFound), and missing current Issue
-become non-applicable. Malformed supported identity, configured repository-ID
-mismatch or changed primary binding fails closed through the bounded error path.
+For current PullRequest content, production additionally calls
+`PullRequestProjectItemReader.CurrentPullRequestProjectItem` and verifies exact
+item/Project identity, PullRequest kind and PR identity before `ReadPrimary`.
+Issue content retains the existing Issue reader and reconciliation path. Relevant
+PR Project-item notifications enter onboarding without semantic enrichment.
+
+Unrelated Projects, DraftIssue/no content, repositories outside the deployment,
+unavailable/deleted items (typed NotFound from the initial item read), and missing
+current primary resources become non-applicable. Malformed supported identity,
+configured repository-ID mismatch or changed primary binding fails closed through
+the bounded error path.
 An accepted archived notification does not authorize an archived-item write:
 reconciliation still requires exact current nonarchived Engineering membership.
 
@@ -150,3 +157,17 @@ Worker.ErrNotApplicable settles the claimed notification Completed without a fak
 Resource binding, Processor call or persisted failure category, and continues
 later eligible work in the same Step. Cancellation/recovery remains unchanged;
 this is a routing contract, not lifecycle authority or a new storage state.
+
+Ordinary PR notifications resolved by the generic resolver enter Engineering
+onboarding after the foundation/optional semantic path. The flow serializes the
+semantic consumer and onboarding inside its Engineering lane; optional enrichment
+runs outside it. Issue notifications reconcile Engineering Issues; canonical push
+notifications qualify first activity, not PR onboarding. Irrelevant/unsupported
+notifications retain their existing non-applicable behavior.
+
+A Project-item notification supplies only a candidate, never authorization for
+onboarding or membership repair. Every consequential action requires fresh #46
+accepted binding and exact current PR/Target/Project validation. Initial Status and
+Draft effects are one-shot; membership is separately reconcilable. This does not
+introduce all-event PR reconciliation, deleted-item notification support or review
+transition processing. See [execution](execution.md#accepted-pr-onboarding).

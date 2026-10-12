@@ -40,18 +40,24 @@ type Reader interface {
 	ReadCurrent(context.Context, storage.Resource) (observe.ObservedState, error)
 	ReadPrimary(context.Context, storage.Resource) (observe.ObservedState, error)
 }
+type Onboarding interface {
+	Handle(context.Context, storage.Event) error
+}
+
 type Config struct {
-	Deployment   config.ResolvedConfig
-	Resolver     worker.ResourceResolver
-	Reader       Reader
-	Foundation   worker.Processor
-	Enricher     Enricher
-	Semantic     semanticflow.Consumer
-	Snapshot     SnapshotResolver
-	Reconciler   *er.Reconciler
-	Activity     ea.Config
-	ProjectItems github.ProjectItemReader
-	Branches     Branches
+	Onboarding     Onboarding
+	PRProjectItems github.PullRequestProjectItemReader
+	Deployment     config.ResolvedConfig
+	Resolver       worker.ResourceResolver
+	Reader         Reader
+	Foundation     worker.Processor
+	Enricher       Enricher
+	Semantic       semanticflow.Consumer
+	Snapshot       SnapshotResolver
+	Reconciler     *er.Reconciler
+	Activity       ea.Config
+	ProjectItems   github.ProjectItemReader
+	Branches       Branches
 }
 type Flow struct {
 	cfg  Config
@@ -60,6 +66,9 @@ type Flow struct {
 
 func New(c Config) (*Flow, error) {
 	if absent(c.Resolver) || absent(c.Reader) || absent(c.Foundation) || absent(c.Snapshot) || absent(c.Reconciler) || absent(c.ProjectItems) || absent(c.Branches) || (c.Enricher != nil && (absent(c.Enricher) || absent(c.Semantic))) {
+		return nil, ErrInvalid
+	}
+	if c.Onboarding != nil && (absent(c.Onboarding) || absent(c.PRProjectItems)) {
 		return nil, ErrInvalid
 	}
 	if _, err := ea.New(c.Activity); err != nil {
@@ -150,7 +159,33 @@ func (f *Flow) Process(ctx context.Context, e storage.Event) error {
 		return observe.ErrBinding
 	}
 	if e.Resource.Kind == "pull_request" {
-		return f.cfg.Foundation.Process(ctx, e)
+		if f.cfg.Onboarding == nil {
+			return f.cfg.Foundation.Process(ctx, e)
+		}
+		var enriched semanticflow.PolicyInput
+		semantic := e.Delivery.EventName != "projects_v2_item" && f.cfg.Enricher != nil
+		if e.Delivery.EventName != "projects_v2_item" {
+			if semantic {
+				o, err := f.cfg.Reader.ReadCurrent(ctx, *e.Resource)
+				if err != nil {
+					return err
+				}
+				enriched, err = f.cfg.Enricher.Enrich(ctx, observe.PolicyInput{DeliveryID: e.Delivery.ID, Sequence: e.Sequence, Observed: o})
+				if err != nil {
+					return err
+				}
+			} else if err := f.cfg.Foundation.Process(ctx, e); err != nil {
+				return err
+			}
+		}
+		return f.withLane(ctx, func() error {
+			if semantic {
+				if err := f.cfg.Semantic.Evaluate(ctx, enriched); err != nil {
+					return err
+				}
+			}
+			return f.cfg.Onboarding.Handle(ctx, e)
+		})
 	}
 	if e.Resource.Kind != "issue" {
 		return ErrInvalid
@@ -377,17 +412,30 @@ func (f *Flow) resolveProjectItem(ctx context.Context, event storage.Event) (sto
 	if current.ID != id {
 		return storage.Resource{}, ErrInvalid
 	}
-	if current.ProjectID != f.cfg.Deployment.Engineering.ID || current.ContentKind != "Issue" || current.Issue == nil {
+	if current.ProjectID != f.cfg.Deployment.Engineering.ID {
 		return storage.Resource{}, worker.ErrNotApplicable
 	}
 	i := current.Issue
+	kind := "issue"
+	if current.ContentKind == "PullRequest" && f.cfg.Onboarding != nil {
+		prItem, err := f.cfg.PRProjectItems.CurrentPullRequestProjectItem(ctx, id)
+		if err != nil {
+			return storage.Resource{}, err
+		}
+		if prItem.ID != id || prItem.ProjectID != current.ProjectID || prItem.ContentKind != "PullRequest" || prItem.PullRequest == nil || prItem.Issue != nil {
+			return storage.Resource{}, ErrInvalid
+		}
+		i, kind = prItem.PullRequest, "pull_request"
+	} else if current.ContentKind != "Issue" || i == nil {
+		return storage.Resource{}, worker.ErrNotApplicable
+	}
 	var candidate storage.Resource
 	for _, repo := range f.cfg.Deployment.Repositories {
 		if strings.EqualFold(repo.Owner, i.Repository.Owner) && strings.EqualFold(repo.Name, i.Repository.Name) {
 			if repo.ID != i.Repository.ID || !validID(i.ID) || i.Number <= 0 {
 				return storage.Resource{}, ErrInvalid
 			}
-			candidate = storage.Resource{Owner: strings.ToLower(repo.Owner), Repository: strings.ToLower(repo.Name), Kind: "issue", Number: int64(i.Number), NodeID: i.ID}
+			candidate = storage.Resource{Owner: strings.ToLower(repo.Owner), Repository: strings.ToLower(repo.Name), Kind: kind, Number: int64(i.Number), NodeID: i.ID}
 		}
 	}
 	if candidate.Kind == "" {
@@ -400,7 +448,7 @@ func (f *Flow) resolveProjectItem(ctx context.Context, event storage.Event) (sto
 	if o.Presence == observe.Missing {
 		return storage.Resource{}, worker.ErrNotApplicable
 	}
-	if o.Presence != observe.Present || o.Issue == nil || o.PullRequest != nil || o.Resource != candidate {
+	if o.Presence != observe.Present || (kind == "issue" && (o.Issue == nil || o.PullRequest != nil) || kind == "pull_request" && (o.PullRequest == nil || o.Issue != nil)) || o.Resource != candidate {
 		return storage.Resource{}, ec.ErrChanged
 	}
 	return o.Resource, ctx.Err()

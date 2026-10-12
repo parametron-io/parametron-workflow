@@ -23,8 +23,11 @@ owns pre-development decisions, [ordering](docs/engineering-ordering.md) owns
 roadmap topology and numbers, and [execution](docs/execution.md) describes branch
 and activity provenance plus production reconciliation.
 
-Phase #5 remains the PR onboarding, review, merge/completion, and PR Roadmap Order
-companion boundary. Repository-native terminal close/reopen synchronization,
+Accepted Engineering PR onboarding is implemented through read-only #46 binding
+and `internal/pronboarding`: managed membership, owned initial Status, one-shot
+Draft normalization, and durable completion. Review, merge/completion, relationship
+projection, and PR Roadmap Order companions remain later Phase #5 work.
+Repository-native terminal close/reopen synchronization,
 nested-child lifecycle, Bug Tracker scoring/admission, branch deletion/revocation,
 native Project position reconciliation, heavy agents, automatic merge, and
 distributed coordination are deferred. Declarative graph facts are current;
@@ -241,9 +244,13 @@ Events affecting the same Issue or Pull Request are serialized in resource order
 by the worker. Because one Engineering plan can mutate multiple resources, one
 context-aware deployment-wide process-local Engineering lane is acquired before
 complete state computation and covers downstream semantic mutation when explicitly
-composed, activity handling, reconciliation, and branch work. It releases on all
-exits and holds no SQLite transaction across GitHub I/O. Model enrichment runs
-outside the lane; enrichment failure stops that delivery before Engineering.
+composed, accepted PR onboarding, activity handling, reconciliation, and branch work.
+It releases on all exits and holds no SQLite transaction across GitHub I/O. Model enrichment runs
+outside the lane; Issue and PR semantic consumers execute inside it before
+Engineering effects. Enrichment failure stops that delivery before Engineering.
+Onboarding uses durable stage facts rather than delivery deduplication alone to
+suppress repeated initialization; unresolved one-shot attempts fail closed. See
+[persistence](docs/persistence.md#accepted-pr-onboarding-provenance).
 This is not a distributed lock or cross-process serialization guarantee.
 
 ---
@@ -1089,9 +1096,10 @@ parent Phase roadmap anchor described earlier.
 
 ## 18. Pull Request Binding and Onboarding
 
-Standalone read-only binding validation is implemented in `internal/prbinding`;
-it is not composed into production PR event routing or continuous reconciliation.
-Sections 18.1–25 describe deferred PR onboarding/completion contracts. Phase #4 supports
+Read-only binding validation is owned by `internal/prbinding` and consumed by
+production Engineering PR routing through `internal/pronboarding`. Accepted
+onboarding is implemented; relationships, ordering, review and completion contracts
+in Sections 18.1 and 19–25 remain deferred. Phase #4 supports
 direct Phase branch/activity work, but does not enforce terminal closure gates or
 close/reopen synchronization. PR companions remain unassigned reserved slots.
 
@@ -1147,21 +1155,43 @@ See [PR binding](docs/pr-binding.md) for the API, reasons, and verification cont
 
 ### 18.1 PR Project and relationship projection
 
-In the deferred onboarding contract, the controller:
+The implemented Engineering onboarding contract is:
 
-- adds the PR to the appropriate Project
-- sets the accepted implementation PR to `In Progress`
-- projects `Target` into the native GitHub Development relationship
-- classifies PR labels through the cheap semantic model when enabled
-- assigns the PR a Roadmap Order companion slot after its Target Issue under
-  Phase #5's allocation/reconciliation policy
+```text
+fresh accepted PR binding
+  → validate exact PR / Target / Project identity
+  → ensure managed Engineering membership
+  → initialize owned In Progress Status
+  → normalize initially non-Draft PR to Draft once
+  → record durable onboarding completion
+```
 
-Manual Development relationships that contradict `Target` are drift and are
-reconciled back to the canonical relationship.
+The controller requires an OPEN PR, exact configured identity, and consistent
+current membership evidence. Duplicate/archived Engineering items or Bug Tracker
+membership fail closed. `Set-Status: false` disables normal initial Status
+ownership; membership and Draft normalization still require accepted binding and
+are independent of Status ownership. Already matching In Progress needs no write.
+Initial Status is one-shot, not continuous lifecycle reconciliation.
+Before preparation, an owned observed In Review or Done Status fails closed as
+`ErrAmbiguous`; it cannot establish initial lifecycle authority. Each initial
+Status mutation also requires current ownership, not preparation alone.
+
+Project membership is separately reconcilable after fresh accepted binding,
+including after completion, without replaying initial Status or Draft effects.
+This is a narrow onboarding controller, not a general Project reconciliation engine.
+Durable evidence is historical fact, never a permanent authorization grant.
+
+Native Development relationship projection/drift repair, semantic PR labeling,
+and numeric PR companion allocation remain deferred. The intended later contract
+projects `Target` into Development and repairs contradictory manual relationships;
+no relationship mutation is implemented here. See [PR binding](docs/pr-binding.md),
+[execution](docs/execution.md#accepted-pr-onboarding), and
+[persistence](docs/persistence.md#accepted-pr-onboarding-provenance).
 
 ### 18.2 Initial Draft normalization
 
-This onboarding behavior is not implemented by the standalone validator.
+Initial Draft normalization is implemented by `internal/pronboarding`, separate
+from the read-only validator. Deterministic onboarding needs no semantic Runner.
 
 PR creation is never treated as an explicit review-start signal.
 
@@ -1176,7 +1206,7 @@ valid Target
 if PR is not Draft
 → convert to Draft once
         ↓
-record onboarding complete
+record onboarding complete after required Status and Draft stages
 ```
 
 Draft conversion is a one-shot ingress normalization action, not a permanent
@@ -1184,7 +1214,10 @@ invariant.
 
 The controller must not continuously enforce "PR must be Draft" after
 onboarding, because doing so would prevent the later Ready-for-review
-transition.
+transition. Explicit subsequent Ready-for-review processing remains deferred.
+Persisted attempts without success facts return `ErrAmbiguous`; neither a current
+Draft flag nor matching Status proves historical success. No exactly-once GitHub
+execution or GitHub/SQLite transactional atomicity is claimed.
 
 ---
 

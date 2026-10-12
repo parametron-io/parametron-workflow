@@ -198,7 +198,8 @@ Signed webhook ingress, durable worker queues/retries, observation, and startup
 are integrated through `internal/app`, along with explicit Phase #3 directives,
 semantic acceptance, and authorized metadata/routing reconciliation. Engineering
 lifecycle/reconciliation, branches and first activity are now production-composed;
-PR lifecycle remains Phase #5. Client itself stays read-only: composition requires
+accepted PR onboarding is production-composed while later PR lifecycle remains
+Phase #5. Client itself stays read-only: composition requires
 separate narrow capabilities and deterministic Go authorization.
 
 ## Read-only developer authorization evidence
@@ -234,8 +235,9 @@ nonmembership or insufficient permission. Explicit membership state and effectiv
 permission are policy evidence only after successful verified reads.
 
 Transport owns reads and decoding; deterministic authorization belongs to
-[prbinding](pr-binding.md). No write capability, token minting, assignment, or
-production PR routing is added. Local tests exercise endpoint/identity validation,
+[prbinding](pr-binding.md). These reads grant no write capability, token minting
+or assignment. Production PR onboarding consumes them through the separate binding
+validator. Local tests exercise endpoint/identity validation,
 effective permission, error categories, cancellation, limits, redirect refusal,
 and credential isolation without live credentials.
 
@@ -305,7 +307,50 @@ refetches current primary Issue identity before binding; payload Status/Roadmap
 values are ignored. See [webhooks.md](webhooks.md) for applicable actions.
 
 The default CLI's shared Transport satisfies Client, IssueLister, Branches,
-CommitComparison, LifecycleFields, NumericFields and ProjectItemReader. Engineering
-composition explicitly requires each capability before serving HTTP, and applies
+CommitComparison, LifecycleFields, NumericFields, ProjectItemReader, DeveloperReads,
+DraftConverter, PullRequestProjectItemReader and narrow onboarding Project writes.
+Engineering composition explicitly requires each capability before serving HTTP, and applies
 policy/provenance checks before authorized mutations. No production semantic
 provider or implicit semantic mutation authority is activated.
+
+## Accepted PR onboarding capabilities
+
+`github.DraftConverter` exposes only `ConvertPullRequestToDraft(ctx, prNodeID)`.
+Transport rejects blank/whitespace-containing IDs as Permanent, calls the narrow
+`convertPullRequestToDraft` GraphQL mutation, and requires the returned PR ID to
+match exactly with a present true `isDraft`. Missing/mismatched results are
+Malformed. This grants no Ready-for-review operation, review initiation or arbitrary
+PR mutation. Deterministic onboarding policy authorizes its use.
+
+`github.PullRequestProjectItemReader` exposes
+`CurrentPullRequestProjectItem(ctx, itemID)`. It reads current ProjectV2Item identity
+and content through GraphQL without field values. The requested item ID must be
+valid; returned item ID must match exactly and Project ID must be valid. Missing
+node is NotFound; wrong node kind, mismatched identity or malformed content is
+Malformed. Output carries ID, ProjectID, ContentKind and optional normalized
+Issue/PullRequest identity (node ID, number and repository identity). Null content
+and DraftIssue are representable without granting onboarding authority. Onboarding
+requires exact intended Project and PullRequest content identity. This separate
+reader supplements the Issue-oriented `ProjectItemReader`; it does not replace it.
+
+Both operations reuse private authentication, response limits, redirect refusal,
+context and typed error handling, with no hidden retries. Context cancellation and
+deadlines remain detectable with `errors.Is`, including in-flight requests. Existing
+Unauthorized, Forbidden, RateLimited, Conflict, Transient and Permanent categories
+propagate; malformed responses are never accepted as successful effects.
+
+Onboarding receives only `AddProjectItem` and `SetProjectOption` for Project writes,
+not the full semantic Mutator. Existing input/response identity checks remain;
+policy verifies current membership/item/content before and after effects. Adding
+membership does not grant Status or Draft authorization by itself. See
+[execution](execution.md#accepted-pr-onboarding) for fresh binding barriers.
+
+Engineering composition requires DeveloperReads, DraftConverter,
+PullRequestProjectItemReader and those narrow Project writes in addition to its
+existing capabilities; missing interfaces fail construction. Deployment needs the
+existing developer authorization reads, current PR/Project reads, Project write
+access for membership/owned Status, and Pull Requests write access for Draft
+conversion. Exact credential grants must be verified at deployment; local transport
+tests do not establish live installation permissions. No GitHub App
+installation-token minting or live permission rehearsal is claimed. The CLI
+activates no production model provider, and deterministic onboarding needs no Runner.

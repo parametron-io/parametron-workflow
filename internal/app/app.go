@@ -24,6 +24,8 @@ import (
 	er "github.com/parametron-io/parametron-workflow/internal/engineeringreconcile"
 	"github.com/parametron-io/parametron-workflow/internal/github"
 	"github.com/parametron-io/parametron-workflow/internal/observe"
+	"github.com/parametron-io/parametron-workflow/internal/prbinding"
+	po "github.com/parametron-io/parametron-workflow/internal/pronboarding"
 	"github.com/parametron-io/parametron-workflow/internal/semantic"
 	"github.com/parametron-io/parametron-workflow/internal/semanticflow"
 	"github.com/parametron-io/parametron-workflow/internal/semanticreconcile"
@@ -80,6 +82,14 @@ func classify(err error) worker.Classification {
 		category  string
 		retryable bool
 	}{
+		{po.ErrInvalid, "pr_onboarding_invalid", false},
+		{po.ErrRejected, "pr_onboarding_rejected", false},
+		{po.ErrChanged, "pr_onboarding_changed", true},
+		{po.ErrProject, "pr_onboarding_project", false},
+		{po.ErrProvenance, "pr_onboarding_provenance", false},
+		{po.ErrAmbiguous, "pr_onboarding_ambiguous", false},
+		{po.ErrStorage, "pr_onboarding_storage", false},
+		{prbinding.ErrInvalid, "pr_binding_invalid", false},
 		{ec.ErrChanged, "engineering_changed", true},
 		{ec.ErrIncomplete, "engineering_incomplete", true},
 		{ea.ErrStorage, "engineering_activity_storage", false},

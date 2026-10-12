@@ -1,10 +1,12 @@
 # Standalone PR binding authorization
 
 `internal/prbinding` evaluates current implementation PR binding without side
-effects. It is not activated in app, CLI, or worker PR routing. It performs no
-Project mutation, branch creation, storage write, assignment, managed feedback,
+effects. Production Engineering consumes it through `internal/pronboarding`;
+the validator itself performs no Project mutation, branch creation, storage write,
+assignment, managed feedback,
 or PR lifecycle transition. The architecture's [binding conjunction](../system-overview.md#18-pull-request-binding-and-onboarding)
-is implemented independently of deferred onboarding and review consumers.
+remains owned here; onboarding owns permitted initial mutations and provenance,
+while review consumers remain deferred.
 
 ## Construction and inputs
 
@@ -131,8 +133,11 @@ completion, branch, developer facts, and PR body/state/author/head. Material dri
 rejects; invalid identities or provider failures can instead return errors.
 Repeated evaluation reuses no accepted authorization grant.
 
-Future onboarding/review consumers must call `Evaluate` again immediately before
-consequential actions. Acceptance is a current result, not permission for future
+The onboarding controller calls `Evaluate` again and checks current PR observation
+and exact PR/Target/Project identity before effects. Rejected binding produces no
+accepted onboarding effects or provenance. Future review consumers must also
+revalidate immediately before consequential actions. Acceptance is a current
+result, not permission for future
 actions or transactional snapshot isolation. GitHub reads are not atomic. The
 current branch/provenance contracts cannot distinguish deletion and recreation
 with identical ref and SHA; no ref-incarnation tracking or revocation is added.
