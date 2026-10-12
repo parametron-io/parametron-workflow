@@ -54,11 +54,16 @@ Engineering views sort by Roadmap Order ASC; native card positions are not recon
 One process-local Engineering lane serializes global convergence. Partial failures
 retry from fresh state and apply only current drift.
 
-Standalone [PR binding validation](docs/pr-binding.md) is implemented and read-only;
-the default CLI does not enforce it. Accepted PR onboarding, Draft normalization,
-Project membership, relationship projection, review transitions, PR companion
-ordering, merge/completion, managed feedback, and continuous PR lifecycle
-reconciliation remain deferred. Terminal close/reopen synchronization, nested
+Production Engineering consumes read-only [PR binding validation](docs/pr-binding.md)
+for accepted implementation PR onboarding: exact managed Project membership, owned
+initial In Progress Status, and one-shot initial Draft normalization. Durable
+completion suppresses repeated Status/Draft initialization and preserves later
+review readiness; membership repair requires fresh accepted binding. Deterministic
+onboarding requires no semantic Runner. See [execution](docs/execution.md) and
+[provenance](docs/persistence.md#accepted-pr-onboarding-provenance).
+Relationship projection, review transitions, PR companion ordering, merge/completion,
+managed feedback, and general PR lifecycle reconciliation remain deferred.
+Terminal close/reopen synchronization, nested
 lifecycle, Bug Tracker
 scoring/admission, branch deletion/revocation, heavy agents, automatic merge,
 native Project positioning, and distributed coordination are deferred. Assignees

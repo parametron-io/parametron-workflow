@@ -477,13 +477,69 @@ mutation executes INSIDE it before Engineering when an explicit Mutator or custo
 SemanticConsumer authorizes that path. Runner-only composition still uses
 SemanticFoundationSink; no implicit semantic GitHub mutation or Snapshot-wide
 semantic backfill exists. Enrichment failure stops that delivery before Engineering.
-PRs follow the foundation/explicit semantic path without Engineering lifecycle.
+PR semantic enrichment may run outside the lane; its semantic consumer and
+accepted onboarding execute inside the same Engineering lane. Managed PR
+Project-item notifications skip semantic enrichment and enter onboarding directly.
 
 Engineering-local engineering_changed and engineering_incomplete retry. Generic
 engineering_activity_storage and engineering_branch_storage are terminal; structural
 graph/policy/order/provenance/Project/configuration corruption is terminal with
 bounded categories. Existing typed GitHub transient/rate-limit handling remains
 separate; no provider/storage diagnostics leak into stable categories.
-Phase #5 retains PR onboarding, review, companions, and merge/completion. Terminal
+Phase #5 retains review, relationships, companions, and merge/completion. Terminal
 close/reopen synchronization, nested lifecycle, Bug Tracker scoring/admission,
 heavy agents, automatic merge, and distributed coordination remain deferred.
+
+## Accepted PR onboarding
+
+Production `internal/engineeringflow` routes PR notifications and relevant managed
+Project-item candidates to `internal/pronboarding`. #46 `internal/prbinding` owns
+authorization; onboarding repeatedly revalidates accepted binding and current PR
+observation around consequential effects. Stored evidence, payload state, matching
+branch names and observed membership are not grants. Exact PR/Target identity,
+current author/head, OPEN state and configured Project/item/content identity must
+remain valid. Rejected binding cannot create accepted onboarding side effects.
+
+The worker retains exclusive database ownership and per-resource FIFO. One
+process-local Engineering lane serializes Issue and PR effects across resources;
+the onboarding controller has its own context-aware lane for standalone calls.
+Model enrichment stays outside the Engineering lane, while the semantic consumer
+and onboarding run inside it. An enrichment/consumer failure stops the delivery.
+No Runner is required for deterministic onboarding, and model output owns no
+workflow authorization. No distributed lock or cross-process atomicity is added.
+
+Membership can converge from fresh accepted binding after interruption or durable
+completion. Initial owned In Progress and Draft normalization instead use immutable
+preparation, attempt and success facts. Completed onboarding never overwrites
+later Status or reverts subsequent Ready-for-review. `Set-Status: false` suppresses
+normal initial Status ownership only. Already-Draft and already matching Status
+need no redundant mutation. See [provenance](persistence.md#accepted-pr-onboarding-provenance)
+for exact ordering, original delivery retention and strict identity validation.
+
+Cancellation releases worker claims to pending; restart recovery preserves facts
+and revalidates current authority. Safe unfinished stages can resume, but a durable
+one-shot attempt without success is `ErrAmbiguous`, even when current state matches.
+Remote success followed by failed success recording is indeterminate; retry must
+not fabricate completion or repeat that mutation. GitHub/SQLite atomicity and
+exactly-once mutation execution are not provided.
+
+`internal/app` classifies onboarding errors as follows:
+
+| Error | Category | Worker disposition |
+| --- | --- | --- |
+| `ErrInvalid` | `pr_onboarding_invalid` | Terminal: invalid composition/identity |
+| `ErrRejected` | `pr_onboarding_rejected` | Terminal: rejected current binding |
+| `ErrChanged` | `pr_onboarding_changed` | Retry from fresh authority/current state |
+| `ErrProject` | `pr_onboarding_project` | Terminal: conflicting Project evidence |
+| `ErrProvenance` | `pr_onboarding_provenance` | Terminal: corrupt/conflicting durable facts |
+| `ErrAmbiguous` | `pr_onboarding_ambiguous` | Terminal: indeterminate one-shot outcome |
+| `ErrStorage` | `pr_onboarding_storage` | Terminal: unclassified storage failure |
+
+`prbinding.ErrInvalid` is terminal `pr_binding_invalid`. Propagated errors retain
+existing classification; typed GitHub transient/rate-limit errors retry, and
+cancellation follows worker release semantics. A transport retry can encounter a
+persisted attempt and then fail closed with `ErrAmbiguous`; it is not automatic
+convergence. No recovery operation synthesizes successful provenance.
+
+Review initiation, relationship projection, companion ordering, merge/completion,
+Target/Phase completion and terminal close/reopen synchronization remain deferred.

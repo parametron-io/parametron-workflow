@@ -6,11 +6,13 @@ identity before Engineering computes complete desired state and performs authori
 mutations through narrow capabilities. Observation and PolicyInput are not
 authorization. No production semantic/model provider is implicitly enabled.
 
-Standalone [PR binding validation](pr-binding.md) is available as a read-only
-package, without app/CLI/worker composition. Engineering Issue reconciliation does
-not onboard accepted PRs. Draft normalization, PR Project membership, relationship
-projection, review transitions, companion ordering, merge/completion, managed
-feedback, and continuous PR lifecycle reconciliation remain deferred.
+Production Engineering consumes read-only [PR binding validation](pr-binding.md)
+through accepted PR onboarding: managed membership, owned initial In Progress,
+one-shot Draft normalization and durable completion. Membership repair requires
+fresh accepted binding; completion preserves later Status and review readiness.
+Deterministic onboarding works without a semantic Runner. Relationship projection,
+review transitions, companion ordering, merge/completion, managed feedback and
+general PR lifecycle reconciliation remain deferred.
 
 Embedded callers opt in through `app.Config.Engineering`; its zero value retains
 the Phase 2 foundation path, where normalized PolicyInput reaches FoundationSink.
@@ -75,7 +77,9 @@ transport, validates process settings, discovers live GitHub schema, calls
 `config.Resolve`, validates observer boundaries, initializes SQLite, constructs
 Engineering composition when enabled, worker/ingress, and finally binds HTTP.
 Engineering requires IssueLister, Branches, CommitComparison, LifecycleFields,
-NumericFields, and ProjectItemReader on the shared client; missing narrow capabilities
+NumericFields, ProjectItemReader, DeveloperReads, DraftConverter,
+PullRequestProjectItemReader, and the narrow `pronboarding.Projects` method set
+(`AddProjectItem`, `SetProjectOption`) on the shared client; missing narrow capabilities
 fail composition before HTTP serving. The same client performs discovery and
 all current Issue/PR/Project reads. Missing, ambiguous, or incompatible schema
 prevents serving; no partial deployment or alternate current-state path exists.
@@ -119,6 +123,11 @@ policy/order/hierarchy/capacity, provenance/ambiguity, Project identity,
 configuration, and malformed notification failures map to bounded terminal
 Engineering categories. Provider/storage diagnostics never enter stable categories;
 typed GitHub transient/rate-limit classification stays separate.
+Onboarding retries only `pr_onboarding_changed` among its local categories;
+invalid/rejected binding, conflicting Project evidence, corrupt provenance,
+indeterminate one-shot outcome and storage failure are terminal. Exact categories
+and recovery limits are in [execution](execution.md#accepted-pr-onboarding).
+In particular, `ErrAmbiguous` is not automatically replayed as success.
 Event-level outcomes do not crash the application; worker infrastructure or
 HTTP listener/server failures stop the other component
 and return a bounded error. Startup failures identify the failed boundary.
@@ -183,18 +192,23 @@ and [ordering](engineering-ordering.md).
 
 One context-aware deployment-wide process-local lane is acquired before complete
 Engineering state computation and covers downstream semantic mutation when
-explicitly composed, activity, field reconciliation, and branch work. It releases
-on all exits, without SQLite transactions across GitHub I/O. Model enrichment runs
-outside it; enrichment failure does not fall through into Engineering. Worker
+explicitly composed, accepted PR onboarding, activity, field reconciliation, and
+branch work. It releases on all exits, without SQLite transactions across GitHub I/O. Model enrichment runs
+outside it; PR and Issue semantic consumers execute inside it before effects.
+The onboarding controller additionally serializes its own calls. Enrichment failure
+does not fall through into Engineering. Worker
 same-resource FIFO alone cannot serialize a plan touching multiple resources.
 The lane is not a distributed/cross-process lock.
 
 Retries resolve fresh complete state and Project observations and apply only
 remaining/current drift. Changed topology wins; no batch provenance, reconciliation
 completion record, replay log, or schema migration was added. One-shot branch and
-activity namespaces retain their separate ownership.
+activity namespaces retain their separate ownership. Accepted PR onboarding uses
+its own [durable stage facts](persistence.md#accepted-pr-onboarding-provenance):
+completed initialization is suppressed, membership remains separately reconcilable,
+and unresolved one-shot attempts fail closed across cancellation/restart.
 
-Phase #5 PR onboarding/review/merge/completion and companion ordering, terminal
+Phase #5 review/merge/completion, relationship projection and companion ordering, terminal
 close/reopen synchronization, Bug Tracker scoring/admission, nested lifecycle,
 branch deletion/revocation, native Project positioning, heavy agents, automatic
 merge, managed feedback/decision-record persistence, App token minting, and

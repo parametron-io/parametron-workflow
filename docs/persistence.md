@@ -151,8 +151,8 @@ the original creation time; conflicting delivery association or metadata returns
 processing metadata and resource binding changes.
 
 This surface records generic one-shot facts only. Branch creation and first
-activity use the protocols described here; PR onboarding and managed feedback
-remain later work.
+activity and accepted PR onboarding use the protocols described here; managed
+feedback remains later work.
 Issue #27 uses this unchanged surface for namespace `semantic.classification`
 and format-1 bounded, canonical initial-classification completion records;
 decoding, gating, and authorization stay in `internal/semanticflow`. See
@@ -230,3 +230,54 @@ state from complete Snapshot and fresh Project observations. Branch/activity kee
 one-shot provenance because their authority cannot be safely derived from observed
 GitHub state. No SQLite transaction is held across GitHub I/O; the Engineering
 serialization lane is process-local rather than a distributed storage lock.
+
+## Accepted PR onboarding provenance
+
+`internal/pronboarding` uses the existing generic Store without a schema migration.
+All namespaces share key
+`<lowercase-owner>/<lowercase-repository>/pull_request/<positive-number>`:
+
+| Namespace | Durable meaning |
+| --- | --- |
+| `pr_onboarding_membership_intent_v1` | Initial intent before adding missing membership |
+| `pr_onboarding_prepared_v1` | Immutable preparation with exact current item and initial Status |
+| `pr_onboarding_status_attempt_v1` | Committed before a required one-shot Status mutation |
+| `pr_onboarding_status_done_v1` | Status stage satisfied after validated effect or permitted no-op |
+| `pr_onboarding_draft_attempt_v1` | Committed before required Draft conversion |
+| `pr_onboarding_draft_done_v1` | Draft stage satisfied after validated effect or permitted no-op |
+| `pr_onboarding_completed_v1` | Both initialization stages satisfied and current membership validated |
+
+Metadata is exact canonical `encoding/json` output for version-1 evidence, in
+field order: `version`, `resource`, `binding`, `organization`, `project`, `field`,
+`option`, `item`, `initially_draft`, `status_owned`, `status_present`, `status`.
+Resource includes exact PR node ID as well as canonical owner/repository/kind/number;
+the stable key excludes node ID. Binding retains #46 PR and Target identities,
+Target kind, branch repository/ref/SHA, verified developer and policy identifier.
+Organization and Project IDs, Status field and In Progress option must match
+resolved deployment bindings. Preparation records exact item ID and initial
+normalized Status evidence. No body, model output or credentials are persisted.
+
+Membership intent is optional when membership already exists; it has empty item
+and Status evidence. Preparation preserves its original Draft/ownership facts and
+delivery association when present. Subsequent stages must match preparation bytes
+and delivery exactly. Every record validates namespace/key, nonzero CreatedAt,
+canonical bytes, version, identities and the original stored delivery's exact
+resource binding (including node ID when supplied). Unknown/duplicate JSON keys,
+noncanonical encoding, conflicting records or identity mismatch fail closed as
+`ErrProvenance`; generic storage failures become `ErrStorage`. Original DeliveryID
+is retained across retries/restart rather than reassociated to the latest event.
+
+Status precedes Draft: Draft facts require `status_done`; completion requires
+preparation, `status_done` and `draft_done`. Attempts exist only for required
+mutations; done facts also represent allowed no-op stages. Successful completion
+suppresses repeated initialization, while separately authorized membership repair
+can add a replacement item without rewriting initial facts.
+
+Attempts commit before one-shot mutations. Success facts commit only after
+validated effects. GitHub and SQLite do not share a transaction: remote success
+followed by lost response, cancellation or failed durable success recording can
+leave an indeterminate outcome. An attempt without matching done fact returns
+`ErrAmbiguous` before even membership repair; observed current Draft/Status cannot
+attribute success or distinguish later review readiness. Such attempts are not
+automatically recoverable and are never replayed as success. Exactly-once GitHub
+mutation execution is not promised. See [execution](execution.md#accepted-pr-onboarding).
