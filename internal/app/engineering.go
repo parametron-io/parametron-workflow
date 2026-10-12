@@ -12,6 +12,8 @@ import (
 	er "github.com/parametron-io/parametron-workflow/internal/engineeringreconcile"
 	"github.com/parametron-io/parametron-workflow/internal/github"
 	"github.com/parametron-io/parametron-workflow/internal/observe"
+	"github.com/parametron-io/parametron-workflow/internal/prbinding"
+	"github.com/parametron-io/parametron-workflow/internal/pronboarding"
 	"github.com/parametron-io/parametron-workflow/internal/semanticflow"
 	"github.com/parametron-io/parametron-workflow/internal/semanticreconcile"
 	"github.com/parametron-io/parametron-workflow/internal/storage"
@@ -74,7 +76,31 @@ func composeEngineering(c Config, d config.ResolvedConfig, store *storage.Store,
 	if err != nil {
 		return nil, err
 	}
-	flowCfg := ef.Config{Deployment: d, Resolver: resolver, Reader: reader, Foundation: reader, Snapshot: snapshots, Reconciler: reconciler, Activity: activityCfg, ProjectItems: items, Branches: branch}
+	prItems, ok := c.Client.(github.PullRequestProjectItemReader)
+	if !ok || missingCapability(prItems) {
+		return nil, pronboarding.ErrInvalid
+	}
+	developers, ok := c.Client.(github.DeveloperReads)
+	if !ok || missingCapability(developers) {
+		return nil, pronboarding.ErrInvalid
+	}
+	draft, ok := c.Client.(github.DraftConverter)
+	if !ok || missingCapability(draft) {
+		return nil, pronboarding.ErrInvalid
+	}
+	projects, ok := c.Client.(pronboarding.Projects)
+	if !ok || missingCapability(projects) {
+		return nil, pronboarding.ErrInvalid
+	}
+	binding, err := prbinding.New(prbinding.Config{Deployment: d, Primary: reader, Context: snapshots, Completion: branch, Branches: branches, Developers: developers})
+	if err != nil {
+		return nil, err
+	}
+	onboarding, err := pronboarding.New(pronboarding.Config{Deployment: d, Binding: binding, Reader: reader, Projects: projects, Items: prItems, Draft: draft, Store: store, Clock: c.Clock})
+	if err != nil {
+		return nil, err
+	}
+	flowCfg := ef.Config{Onboarding: onboarding, PRProjectItems: prItems, Deployment: d, Resolver: resolver, Reader: reader, Foundation: reader, Snapshot: snapshots, Reconciler: reconciler, Activity: activityCfg, ProjectItems: items, Branches: branch}
 	if c.Runner != nil {
 		consumer := c.SemanticConsumer
 		mutator := c.Mutator
