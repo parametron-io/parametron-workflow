@@ -6,6 +6,12 @@ identity before Engineering computes complete desired state and performs authori
 mutations through narrow capabilities. Observation and PolicyInput are not
 authorization. No production semantic/model provider is implicitly enabled.
 
+Standalone [PR binding validation](pr-binding.md) is available as a read-only
+package, without app/CLI/worker composition. Engineering Issue reconciliation does
+not onboard accepted PRs. Draft normalization, PR Project membership, relationship
+projection, review transitions, companion ordering, merge/completion, managed
+feedback, and continuous PR lifecycle reconciliation remain deferred.
+
 Embedded callers opt in through `app.Config.Engineering`; its zero value retains
 the Phase 2 foundation path, where normalized PolicyInput reaches FoundationSink.
 That sink acknowledges without classification, desired-state computation, mutation,

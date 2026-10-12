@@ -1089,7 +1089,9 @@ parent Phase roadmap anchor described earlier.
 
 ## 18. Pull Request Binding and Onboarding
 
-Sections 18–25 describe future Phase #5 PR/completion contracts. Phase #4 supports
+Standalone read-only binding validation is implemented in `internal/prbinding`;
+it is not composed into production PR event routing or continuous reconciliation.
+Sections 18.1–25 describe deferred PR onboarding/completion contracts. Phase #4 supports
 direct Phase branch/activity work, but does not enforce terminal closure gates or
 close/reopen synchronization. PR companions remain unassigned reserved slots.
 
@@ -1102,19 +1104,50 @@ A normal implementation Pull Request must declare:
 Target: <issue-ref>
 ```
 
-The controller validates the binding using all required policy conditions,
-including:
+The implemented binding validation is conjunctive:
 
-- Target resolves to the intended Issue or Phase
-- PR head branch is the controller-authorized development branch for that Target
-- PR author matches the expected developer/assignee policy for the Target
+```text
+valid current Target
++ eligible current Issue/Phase
++ exact authorized development branch
++ validated durable branch creation completion
++ matching current PR head repository/ref/SHA
++ verified active organization membership
++ verified effective repository WRITE-or-higher permission
++ matching current assignee, when applicable
+= accepted implementation PR binding
+```
 
-The Target validation is conjunctive. Matching only the Issue or only the
-branch is insufficient.
+`Target:` uses the existing strict `intent.Parse` directive contract. Resolution
+uses configured repository identity and current GitHub Issue identity. Complete
+Engineering Snapshot, roadmap ordering, and lifecycle policy determine current
+execution eligibility for Task, Feature, and explicitly branch-enabled Phase
+work. Bug Tracker binding is not authorized by this standalone validator.
+
+Validated successful #37 creation completion is required through
+`engineeringbranch.Controller.Completed`, for both same-target v1 and
+cross-target origin v2 provenance. A matching branch name or SHA alone is
+insufficient. Native Development links, labels, observed Project Status, webhook
+payloads, and assignee data cannot independently authorize binding.
+
+The current PR author must be a verified human with matching stable GitHub
+identity, active configured-organization membership, and effective `write` or
+`admin` permission on the exact Target repository. Membership and permission are
+separate mandatory conditions; outside collaborators do not qualify through write
+permission alone. With manual assignees, the author must match one of them; without
+assignees, membership and write permission suffice. GitHub's effective base
+permission is used, never an independent grant from `role_name`.
+
+This neither assigns developers nor changes first-development-activity ownership.
+The author need not be the person who triggered branch creation; #37 provenance
+contains no invented author identity. Acceptance is a current validation result,
+not a permanent grant. Fresh revalidation detects observable drift but provides
+no atomic GitHub snapshot or same-ref/same-SHA branch recreation detection.
+See [PR binding](docs/pr-binding.md) for the API, reasons, and verification contract.
 
 ### 18.1 PR Project and relationship projection
 
-After a valid binding is accepted, the controller:
+In the deferred onboarding contract, the controller:
 
 - adds the PR to the appropriate Project
 - sets the accepted implementation PR to `In Progress`
@@ -1127,6 +1160,8 @@ Manual Development relationships that contradict `Target` are drift and are
 reconciled back to the canonical relationship.
 
 ### 18.2 Initial Draft normalization
+
+This onboarding behavior is not implemented by the standalone validator.
 
 PR creation is never treated as an explicit review-start signal.
 
