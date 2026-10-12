@@ -94,13 +94,13 @@ func absent(v any) bool {
 	}
 	r := reflect.ValueOf(v)
 	switch r.Kind() {
-	case reflect.Pointer, reflect.Interface, reflect.Func:
+	case reflect.Pointer, reflect.Interface, reflect.Func, reflect.Map, reflect.Slice, reflect.Chan:
 		return r.IsNil()
 	}
 	return false
 }
 func New(c Config) (*Validator, error) {
-	if absent(c.Primary) || absent(c.Context) || absent(c.Completion) || absent(c.Branches) || absent(c.Developers) || c.Deployment.Organization.Login != "parametron-io" || strings.TrimSpace(c.Deployment.Organization.ID) == "" || len(c.Deployment.Repositories) == 0 {
+	if absent(c.Primary) || absent(c.Context) || absent(c.Completion) || absent(c.Branches) || absent(c.Developers) || c.Deployment.Organization.Login != "parametron-io" || strings.TrimSpace(c.Deployment.Organization.ID) == "" || strings.ContainsAny(c.Deployment.Organization.ID, " \t\r\n") || len(c.Deployment.Repositories) == 0 {
 		return nil, ErrInvalid
 	}
 	c.Deployment.Repositories = append([]config.Repository(nil), c.Deployment.Repositories...)

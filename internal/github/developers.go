@@ -42,7 +42,7 @@ func validLogin(s string) bool {
 	return !strings.Contains(s, "--")
 }
 func ValidHuman(a Actor) bool {
-	return validLogin(a.Login) && strings.TrimSpace(a.ID) == a.ID && a.ID != "" && a.Type == "User"
+	return validLogin(a.Login) && validIDs(a.ID) && a.Type == "User"
 }
 func SameUser(a, b Actor) bool {
 	return ValidHuman(a) && ValidHuman(b) && a.ID == b.ID && strings.EqualFold(a.Login, b.Login)
@@ -56,7 +56,7 @@ type restUser struct {
 
 func (u restUser) actor(login string) (Actor, error) {
 	a := Actor{Login: u.Login, ID: u.NodeID, Type: u.Type}
-	if u.ID <= 0 || blank(u.NodeID) || !strings.EqualFold(login, u.Login) || !validLogin(u.Login) || (u.Type != "User" && u.Type != "Bot" && u.Type != "Organization") {
+	if u.ID <= 0 || !validIDs(u.NodeID) || !strings.EqualFold(login, u.Login) || !validLogin(u.Login) || (u.Type != "User" && u.Type != "Bot" && u.Type != "Organization") {
 		return Actor{}, failure(Malformed)
 	}
 	return a, nil
