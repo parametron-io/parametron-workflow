@@ -54,8 +54,12 @@ Engineering views sort by Roadmap Order ASC; native card positions are not recon
 One process-local Engineering lane serializes global convergence. Partial failures
 retry from fresh state and apply only current drift.
 
-Phase #5 PR onboarding/review, merge/completion, and PR companion ordering remain
-future. Terminal close/reopen synchronization, nested lifecycle, Bug Tracker
+Standalone [PR binding validation](docs/pr-binding.md) is implemented and read-only;
+the default CLI does not enforce it. Accepted PR onboarding, Draft normalization,
+Project membership, relationship projection, review transitions, PR companion
+ordering, merge/completion, managed feedback, and continuous PR lifecycle
+reconciliation remain deferred. Terminal close/reopen synchronization, nested
+lifecycle, Bug Tracker
 scoring/admission, branch deletion/revocation, heavy agents, automatic merge,
 native Project positioning, and distributed coordination are deferred. Assignees
 remain unchanged because reliable assignability evidence is unavailable.

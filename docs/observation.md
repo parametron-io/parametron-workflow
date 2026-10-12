@@ -63,7 +63,11 @@ uses ReadPrimary. Snapshot copies Issue Type and nested field-option maps as wel
 
 Current Issue properties, nullable author/type, parent, sub-issues, blocked-by,
 blocking, and linked PRs are retained. Current PR properties include Draft,
-state, head/base refs and SHAs, author, and closing Issues. Bodies remain unparsed;
+state, head repository identity, head/base refs and SHAs, author, and closing Issues.
+PR author and Issue assignees retain Actor login, stable node ID, and Type evidence
+for standalone [PR binding validation](pr-binding.md); generic observation does
+not establish developer authorization. Issue author reads remain login-only.
+Bodies remain unparsed;
 Issue type is a native observation, not semantic classification. Relationships
 come from the existing Issue/PR read, with no duplicate relationship requests.
 Cross-repository relationships remain observations, including those outside the

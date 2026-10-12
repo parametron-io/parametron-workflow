@@ -46,6 +46,12 @@ engineeringbranch, not this capability. See [execution.md](execution.md).
 
 ## Normalized data
 
+`github.Actor` carries `Login`, stable node `ID`, and `Type` evidence. PR author
+reads select ID and GraphQL typename; Issue assignees select the same evidence.
+Issue author reads remain login-only. Nullable current PR `headRepository` maps
+to `PullRequest.HeadRepository` (zero Repository when absent), preserving node ID,
+owner, and name. Observation does not itself verify human eligibility.
+
 Issue #34 adds a separate `github.IssueLister.ListIssues(ctx, repository)`
 read capability, implemented by Transport using the paginated Repository.issues
 IssueConnection. It validates discovered repository identity and complete Issue
@@ -61,10 +67,12 @@ numeric assignments/clears and their implemented production convergence.
 
 Repository identity reuses `config.Repository` (node ID, owner login, name).
 Issues contain node/repository identity, number, title, unparsed body, OPEN or
-CLOSED state, labels, assignee logins, nullable author and Issue type, nullable
+CLOSED state, labels, assignee Actor identities, nullable author and Issue type,
+nullable
 parent, sub-issues, blocked-by/blocking identities, and linked Pull Requests
 (including closed PRs). PRs contain identity, title, unparsed body, OPEN/CLOSED/
-MERGED state, Draft flag, head/base refs and SHAs, labels, nullable author and
+MERGED state, Draft flag, head repository identity, head/base refs and SHAs,
+labels, nullable author and
 closing Issue identities. Author identifies the current resource author, not
 an event actor. Native links are observations, never authorization.
 
@@ -88,8 +96,10 @@ See [observation.md](observation.md) for the implemented handoff contract.
 
 ## Production transport and discovery
 
-`NewTransport` creates a standard-library `net/http` GraphQL adapter. The Client surface uses GraphQL without an SDK; #38 adds only the narrow REST
-commit comparison described below. Queries, decoding structs, HTTP,
+`NewTransport` creates a standard-library `net/http` adapter. The Client surface
+uses GraphQL without an SDK; narrow REST reads provide commit comparison and
+developer identity/authorization evidence described below. Queries, decoding
+structs, HTTP,
 and credentials are private to the adapter. An alternate REST/GraphQL adapter
 can implement the same `Client` without changing workflow policy. Production
 uses HTTPS (the default endpoint is GitHub's GraphQL endpoint); a supplied HTTP
@@ -134,6 +144,11 @@ without changes to reads or workflow code. Concrete minting is deferred; this
 issue neither persists credentials nor implements speculative token management.
 Semantic/model components receive normalized planning inputs and never receive
 the client transport, token provider, or GitHub credentials.
+
+Standalone developer reads require organization `Members: read` and repository
+`Metadata: read`, alongside existing Issue/PR/repository/ref read access for the
+composed readers. These are required capabilities, not evidence that deployed
+credentials have them. No live GitHub App permission rehearsal is claimed.
 
 The standalone #37 branch capability requires repository Contents read access for
 ref/default-branch observation and Contents write access when branch creation is
@@ -186,6 +201,44 @@ lifecycle/reconciliation, branches and first activity are now production-compose
 PR lifecycle remains Phase #5. Client itself stays read-only: composition requires
 separate narrow capabilities and deterministic Go authorization.
 
+## Read-only developer authorization evidence
+
+`github.DeveloperReads` is separate from Client and mutation capabilities:
+
+| Method | REST endpoint | Returned evidence |
+| --- | --- | --- |
+| `User(ctx, login)` | `GET /users/{username}` | `Actor` |
+| `OrganizationMembership(ctx, org, login)` | `GET /orgs/{org}/memberships/{username}` | `Membership{Organization, User, State}` |
+| `RepositoryPermission(ctx, repo, login)` | `GET /repos/{owner}/{repo}/collaborators/{username}/permission` | `Permission{Repository, User, Base}` |
+
+Transport validates bounded GitHub logins before requesting, nonblank organization
+ID and valid organization login for membership, and valid exact repository
+identity for permission. REST user decoding requires positive numeric ID, valid
+stable node ID, matching requested login, and supported User/Bot/Organization Type.
+`ValidHuman` requires User; `SameUser` additionally compares exact node ID and
+case-insensitive login. Membership decoding verifies organization node ID/login
+and nonblank state. Permission first uses the existing GraphQL Repository read
+to verify exact node ID/owner/name because the REST permission response lacks
+repository node identity. Nonblank REST `permission` becomes `Base`; `role_name`
+is ignored. Maintain/custom roles use GitHub's effective base mapping, without a
+separate role-name grant. Policy accepts only `write` or `admin`.
+
+These GETs reuse the private transport's per-request TokenSource, Bearer auth,
+headers, context cancellation, 8 MiB response limit, redirect refusal, timeout,
+and no-retry behavior. REST origin/prefix mapping matches commit comparison:
+`/graphql` maps to the API root and `/api/graphql` to `/api/v3`. Invalid request
+inputs are Permanent; invalid JSON or inconsistent response evidence is Malformed.
+HTTP/token/network errors retain the existing typed taxonomy and cancellation
+causes. Authorization `404` remains ambiguous NotFound, never proof of
+nonmembership or insufficient permission. Explicit membership state and effective
+permission are policy evidence only after successful verified reads.
+
+Transport owns reads and decoding; deterministic authorization belongs to
+[prbinding](pr-binding.md). No write capability, token minting, assignment, or
+production PR routing is added. Local tests exercise endpoint/identity validation,
+effective permission, error categories, cancellation, limits, redirect refusal,
+and credential isolation without live credentials.
+
 ## First-activity capabilities (#38)
 
 `github.CommitComparison.CompareCommits` accepts only a configured exact
@@ -213,7 +266,7 @@ valid YYYY-MM-DD (year at least 1), and validates response item/Project identity
 It uses the narrow updateProjectV2ItemFieldValue DATE value mutation. No arbitrary
 mutation, clear, numeric, position or membership capability is added. #38 never
 receives the full semantic Mutator. Assignment is deliberately absent because
-existing login-only Actor evidence cannot establish human assignability.
+developer binding evidence does not establish human assignability.
 See [execution.md](execution.md) for authorization and partial-write safety.
 At #38 standalone completion these capabilities added no app/CLI activation.
 Current production Engineering composition now uses them, without implicitly

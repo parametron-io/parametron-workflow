@@ -12,7 +12,11 @@ type Ref struct {
 	Owner, Repository string
 	Number            int
 }
-type Actor struct{ Login string }
+type Actor struct {
+	Login string
+	ID    string
+	Type  string
+}
 type Identity struct {
 	ID         string
 	Repository Repository
@@ -32,6 +36,7 @@ type Issue struct {
 type IssueType struct{ ID, Name string }
 type PullRequest struct {
 	Identity
+	HeadRepository                     Repository
 	Title, Body, State                 string
 	Draft                              bool
 	HeadRef, HeadSHA, BaseRef, BaseSHA string
