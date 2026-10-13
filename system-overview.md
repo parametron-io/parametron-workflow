@@ -25,8 +25,11 @@ and activity provenance plus production reconciliation.
 
 Accepted Engineering PR onboarding is implemented through read-only #46 binding
 and `internal/pronboarding`: managed membership, owned initial Status, one-shot
-Draft normalization, and durable completion. Review, merge/completion, relationship
-projection, and PR Roadmap Order companions remain later Phase #5 work.
+Draft normalization, and durable completion. #48's pure
+[PR companion ordering](docs/pr-companion-ordering.md) is implemented and
+independently tested. Production companion composition, numeric-field convergence,
+ownership-provenance acquisition and orchestration remain deferred, as do review,
+merge/completion and relationship projection.
 Repository-native terminal close/reopen synchronization,
 nested-child lifecycle, Bug Tracker scoring/admission, branch deletion/revocation,
 native Project position reconciliation, heavy agents, automatic merge, and
@@ -818,8 +821,9 @@ OPEN or have OPEN authoritative direct Task/Feature children. Retained
 segment bases are `10000 + index * 1000`: 10000, 11000, through 99000. OPEN
 children sort by canonical resource identity and receive base + 10, +20, through
 +990. Every primary roadmap Issue slot, including roots, reserves final-digit
-+1..+9 offsets as nine generic companion slots. Future companions require an
-explicit contract; #36 neither assigns nor interprets them. Capacity is 90 retained top-level segments
++1..+9 offsets as nine generic companion slots. #48 supplies the pure PR companion
+contract; other categories and shared occupancy arbitration remain deferred.
+#36 neither assigns nor interprets companions. Capacity is 90 retained top-level segments
 across mixed Phases/standalone Tasks/standalone Features, and 99 OPEN
 direct children per segment; excess fails closed. Assigned values stay five-digit.
 
@@ -1098,10 +1102,11 @@ parent Phase roadmap anchor described earlier.
 
 Read-only binding validation is owned by `internal/prbinding` and consumed by
 production Engineering PR routing through `internal/pronboarding`. Accepted
-onboarding is implemented; relationships, ordering, review and completion contracts
-in Sections 18.1 and 19–25 remain deferred. Phase #4 supports
+onboarding and #48 pure companion ordering are implemented; production companion
+integration, relationships, review and completion remain deferred. Sections 18.1
+and 19–25 distinguish those boundaries. Phase #4 supports
 direct Phase branch/activity work, but does not enforce terminal closure gates or
-close/reopen synchronization. PR companions remain unassigned reserved slots.
+close/reopen synchronization. Production does not yet write PR companion numbers.
 
 A Pull Request does not become valid workflow implementation work merely by
 being opened or manually moved on the Project board.
@@ -1182,7 +1187,8 @@ This is a narrow onboarding controller, not a general Project reconciliation eng
 Durable evidence is historical fact, never a permanent authorization grant.
 
 Native Development relationship projection/drift repair, semantic PR labeling,
-and numeric PR companion allocation remain deferred. The intended later contract
+and production PR companion numeric convergence remain deferred. Pure #48
+allocation is implemented separately (Section 19). The intended later contract
 projects `Target` into Development and repairs contradictory manual relationships;
 no relationship mutation is implemented here. See [PR binding](docs/pr-binding.md),
 [execution](docs/execution.md#accepted-pr-onboarding), and
@@ -1223,30 +1229,55 @@ execution or GitHub/SQLite transactional atomicity is claimed.
 
 ## 19. Pull Request Roadmap Order Companions
 
-An accepted Engineering PR belongs after its Target Issue within that Target's
-reserved +1..+9 companion namespace. For example, conceptual Roadmap Order values
-for a Draft PR representing an active child are:
+Issue #48 implements and independently tests pure `internal/prcompanion` policy.
+It consumes current #36 primary assignments and exact current accepted #46 binding
+evidence. OPEN eligible PRs group by exact Target and sort by normalized owner,
+repository, numeric PR number, then node identity. Dense offsets +1 through +9
+follow that canonical identity order, not webhook chronology or review order:
 
 ```text
-In Progress
-
-Phase #45                    10000
-Target Issue #48             10010
-PR #80 (Draft, Target #48)   10011
+Target Issue #48 = 10010
+Accepted PR A   = 10011
+Accepted PR B   = 10012
+Accepted PR C   = 10013
 ```
 
-This visual grouping represents one implementation unit rather than three
-independent Project cards.
-
-Phase #5 owns deterministic Engineering PR companion allocation and numeric-field
-reconciliation. The example does not designate +1 as a PR-specific slot or define
-an exact multiple-PR allocation rule. Every primary roadmap Issue reserves nine
-generic companion slots; PRs are one possible companion type.
+The tenth eligible PR for one Target fails with typed capacity error and no partial
+plan. Targets cannot share namespaces. Removal compacts remaining PRs; Target
+rebasing recomputes numbers from the current primary assignment. Historical slots
+are not identities. Every primary Issue reserves nine generic companion slots;
+PRs are one supported category, without PR-exclusive offsets. Other categories
+and shared occupancy arbitration remain deferred.
 
 #36 assigns primary Roadmap Order values for Phase roots, standalone Task/Feature
 roots, and direct Phase children. It only reserves the companion namespace and
 does not assign or interpret companions. Native Project item position is not the
-Engineering ordering mechanism.
+Engineering ordering mechanism. A CLOSED Phase may retain a segment for OPEN
+direct children without receiving an assignment itself; contradictory retained
+segment ownership is rejected, without rebuilding #36 topology.
+
+CLOSED/MERGED PRs receive no active assignment. A reopened OPEN PR needs current
+accepted evidence and receives a freshly computed position. Rejected or unknown
+binding gives no new assignment; an OPEN accepted PR without its exact Target
+assignment fails. Draft/review Status, Set-Position, timestamps, observed numbers,
+and manual Project position do not determine companion order.
+
+Desired clearing requires explicit caller-authenticated prior field ownership and
+terminal PR state or a definitive current denial. For OPEN PRs, unknown binding
+and MissingPR, UnresolvedTarget, or Changed rejections do not authorize clearing.
+Other supported current rejections still require separate ownership evidence.
+Historical ownership Target may differ after retargeting and is not current
+authorization. Eligible PRs never receive simultaneous clears; absent ownership
+gives no clear and contradictory evidence fails safely. Clear means desired unset
+of the owned Engineering Roadmap Order field, not an immediate mutation.
+
+The pure package performs no reads, writes, storage, or lifecycle transitions and
+cannot authenticate ownership provenance itself. Production composition, live PR
+numeric-field writes/clears, provenance acquisition, drift repair, retries and
+webhook/cross-resource orchestration remain deferred. These computed numbers are
+not automatically displayed in the live Engineering Project. Exact interface,
+validation, determinism and clearing rules are in
+[PR companion ordering](docs/pr-companion-ordering.md).
 
 ---
 

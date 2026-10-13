@@ -8,6 +8,10 @@ or PR lifecycle transition. The architecture's [binding conjunction](../system-o
 remains owned here; onboarding owns permitted initial mutations and provenance,
 while review consumers remain deferred.
 
+[#48 pure companion ordering](pr-companion-ordering.md) consumes current accepted
+decisions without taking over #46 authorization. Its production integration remains
+deferred.
+
 ## Construction and inputs
 
 `prbinding.New(Config)` returns a `*Validator` or `ErrInvalid`. Required fields:
