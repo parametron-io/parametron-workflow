@@ -26,6 +26,7 @@ import (
 	"github.com/parametron-io/parametron-workflow/internal/observe"
 	"github.com/parametron-io/parametron-workflow/internal/prbinding"
 	po "github.com/parametron-io/parametron-workflow/internal/pronboarding"
+	"github.com/parametron-io/parametron-workflow/internal/prreview"
 	"github.com/parametron-io/parametron-workflow/internal/semantic"
 	"github.com/parametron-io/parametron-workflow/internal/semanticflow"
 	"github.com/parametron-io/parametron-workflow/internal/semanticreconcile"
@@ -82,6 +83,16 @@ func classify(err error) worker.Classification {
 		category  string
 		retryable bool
 	}{
+		{github.ErrReviewFactsChanged, "pr_review_changed", true},
+		{prreview.ErrInvalid, "pr_review_invalid", false},
+		{prreview.ErrRejected, "pr_review_rejected", false},
+		{prreview.ErrChanged, "pr_review_changed", true},
+		{prreview.ErrSuperseded, "pr_review_superseded", false},
+		{prreview.ErrCorrelation, "pr_review_correlation", false},
+		{prreview.ErrProvenance, "pr_review_provenance", false},
+		{prreview.ErrAmbiguous, "pr_review_ambiguous", false},
+		{prreview.ErrProject, "pr_review_project", false},
+		{prreview.ErrStorage, "pr_review_storage", false},
 		{po.ErrInvalid, "pr_onboarding_invalid", false},
 		{po.ErrRejected, "pr_onboarding_rejected", false},
 		{po.ErrChanged, "pr_onboarding_changed", true},

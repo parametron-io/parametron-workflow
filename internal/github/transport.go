@@ -123,6 +123,9 @@ func (t *Transport) connection(ctx context.Context, id, typ, field, selection st
 		if field == "projectItems" {
 			extra = ",includeArchived:true"
 		}
+		if field == "timelineItems" {
+			extra = ",itemTypes:[READY_FOR_REVIEW_EVENT,CONVERT_TO_DRAFT_EVENT]"
+		}
 		q := `query($id:ID!,$cursor:String){node(id:$id){__typename ... on ` + typ + ` {result:` + field + `(first:100,after:$cursor` + extra + `){nodes{` + selection + `} pageInfo{hasNextPage endCursor}}}}}`
 		if err := t.query(ctx, q, map[string]any{"id": id, "cursor": cursor}, &data); err != nil {
 			return nil, err

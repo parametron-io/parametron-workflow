@@ -18,6 +18,7 @@ import (
 	ep "github.com/parametron-io/parametron-workflow/internal/engineeringpolicy"
 	"github.com/parametron-io/parametron-workflow/internal/github"
 	"github.com/parametron-io/parametron-workflow/internal/observe"
+	"github.com/parametron-io/parametron-workflow/internal/prreview"
 	sp "github.com/parametron-io/parametron-workflow/internal/semanticpolicy"
 	"github.com/parametron-io/parametron-workflow/internal/storage"
 )
@@ -30,7 +31,11 @@ var (
 type ProjectReader interface {
 	ReadCurrent(context.Context, storage.Resource) (observe.ObservedState, error)
 }
+type ReviewStatus interface {
+	TargetStatus(context.Context, storage.Resource) (config.StatusRole, bool, error)
+}
 type Config struct {
+	Review   ReviewStatus
 	Project  config.ResolvedProject
 	Projects ProjectReader
 	Activity ea.StateReader
@@ -40,6 +45,9 @@ type Config struct {
 type Reconciler struct{ cfg Config }
 
 func New(c Config) (*Reconciler, error) {
+	if c.Review != nil && absent(c.Review) {
+		return nil, ErrInvalid
+	}
 	if absent(c.Projects) || absent(c.Activity) || absent(c.Fields) || absent(c.Numbers) || !validID(c.Project.ID) || !validID(c.Project.Fields[config.Status]) || !validID(c.Project.Fields[config.RoadmapOrder]) || c.Project.Fields[config.Status] == c.Project.Fields[config.RoadmapOrder] {
 		return nil, ErrInvalid
 	}
@@ -50,6 +58,12 @@ func New(c Config) (*Reconciler, error) {
 			return nil, ErrInvalid
 		}
 		seen[id] = true
+	}
+	if c.Review != nil {
+		id := c.Project.StatusOptions[config.InReview]
+		if !validID(id) || seen[id] {
+			return nil, ErrInvalid
+		}
 	}
 	c.Project.Fields = maps.Clone(c.Project.Fields)
 	c.Project.StatusOptions = maps.Clone(c.Project.StatusOptions)
@@ -212,10 +226,35 @@ func (r *Reconciler) Reconcile(ctx context.Context, s ec.Snapshot, trigger stora
 		if !ok {
 			continue
 		}
+		if r.cfg.Review != nil {
+			review, active, err := r.cfg.Review.TargetStatus(ctx, t)
+			if errors.Is(err, prreview.ErrSuperseded) {
+				// New native readiness denies older Status effects but supplies no
+				// review grant until its explicit delivery is accepted.
+				continue
+			}
+			if err != nil {
+				return err
+			}
+			if active {
+				if review != config.InReview && review != config.InProgress {
+					return ErrInvalid
+				}
+				status = review
+			}
+		}
 		if err := ctx.Err(); err != nil {
 			return err
 		}
+		// Review validation may perform several current reads. Recheck snapshot
+		// identity and current Project state immediately before this Status write.
 		item := items[t]
+		if r.cfg.Review != nil {
+			item, err = r.item(ctx, s, t)
+			if err != nil {
+				return err
+			}
+		}
 		option := r.cfg.Project.StatusOptions[status]
 		if item.Fields[config.Status].OptionID != option {
 			if err := r.cfg.Fields.SetProjectOption(ctx, r.cfg.Project.ID, item.ID, r.cfg.Project.Fields[config.Status], option); err != nil {
