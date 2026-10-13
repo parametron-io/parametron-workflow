@@ -297,8 +297,8 @@ func TestAuthorizationUsesCurrentLifecycle(t *testing.T) {
 	}{"active-parent child", child, true})
 	blocked := input(sp.Task, "Parent: #45\nBlocked-By: #38\nSet-Status: false")
 	blocked.Context.Nodes = append(blocked.Context.Nodes, node(45, sp.Phase, ""), node(38, sp.Task, "Parent: #45"))
-	blocked.Context.Parents = []ec.ParentEdge{{resource(37), resource(45)}, {resource(38), resource(45)}}
-	blocked.Context.Dependencies = []ec.DependencyEdge{{resource(38), resource(37)}}
+	blocked.Context.Parents = []ec.ParentEdge{{Child: resource(37), Parent: resource(45)}, {Child: resource(38), Parent: resource(45)}}
+	blocked.Context.Dependencies = []ec.DependencyEdge{{Blocker: resource(38), Blocked: resource(37)}}
 	blocked.PhaseOrder = []storage.Resource{resource(45)}
 	cases = append(cases, struct {
 		name string
@@ -316,7 +316,7 @@ func TestAuthorizationUsesCurrentLifecycle(t *testing.T) {
 	}{"inactive-parent child", inactive, false})
 	blockedRoot := input(sp.Feature, "Blocked-By: #38")
 	blockedRoot.Context.Nodes = append(blockedRoot.Context.Nodes, node(38, sp.Bug, ""))
-	blockedRoot.Context.Dependencies = []ec.DependencyEdge{{resource(38), resource(37)}}
+	blockedRoot.Context.Dependencies = []ec.DependencyEdge{{Blocker: resource(38), Blocked: resource(37)}}
 	cases = append(cases, struct {
 		name string
 		in   ep.Input

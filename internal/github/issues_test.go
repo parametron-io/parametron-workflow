@@ -34,7 +34,7 @@ func TestListIssuesPagination(t *testing.T) {
 		}
 		return connectionJSON("Repository", []any{listedJSON("I1", 1, "OPEN")}, false, "")
 	})
-	got, err := c.ListIssues(context.Background(), Repository{"R", "org", "repo"})
+	got, err := c.ListIssues(context.Background(), Repository{ID: "R", Owner: "org", Name: "repo"})
 	if err != nil || len(got) != 2 || got[0].Number != 1 || got[1].State != "CLOSED" || calls != 3 {
 		t.Fatal(got, err, calls)
 	}
@@ -86,7 +86,7 @@ func TestListIssuesRejectsMalformed(t *testing.T) {
 				}
 				return connectionJSON("Repository", nodes, false, "")
 			})
-			_, err := c.ListIssues(context.Background(), Repository{"R", "org", "repo"})
+			_, err := c.ListIssues(context.Background(), Repository{ID: "R", Owner: "org", Name: "repo"})
 			category(t, err, Malformed)
 			if calls > 3 {
 				t.Fatal("unexpected retry", calls)
@@ -101,7 +101,7 @@ func TestListIssuesErrorsNoRetry(t *testing.T) {
 			s := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { calls++; w.WriteHeader(status) }))
 			defer s.Close()
 			c, _ := NewTransport(s.URL, s.Client(), TokenFunc(func(context.Context) (string, error) { return "token", nil }))
-			_, err := c.ListIssues(context.Background(), Repository{"R", "org", "repo"})
+			_, err := c.ListIssues(context.Background(), Repository{ID: "R", Owner: "org", Name: "repo"})
 			want := map[int]Category{401: Unauthorized, 403: Forbidden, 404: NotFound, 429: RateLimited, 409: Conflict, 500: Transient, 422: Permanent}[status]
 			category(t, err, want)
 			if calls != 1 {
@@ -125,7 +125,7 @@ func TestListIssuesGraphQLErrorOnPage(t *testing.T) {
 	}))
 	defer s.Close()
 	c, _ := NewTransport(s.URL, s.Client(), TokenFunc(func(context.Context) (string, error) { return "token", nil }))
-	_, err := c.ListIssues(context.Background(), Repository{"R", "org", "repo"})
+	_, err := c.ListIssues(context.Background(), Repository{ID: "R", Owner: "org", Name: "repo"})
 	category(t, err, RateLimited)
 	if calls != 2 || strings.Contains(err.Error(), "private") {
 		t.Fatal(calls, err)

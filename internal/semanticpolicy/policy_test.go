@@ -240,7 +240,7 @@ func TestPlanning(t *testing.T) {
 			t.Fatal(repo, err)
 		}
 	}
-	if _, err := NewPlanningContext(Repository{"parametron-io", "repo"}, "", "", classification(), intent.Intent{Refs: []intent.IssueRef{{"repo", 0}}}, nil); !errors.Is(err, ErrPlanning) {
+	if _, err := NewPlanningContext(Repository{"parametron-io", "repo"}, "", "", classification(), intent.Intent{Refs: []intent.IssueRef{{Repository: "repo", Number: 0}}}, nil); !errors.Is(err, ErrPlanning) {
 		t.Fatal(err)
 	}
 }
