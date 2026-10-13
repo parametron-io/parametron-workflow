@@ -11,8 +11,13 @@ through accepted PR onboarding: managed membership, owned initial In Progress,
 one-shot Draft normalization and durable completion. Membership repair requires
 fresh accepted binding; completion preserves later Status and review readiness.
 Deterministic onboarding works without a semantic Runner. Relationship projection,
-review transitions, companion ordering, merge/completion, managed feedback and
+review transitions, production companion integration and numeric convergence,
+merge/completion, managed feedback and
 general PR lifecycle reconciliation remain deferred.
+
+[#48 pure PR companion ordering](pr-companion-ordering.md) is implemented and
+independently tested, but is not composed into this production path. Persisted
+field-ownership provenance acquisition and companion orchestration remain deferred.
 
 Embedded callers opt in through `app.Config.Engineering`; its zero value retains
 the Phase 2 foundation path, where normalized PolicyInput reaches FoundationSink.
@@ -208,7 +213,8 @@ its own [durable stage facts](persistence.md#accepted-pr-onboarding-provenance):
 completed initialization is suppressed, membership remains separately reconcilable,
 and unresolved one-shot attempts fail closed across cancellation/restart.
 
-Phase #5 review/merge/completion, relationship projection and companion ordering, terminal
+Phase #5 review/merge/completion, relationship projection, production companion
+integration and numeric convergence, terminal
 close/reopen synchronization, Bug Tracker scoring/admission, nested lifecycle,
 branch deletion/revocation, native Project positioning, heavy agents, automatic
 merge, managed feedback/decision-record persistence, App token minting, and

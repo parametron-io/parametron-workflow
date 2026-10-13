@@ -155,8 +155,10 @@ as a generic companion namespace:
 10021..10029   reserved companions of 10020
 ```
 
-A future companion may be a PR, nested child Issue, additional PR, or another
-explicitly defined related workflow item. No offset has a designated companion
+[#48 PR companion ordering](pr-companion-ordering.md) implements pure allocation
+of multiple accepted PRs within this reservation. Other companion categories,
+including nested child Issues, and shared occupancy arbitration remain deferred.
+No offset has a designated companion
 type, and there is no single-PR assumption. #36 neither assigns nor interprets
 companion slots. Primary Issue assignments always end in zero. This reservation
 does not implement nested lifecycle or relax #35's direct Phase-parent validation.
@@ -277,5 +279,8 @@ drift, with changed topology taking precedence over an old plan.
 
 #36 retains pure ownership of topology, hierarchy, capacity, compaction,
 Assignments and Clear; it adds no writer, persistence or runtime assembly itself.
-The administrator's view sort is configured outside the controller. Companion
-interpretation/assignment, PR ordering and nested lifecycle remain deferred.
+The administrator's view sort is configured outside the controller. #48's pure
+PR companion allocation is implemented and independently tested; production PR
+companion composition and numeric convergence, other companion categories, shared
+occupancy arbitration, and nested lifecycle remain deferred. See
+[PR companion ordering](pr-companion-ordering.md) for its separate contract.

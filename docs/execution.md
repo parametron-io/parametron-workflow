@@ -486,7 +486,10 @@ engineering_activity_storage and engineering_branch_storage are terminal; struct
 graph/policy/order/provenance/Project/configuration corruption is terminal with
 bounded categories. Existing typed GitHub transient/rate-limit handling remains
 separate; no provider/storage diagnostics leak into stable categories.
-Phase #5 retains review, relationships, companions, and merge/completion. Terminal
+[#48 pure PR companion ordering](pr-companion-ordering.md) is implemented and
+independently tested. Production companion composition, numeric convergence,
+ownership-provenance acquisition and orchestration remain deferred.
+Phase #5 retains review, relationships, and merge/completion. Terminal
 close/reopen synchronization, nested lifecycle, Bug Tracker scoring/admission,
 heavy agents, automatic merge, and distributed coordination remain deferred.
 
@@ -541,5 +544,6 @@ cancellation follows worker release semantics. A transport retry can encounter a
 persisted attempt and then fail closed with `ErrAmbiguous`; it is not automatic
 convergence. No recovery operation synthesizes successful provenance.
 
-Review initiation, relationship projection, companion ordering, merge/completion,
+Review initiation, relationship projection, production companion integration and
+numeric reconciliation, merge/completion,
 Target/Phase completion and terminal close/reopen synchronization remain deferred.

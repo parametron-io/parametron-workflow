@@ -61,7 +61,10 @@ completion suppresses repeated Status/Draft initialization and preserves later
 review readiness; membership repair requires fresh accepted binding. Deterministic
 onboarding requires no semantic Runner. See [execution](docs/execution.md) and
 [provenance](docs/persistence.md#accepted-pr-onboarding-provenance).
-Relationship projection, review transitions, PR companion ordering, merge/completion,
+Pure [PR companion ordering](docs/pr-companion-ordering.md) is implemented and
+independently tested by #48. Production composition, live PR numeric-field
+convergence, ownership-provenance acquisition, and companion orchestration remain
+deferred. Relationship projection, review transitions, merge/completion,
 managed feedback, and general PR lifecycle reconciliation remain deferred.
 Terminal close/reopen synchronization, nested
 lifecycle, Bug Tracker
