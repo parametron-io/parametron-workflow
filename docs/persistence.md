@@ -281,3 +281,69 @@ leave an indeterminate outcome. An attempt without matching done fact returns
 attribute success or distinguish later review readiness. Such attempts are not
 automatically recoverable and are never replayed as success. Exactly-once GitHub
 mutation execution is not promised. See [execution](execution.md#accepted-pr-onboarding).
+
+## PR review cycle provenance
+
+`internal/prreview` reuses the existing SQLite provenance table and Store without
+a schema migration. `Store.ProvenanceRecords(ctx, namespace)` enumerates a
+validated namespace in stable-key order; the review owner interprets and validates
+all records before use. Enumeration is evidence, not authorization.
+
+All three namespaces use the per-cycle key
+`<lowercase-owner>/<lowercase-repository>/pull_request/<number>/<ReadyForReviewEvent-ID>`.
+The PR node ID remains in metadata, not the resource-key prefix. Distinct native
+readiness IDs distinguish repeated cycles; a cycle has at most one rework effect.
+Metadata is canonical Go JSON: decoding and re-encoding must reproduce the exact
+stored bytes; start, effect and receipt evidence each require version 1.
+
+| Namespace | Metadata fields | Meaning |
+| --- | --- | --- |
+| `pr_review_cycle_v1` | `version`, `resource`, `binding`, `project`, `field`, `onboarding`, `ready`, `previous` | Accepted review start before Status effects |
+| `pr_review_draft_attempt_v1` | `version`, `start`, `review` | Exact cycle start plus qualifying CHANGES_REQUESTED submission; intent before Draft call |
+| `pr_review_draft_done_v1` | `version`, `effect`, `draft` | Exact attempt plus validated native ConvertToDraftEvent receipt |
+
+Start retains exact current PR/Target binding evidence (including developer,
+branch/head and binding policy), configured Engineering Project/Status field,
+validated onboarding completion (resource, binding, Project, original delivery
+and completion time), qualifying native readiness and previous readiness ID.
+The first cycle has empty `previous`. Later cycles must link the immediately
+preceding cycle, retain compatible binding and identical onboarding, follow its
+completed rework/native Draft transition strictly, and be recorded no earlier
+than its completion receipt. Head SHA is freshly checked for effects; historical
+cross-cycle binding compatibility does not require an unchanged head SHA.
+
+Each provenance record retains its original accepted delivery association:
+readiness delivery for start, qualifying review delivery for attempt and done.
+Attempt and receipt use the same delivery. Loading validates the stored event's
+resource, PR node/number, notification kind, actor and native timestamp selectors.
+Record times must be nonzero UTC, not precede delivery receipt or their supporting
+native evidence, and preserve start → attempt → done ordering. Readiness and review
+submission may not postdate their originating delivery receipt. The supplied
+handling event is also checked against immutable stored payload, event name, receipt time, sequence
+and resource binding.
+
+Attempt embeds the exact start and a CHANGES_REQUESTED review with exact PR,
+valid author and submission time strictly after readiness. Done embeds the exact
+attempt and a valid Draft event for that PR, after readiness, no earlier than
+the review, and no later than receipt creation. Its actor may be null; a present
+actor must have valid identity. Orphaned attempts/receipts, mismatched keys,
+noncanonical metadata, conflicting identity, unsupported versions, missing
+origins, broken history and inconsistent chronology are rejected. Fresh native
+facts and current binding remain necessary; provenance is never a permanent grant.
+
+Draft intent commits before mutation. Successful receipt requires current Draft
+state and the exact immediately following native Draft transition plus matching
+current latest-opinion evidence. An attempt without receipt is indeterminate,
+including cancellation before the call, lost response or failure recording
+success after the call. Observing Draft cannot prove who performed the historical
+effect. Restart never replays that attempt or synthesizes done; unresolved
+ambiguity needs manual investigation/recovery.
+
+Cycle start or completed rework can support safe remaining PR/Target Status
+convergence after partial writes, only while fresh authority and applicable native
+cycle facts still agree. New native readiness stops older effects without granting
+a new cycle until its notification is accepted. No Status completion record or
+new provenance type is introduced. Onboarding normalization remains in its own
+namespaces. SQLite and GitHub are not atomic and external mutation execution is
+not exactly-once. See [review execution](execution.md#accepted-pr-review-and-rework)
+for retry/terminal categories and worker restart behavior.

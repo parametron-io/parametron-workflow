@@ -28,8 +28,10 @@ and `internal/pronboarding`: managed membership, owned initial Status, one-shot
 Draft normalization, and durable completion. #48's pure
 [PR companion ordering](docs/pr-companion-ordering.md) is implemented and
 independently tested. Production companion composition, numeric-field convergence,
-ownership-provenance acquisition and orchestration remain deferred, as do review,
-merge/completion and relationship projection.
+ownership-provenance acquisition and orchestration remain deferred.
+`internal/prreview` implements deterministic review/rework after accepted binding
+and completed onboarding, without a semantic Runner. Merge/completion,
+relationship projection, managed feedback and broader PR reconciliation remain deferred.
 Repository-native terminal close/reopen synchronization,
 nested-child lifecycle, Bug Tracker scoring/admission, branch deletion/revocation,
 native Project position reconciliation, heavy agents, automatic merge, and
@@ -1102,8 +1104,8 @@ parent Phase roadmap anchor described earlier.
 
 Read-only binding validation is owned by `internal/prbinding` and consumed by
 production Engineering PR routing through `internal/pronboarding`. Accepted
-onboarding and #48 pure companion ordering are implemented; production companion
-integration, relationships, review and completion remain deferred. Sections 18.1
+onboarding, review/rework and #48 pure companion ordering are implemented;
+production companion integration, relationships and completion remain deferred. Sections 18.1
 and 19–25 distinguish those boundaries. Phase #4 supports
 direct Phase branch/activity work, but does not enforce terminal closure gates or
 close/reopen synchronization. Production does not yet write PR companion numbers.
@@ -1220,7 +1222,8 @@ invariant.
 
 The controller must not continuously enforce "PR must be Draft" after
 onboarding, because doing so would prevent the later Ready-for-review
-transition. Explicit subsequent Ready-for-review processing remains deferred.
+transition. Explicit subsequent Ready-for-review processing belongs to the
+separate review controller described in Sections 20–21.
 Persisted attempts without success facts return `ErrAmbiguous`; neither a current
 Draft flag nor matching Status proves historical success. No exactly-once GitHub
 execution or GitHub/SQLite transactional atomicity is claimed.
@@ -1301,6 +1304,24 @@ normalizes the initial accepted PR to Draft once.
 
 Only a later explicit Ready-for-review action starts review workflow.
 
+`internal/prreview` requires fresh accepted #46 binding, validated completed #47
+onboarding, exact current PR/Target identity and appropriate current Engineering
+membership. The PR must be OPEN and non-Draft. Native timeline evidence must
+identify an unambiguous `ReadyForReviewEvent` by the authorized developer strictly
+after onboarding completion. Webhook sender and `updated_at` select a candidate;
+neither grants authority. Creation and current non-Draft state cannot synthesize
+a cycle. Missing correlation, equal transition timestamps, conflicting evidence
+and unsupported manual Draft sequences fail closed.
+
+The initial cycle permits no intervening post-onboarding native transition.
+Later cycles require the previous cycle's completed rework and its exact native
+`ConvertToDraftEvent`, immediately followed by the new readiness transition.
+Current authorization is revalidated before persistence and consequential effects.
+PR and Target Status writes independently honor their current `Set-Status`;
+neither overrides `Set-Status: false`. No terminal synchronization exception is
+introduced. See [review execution](docs/execution.md#accepted-pr-review-and-rework)
+and [cycle provenance](docs/persistence.md#pr-review-cycle-provenance).
+
 ---
 
 ## 21. Review Outcomes and Rework
@@ -1323,6 +1344,8 @@ APPROVED
 ```
 
 Approval alone does not mark the work Done.
+Approval initiates no lifecycle transition; an existing valid In Review cycle
+remains applicable. It does not close or merge either resource.
 
 ### 21.3 Changes requested
 
@@ -1335,13 +1358,19 @@ CHANGES_REQUESTED
 
 This Draft conversion is triggered specifically by the changes-requested review
 event. It is not a continuous "In Progress means Draft" reconciliation rule.
+The submission must match current native identity, author, state and submission
+time, belong to the active cycle, and remain in GitHub's latest-opinion evidence.
+Stale, dismissed, superseded or unauthorized evidence cannot trigger rework.
+Initial onboarding Draft normalization and this per-cycle rework action have
+separate durable provenance. A completed rework remains historical authority
+after later review dismissal; dismissal supplies no reversal transition.
 
 Rework preserves:
 
 - original Start Date
 - Assignee
 - review history
-- Target relationship
+- original authorized Target association
 - authorized branch identity
 
 When the developer finishes rework, the developer explicitly marks the PR Ready
@@ -1355,6 +1384,13 @@ Draft
 
 A reviewer can request rework, but a reviewer does not independently return the
 work to review-ready state.
+
+Distinct native readiness identities link durable cycles. Duplicate notifications
+may converge the applicable cycle's remaining owned Status drift but cannot replay
+completed Draft conversion or roll back newer readiness. An attempted Draft effect
+without a valid durable receipt is indeterminate and requires manual investigation;
+the observed Draft flag cannot establish historical success. GitHub and SQLite
+are not atomic, and exactly-once external mutation execution is not guaranteed.
 
 ---
 
@@ -1610,6 +1646,17 @@ independent of Status and Set-Position.
 
 ### 26.1 Implemented Engineering reconciliation
 
+Applicable durable review state overlays the exact Target's normal Status after
+the pure lifecycle calculation. The reconciler rechecks Snapshot and Project
+evidence after review reads. The earlier first-development-activity Status path
+also checks review authority: it suppresses In Progress writes during active
+In Review and rechecks current evidence before retained writes. New native
+readiness supersedes older convergence without itself authorizing a new cycle;
+both paths suppress older Status effects until explicit readiness is accepted.
+These are current-read barriers, not transactional snapshot isolation.
+The parent Phase retains its own lifecycle policy and does not inherit child
+In Review. Start Date and assignees retain their separate activity ownership.
+
 Production uses the separate `engineeringcontext.ResolveSnapshot` boundary:
 
 ```text
@@ -1696,6 +1743,12 @@ Examples of continuous invariants:
 
 A one-shot action must not be repeatedly replayed merely because its resulting
 state later changes legitimately.
+Implemented PR onboarding uses its own initialization stage facts; review uses
+per-cycle start, Draft-attempt and Draft-completion facts. Status remains separately
+convergent while the relevant cycle and fresh authorization remain applicable.
+See [persistence](docs/persistence.md#pr-review-cycle-provenance) for validation
+and ambiguity boundaries. Relationship and terminal invariants listed above
+remain future contracts where identified as deferred.
 
 ---
 
@@ -1864,8 +1917,9 @@ and lifecycle model defined here.
 
 ## 34. End-to-End Example
 
-The full intended Phase child flow below includes future Phase #5 PR, review,
-merge, and terminal synchronization after the implemented first-activity boundary:
+The flow below combines implemented branch/activity, PR onboarding and review/rework
+with planned Development projection, production companion numeric convergence,
+merge/completion and terminal synchronization. Those planned steps are marked:
 
 ```text
 Phase #45 unblocked
@@ -1885,9 +1939,9 @@ PR #80 opened
 Target: #48
 → Target + branch + author validated
 → PR added to Project
-→ Development relationship projected
+→ Development relationship projected (planned)
 → PR normalized to Draft once
-→ Phase #5 allocates PR Roadmap Order after Target within Target's +1..+9 companions
+→ PR Roadmap Order converges after Target within +1..+9 companions (planned production integration)
 
 PR #80 Draft → Ready for review
 → PR #80 In Review
@@ -1903,7 +1957,7 @@ PR #80 Draft → Ready for review
 → PR #80 In Review
 → #48 In Review
 
-PR #80 merged
+PR #80 merged (completion and subsequent closure effects planned)
 → PR #80 Done
 → #48 closed + Done
 
@@ -1914,7 +1968,7 @@ PR #80 merged
 
 ...
 
-all Phase #45 children closed
+all Phase #45 children closed (closure gate/synchronization planned)
 → Phase #45 becomes eligible for explicit maintainer closure
 → maintainer closes Phase with comment
 → Phase #45 Done

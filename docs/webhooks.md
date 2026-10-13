@@ -169,5 +169,32 @@ A Project-item notification supplies only a candidate, never authorization for
 onboarding or membership repair. Every consequential action requires fresh #46
 accepted binding and exact current PR/Target/Project validation. Initial Status and
 Draft effects are one-shot; membership is separately reconcilable. This does not
-introduce all-event PR reconciliation, deleted-item notification support or review
-transition processing. See [execution](execution.md#accepted-pr-onboarding).
+introduce all-event PR reconciliation or deleted-item notification support.
+See [execution](execution.md#accepted-pr-onboarding).
+
+## Native review notifications
+
+Production Engineering routes `pull_request` action `ready_for_review` and
+`pull_request_review` action `submitted` with COMMENTED, APPROVED or
+CHANGES_REQUESTED state to the deterministic review controller. Review states are
+normalized to uppercase. Other review actions/states are non-applicable and grant
+no lifecycle effects; a previously bound unsupported review delivery likewise
+performs no effects after recovery. Ordinary PR notifications retain their existing
+onboarding path and then attempt applicable review Status convergence.
+
+`prreview.Notification` extracts exact PR node ID/number and candidate selectors.
+Readiness uses sender identity and PR `updated_at`; submission uses review node ID,
+user identity, state and `submitted_at`. Malformed supported candidates fail closed.
+The production resolver binds the exact configured repository/resource and current
+state is fetched again by review. Payload values select native facts, never grant
+authority: completed onboarding, fresh accepted binding, current membership and
+unambiguous native timeline/review evidence must agree.
+
+Review processing runs inside the existing process-local Engineering lane and
+worker resource FIFO, without semantic enrichment or a Runner requirement.
+Durable delivery deduplication and validated cycle/effect evidence protect against
+duplicate and reordered notifications; old events cannot replay completed Draft
+conversion or undo a newer cycle. Unresolved attempted Draft effects fail closed
+across restart rather than retrying the mutation. See
+[review execution](execution.md#accepted-pr-review-and-rework) for Status recovery,
+error classification and manual recovery limits.

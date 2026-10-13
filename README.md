@@ -59,12 +59,16 @@ for accepted implementation PR onboarding: exact managed Project membership, own
 initial In Progress Status, and one-shot initial Draft normalization. Durable
 completion suppresses repeated Status/Draft initialization and preserves later
 review readiness; membership repair requires fresh accepted binding. Deterministic
-onboarding requires no semantic Runner. See [execution](docs/execution.md) and
+onboarding requires no semantic Runner. Deterministic review/rework is also
+implemented: qualifying native post-onboarding readiness starts review, and
+validated changes requests trigger one-shot Draft conversion and owned Status
+rollback across durable cycles. See
+[review execution](docs/execution.md#accepted-pr-review-and-rework) and
 [provenance](docs/persistence.md#accepted-pr-onboarding-provenance).
 Pure [PR companion ordering](docs/pr-companion-ordering.md) is implemented and
 independently tested by #48. Production composition, live PR numeric-field
 convergence, ownership-provenance acquisition, and companion orchestration remain
-deferred. Relationship projection, review transitions, merge/completion,
+deferred. Development relationship projection, merge/completion,
 managed feedback, and general PR lifecycle reconciliation remain deferred.
 Terminal close/reopen synchronization, nested
 lifecycle, Bug Tracker

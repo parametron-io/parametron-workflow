@@ -6,7 +6,8 @@ the validator itself performs no Project mutation, branch creation, storage writ
 assignment, managed feedback,
 or PR lifecycle transition. The architecture's [binding conjunction](../system-overview.md#18-pull-request-binding-and-onboarding)
 remains owned here; onboarding owns permitted initial mutations and provenance,
-while review consumers remain deferred.
+while `internal/prreview` consumes fresh accepted decisions for
+[review/rework](execution.md#accepted-pr-review-and-rework).
 
 [#48 pure companion ordering](pr-companion-ordering.md) consumes current accepted
 decisions without taking over #46 authorization. Its production integration remains
@@ -139,8 +140,8 @@ Repeated evaluation reuses no accepted authorization grant.
 
 The onboarding controller calls `Evaluate` again and checks current PR observation
 and exact PR/Target/Project identity before effects. Rejected binding produces no
-accepted onboarding effects or provenance. Future review consumers must also
-revalidate immediately before consequential actions. Acceptance is a current
+accepted onboarding effects or provenance. The review controller also
+revalidates immediately before consequential actions. Acceptance is a current
 result, not permission for future
 actions or transactional snapshot isolation. GitHub reads are not atomic. The
 current branch/provenance contracts cannot distinguish deletion and recreation
