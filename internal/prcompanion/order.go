@@ -186,12 +186,23 @@ func Evaluate(in Input) (Plan, error) {
 		seenPrimary[key(r)] = true
 	}
 	anchorBases := map[storage.Resource]int{}
+	segmentOwners := map[int]storage.Resource{}
+	for _, a := range in.Primary.Assignments {
+		if a.AnchorPhase == nil {
+			r, _ := canonical(a.Resource, "issue")
+			segmentOwners[a.RoadmapOrder] = r
+		}
+	}
 	for _, a := range in.Primary.Assignments {
 		if a.AnchorPhase == nil {
 			continue
 		}
 		anchor, _ := canonical(*a.AnchorPhase, "issue")
 		base := a.RoadmapOrder - a.RoadmapOrder%eo.RoadmapStride
+		if owner, ok := segmentOwners[base]; ok && owner != anchor {
+			return Plan{}, fail(ErrPrimary)
+		}
+		segmentOwners[base] = anchor
 		if !seenPrimary[key(anchor)] {
 			return Plan{}, fail(ErrPrimary)
 		}
