@@ -10,8 +10,12 @@ Production Engineering consumes read-only [PR binding validation](pr-binding.md)
 through accepted PR onboarding: managed membership, owned initial In Progress,
 one-shot Draft normalization and durable completion. Membership repair requires
 fresh accepted binding; completion preserves later Status and review readiness.
-Deterministic onboarding works without a semantic Runner. Relationship projection,
-review transitions, production companion integration and numeric convergence,
+Deterministic onboarding and review/rework work without a semantic Runner.
+`internal/prreview` consumes fresh accepted binding, validated onboarding completion,
+current PR/Target/Project and native review evidence to authorize durable review
+cycles and one-shot rework Draft effects. See
+[review execution](execution.md#accepted-pr-review-and-rework).
+Relationship projection, production companion integration and numeric convergence,
 merge/completion, managed feedback and
 general PR lifecycle reconciliation remain deferred.
 
@@ -83,7 +87,8 @@ transport, validates process settings, discovers live GitHub schema, calls
 Engineering composition when enabled, worker/ingress, and finally binds HTTP.
 Engineering requires IssueLister, Branches, CommitComparison, LifecycleFields,
 NumericFields, ProjectItemReader, DeveloperReads, DraftConverter,
-PullRequestProjectItemReader, and the narrow `pronboarding.Projects` method set
+PullRequestProjectItemReader, ReviewFactsReader (part of Client), and the narrow
+`pronboarding.Projects` method set
 (`AddProjectItem`, `SetProjectOption`) on the shared client; missing narrow capabilities
 fail composition before HTTP serving. The same client performs discovery and
 all current Issue/PR/Project reads. Missing, ambiguous, or incompatible schema
@@ -197,7 +202,7 @@ and [ordering](engineering-ordering.md).
 
 One context-aware deployment-wide process-local lane is acquired before complete
 Engineering state computation and covers downstream semantic mutation when
-explicitly composed, accepted PR onboarding, activity, field reconciliation, and
+explicitly composed, accepted PR onboarding, review/rework, activity, field reconciliation, and
 branch work. It releases on all exits, without SQLite transactions across GitHub I/O. Model enrichment runs
 outside it; PR and Issue semantic consumers execute inside it before effects.
 The onboarding controller additionally serializes its own calls. Enrichment failure
@@ -213,7 +218,20 @@ its own [durable stage facts](persistence.md#accepted-pr-onboarding-provenance):
 completed initialization is suppressed, membership remains separately reconcilable,
 and unresolved one-shot attempts fail closed across cancellation/restart.
 
-Phase #5 review/merge/completion, relationship projection, production companion
+Review-aware reconciliation and first-activity guards preserve applicable Target
+Status independently of the parent's lifecycle. Review changed-state errors,
+including `github.ErrReviewFactsChanged`, retry as `pr_review_changed`.
+Invalid/rejected authority, superseded cycles, correlation, provenance, ambiguity,
+Project and storage errors are terminal under the `pr_review_*` categories in
+[execution](execution.md#accepted-pr-review-and-rework). Superseded Status repair
+may instead be suppressed by the flow/reconciler to permit newer readiness.
+Typed GitHub transient/rate-limit failures retain retry handling; cancellation
+releases claims. Restart preserves cycle facts and can repair applicable partial
+Status writes, but cannot replay a Draft attempt without its durable receipt;
+unresolved ambiguity requires manual investigation. The Engineering lane is
+process-local, with no distributed serialization or GitHub/SQLite atomicity.
+
+Phase #5 merge/completion, relationship projection, production companion
 integration and numeric convergence, terminal
 close/reopen synchronization, Bug Tracker scoring/admission, nested lifecycle,
 branch deletion/revocation, native Project positioning, heavy agents, automatic

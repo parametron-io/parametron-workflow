@@ -1,7 +1,8 @@
 # GitHub integration boundary
 
 `internal/github.Client` is the controller-facing, read-only boundary. It offers
-`DiscoverSchema`, `Repository`, `Issue`, `PullRequest`, and `ProjectItems`.
+`DiscoverSchema`, `Repository`, `Issue`, `PullRequest`, `ProjectItems`, and
+`PullRequestReviewFacts`.
 `app.Prepare(ctx, source, client)` validates source configuration, discovers
 live schema, then calls `config.Resolve`. It returns no partial application
 configuration on failure. `app.Run` uses this boundary before opening SQLite
@@ -198,8 +199,9 @@ Signed webhook ingress, durable worker queues/retries, observation, and startup
 are integrated through `internal/app`, along with explicit Phase #3 directives,
 semantic acceptance, and authorized metadata/routing reconciliation. Engineering
 lifecycle/reconciliation, branches and first activity are now production-composed;
-accepted PR onboarding is production-composed while later PR lifecycle remains
-Phase #5. Client itself stays read-only: composition requires
+accepted PR onboarding and deterministic review/rework are production-composed.
+Merge/completion, relationships and broader PR reconciliation remain deferred.
+Client itself stays read-only: composition requires
 separate narrow capabilities and deterministic Go authorization.
 
 ## Read-only developer authorization evidence
@@ -320,7 +322,8 @@ Transport rejects blank/whitespace-containing IDs as Permanent, calls the narrow
 `convertPullRequestToDraft` GraphQL mutation, and requires the returned PR ID to
 match exactly with a present true `isDraft`. Missing/mismatched results are
 Malformed. This grants no Ready-for-review operation, review initiation or arbitrary
-PR mutation. Deterministic onboarding policy authorizes its use.
+PR mutation. Deterministic onboarding and review/rework policy separately authorize
+its use; the capability itself grants no workflow authority.
 
 `github.PullRequestProjectItemReader` exposes
 `CurrentPullRequestProjectItem(ctx, itemID)`. It reads current ProjectV2Item identity
@@ -345,7 +348,7 @@ policy verifies current membership/item/content before and after effects. Adding
 membership does not grant Status or Draft authorization by itself. See
 [execution](execution.md#accepted-pr-onboarding) for fresh binding barriers.
 
-Engineering composition requires DeveloperReads, DraftConverter,
+Engineering composition requires DeveloperReads, DraftConverter, ReviewFactsReader,
 PullRequestProjectItemReader and those narrow Project writes in addition to its
 existing capabilities; missing interfaces fail construction. Deployment needs the
 existing developer authorization reads, current PR/Project reads, Project write
@@ -354,3 +357,47 @@ conversion. Exact credential grants must be verified at deployment; local transp
 tests do not establish live installation permissions. No GitHub App
 installation-token minting or live permission rehearsal is claimed. The CLI
 activates no production model provider, and deterministic onboarding needs no Runner.
+
+## Native PR review facts
+
+`github.ReviewFactsReader` exposes only
+`PullRequestReviewFacts(context.Context, Identity) (ReviewFacts, error)` and is
+included in `github.Client`. `ReviewFacts` carries the exact PR identity,
+`Transitions`, `Submissions` and `LatestOpinionated`. Review policy consumes this
+narrow typed read boundary, separately from `DraftConverter` and Status writes.
+These are native observations, not authorization.
+
+`internal/github/review.go` first reads the PR by owner/repository/number and
+checks exact node, number and repository identity. It then paginates the PR node's
+`timelineItems` with those two item-type filters and pages of 100, retaining only
+`ReadyForReviewEvent` and `ConvertToDraftEvent`;
+unrelated well-formed timeline kinds are ignored. Each retained transition has
+ID, kind, exact PR identity, UTC `CreatedAt` and optional actor. The paginated
+`reviews` connection supplies submissions with ID, exact PR, state, optional author
+and UTC `SubmittedAt`. PENDING requires null submission time; COMMENTED, APPROVED,
+CHANGES_REQUESTED and DISMISSED require a nonzero time. Unsupported states,
+duplicate native IDs, wrong embedded PR identities and malformed data fail closed.
+
+The paginated `latestOpinionatedReviews` connection supplies GitHub's current
+latest opinions rather than reconstructing reviewer supersession from delivery
+order. Its IDs must be unique, state supported and submission time nonzero. Each
+entry must exactly match a previously read submission, including actor identity;
+a mismatch returns `ErrReviewFactsChanged`. The connections are independent API
+reads, not snapshot isolation. The controller additionally compares repeated
+current reads and validates strict timeline ordering; equal transition timestamps
+cannot establish policy order.
+
+Null actors/authors remain representable. Present actors require valid node ID,
+nonblank login and typename, with User/Bot identity selections. Nullability does
+not grant readiness/rework authority: policy requires matching actors for the
+qualifying readiness and review submission; Draft receipt actor may be null.
+Generic connection handling retains page/cursor/node validation and rejects
+malformed pagination. Invalid input is Permanent; inconsistent/malformed response
+identity is Malformed. Existing typed transport errors propagate, with no hidden
+retry. Context cancellation/deadlines remain detectable, including in-flight reads.
+
+No arbitrary GraphQL execution, native review submission/dismissal, reviewer
+assignment or controller-driven Ready-for-review mutation was added. The existing
+narrow Draft converter is reused for authorized rework. Local transport/GraphQL
+fixtures exercise pagination, identities, changing facts, errors and cancellation;
+they do not verify authenticated live compatibility or deployed GitHub App grants.

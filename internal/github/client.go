@@ -60,6 +60,7 @@ type ProjectItem struct {
 }
 
 type Client interface {
+	ReviewFactsReader
 	DiscoverSchema(context.Context, config.SourceConfig) (config.Schema, error)
 	Repository(context.Context, string, string) (Repository, error)
 	Issue(context.Context, Ref) (Issue, error)

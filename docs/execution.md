@@ -489,7 +489,7 @@ separate; no provider/storage diagnostics leak into stable categories.
 [#48 pure PR companion ordering](pr-companion-ordering.md) is implemented and
 independently tested. Production companion composition, numeric convergence,
 ownership-provenance acquisition and orchestration remain deferred.
-Phase #5 retains review, relationships, and merge/completion. Terminal
+Later Phase #5 work retains relationships and merge/completion. Terminal
 close/reopen synchronization, nested lifecycle, Bug Tracker scoring/admission,
 heavy agents, automatic merge, and distributed coordination remain deferred.
 
@@ -544,6 +544,90 @@ cancellation follows worker release semantics. A transport retry can encounter a
 persisted attempt and then fail closed with `ErrAmbiguous`; it is not automatic
 convergence. No recovery operation synthesizes successful provenance.
 
-Review initiation, relationship projection, production companion integration and
+Relationship projection, production companion integration and
 numeric reconciliation, merge/completion,
 Target/Phase completion and terminal close/reopen synchronization remain deferred.
+
+## Accepted PR review and rework
+
+Production `internal/engineeringflow` consumes native readiness and supported
+review-submission notifications through `internal/prreview`, inside the existing
+Engineering lane and durable worker boundary. Ordinary PR notifications retain
+onboarding, then call review `Converge`; that method repairs Status only and never
+starts a cycle or attempts Draft conversion. Review routing bypasses semantic
+enrichment and requires no Runner. #46 retains binding authority; #47 exports
+validated historical `Completed` evidence, not a new permanent grant.
+
+Before authorization and each effect, review reads current binding, onboarding
+completion, PR, OPEN Target, exact nonarchived Engineering items and native review
+facts. It repeats binding, PR/Target and review reads and rejects changes across
+them. PR and Target must each have one Engineering item and no Bug Tracker item;
+item content identities are checked through their narrow readers. Current body
+directives independently determine normal PR/Target `Set-Status` ownership.
+Stored binding identity remains fixed across cycles while current head changes
+are freshly validated; stored evidence never replaces current authorization.
+These reads provide no atomic GitHub snapshot.
+
+The [review policy](../system-overview.md#20-in-progress-to-in-review) requires
+an unambiguous developer readiness transition after completed onboarding and
+strict native transition ordering. COMMENTED and APPROVED initiate no effects.
+Only a matching active-cycle CHANGES_REQUESTED submission still present in native
+latest-opinion evidence authorizes rework. Dismissed or superseded submissions
+cannot newly authorize it. Completed rework is historical evidence even after
+later dismissal; dismissal itself introduces no reversal policy.
+
+Cycle start is persisted before In Review convergence. Rework persists Draft
+intent before the narrow conversion call, then validates current Draft state,
+the immediately following native Draft transition and the qualifying current
+opinion before recording completion. Only then does it converge owned Status to
+In Progress. Each PR and Target Status effect gets fresh authority separately;
+failure between them can leave partial convergence. Duplicates can repair current
+drift for the applicable cycle, without repeating completed Draft effects.
+See [provenance](persistence.md#pr-review-cycle-provenance) for the stored contract.
+
+Ordinary Engineering reconciliation applies review's exact Target overlay after
+pure lifecycle computation and rechecks current Snapshot/item facts before writing.
+The first-activity field wrapper independently suppresses In Progress writes for
+active In Review, and checks Snapshot/item/directive drift before retained writes.
+Both suppress older effects when newer native readiness supersedes a cycle, but
+do not adopt that readiness without its explicit accepted delivery. PR `Converge`
+treats supersession as a safe no-op; an older duplicate delivery attempting
+convergence may return terminal `ErrSuperseded`, allowing worker FIFO to advance
+to the new readiness delivery. A parent Phase keeps its own lifecycle policy.
+Review does not change Start Date, assignees, accepted Target association, branch
+identity or native review history. Competing PR evidence for the same Target is
+conservatively rejected; this is not general multi-PR arbitration.
+
+Cancellation follows worker claim-release semantics. Restart reloads validated
+cycle history and resumes applicable Status drift with fresh authorization.
+If Draft intent exists without a valid completion receipt, neither retries nor
+the current Draft flag can establish success or safely replay the call. This
+returns `ErrAmbiguous` when authority is otherwise valid and requires manual
+investigation/recovery; no automatic recovery operation synthesizes receipts.
+Even a retryable transport failure can leave such an attempt and become terminal
+ambiguity on retry. Failure to persist intent prevents the conversion call.
+There is no GitHub/SQLite transaction or exactly-once external mutation guarantee.
+
+`internal/app` uses these review categories:
+
+| Error | Category | Worker disposition |
+| --- | --- | --- |
+| `prreview.ErrChanged`, `github.ErrReviewFactsChanged` | `pr_review_changed` | Retry from fresh state |
+| `prreview.ErrInvalid` | `pr_review_invalid` | Terminal: composition/identity |
+| `prreview.ErrRejected` | `pr_review_rejected` | Terminal: rejected authority |
+| `prreview.ErrSuperseded` | `pr_review_superseded` | Terminal: older cycle superseded |
+| `prreview.ErrCorrelation` | `pr_review_correlation` | Terminal: ambiguous native correlation |
+| `prreview.ErrProvenance` | `pr_review_provenance` | Terminal: corrupt/conflicting evidence |
+| `prreview.ErrAmbiguous` | `pr_review_ambiguous` | Terminal: indeterminate Draft outcome |
+| `prreview.ErrProject` | `pr_review_project` | Terminal: conflicting Project evidence |
+| `prreview.ErrStorage` | `pr_review_storage` | Terminal: unclassified storage failure |
+
+Propagated binding/onboarding errors retain their existing classification.
+Typed GitHub transient/rate-limit errors retry; other GitHub categories remain
+terminal. Cancellation retains its separate pending/recovery handling.
+Local tests cover repeated cycles, duplicates/reordering, current authorization
+drift, partial writes, cancellation/restart, corrupt history and ambiguous effects.
+Transport/GraphQL fixtures validate bounded local behavior, not authenticated live
+API execution or deployed GitHub App grants. Merge/completion, terminal
+synchronization, relationships, managed feedback and broader PR reconciliation
+remain outside this controller.

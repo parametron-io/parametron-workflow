@@ -9,11 +9,19 @@ import (
 // of returning plausible empty state. Tests can assert arguments and call order
 // in closures; shared mutable fixtures should be synchronized by their owner.
 type Fake struct {
-	DiscoverSchemaFunc func(context.Context, config.SourceConfig) (config.Schema, error)
-	RepositoryFunc     func(context.Context, string, string) (Repository, error)
-	IssueFunc          func(context.Context, Ref) (Issue, error)
-	PullRequestFunc    func(context.Context, Ref) (PullRequest, error)
-	ProjectItemsFunc   func(context.Context, string, string, map[string]config.FieldKind) ([]ProjectItem, error)
+	PullRequestReviewFactsFunc func(context.Context, Identity) (ReviewFacts, error)
+	DiscoverSchemaFunc         func(context.Context, config.SourceConfig) (config.Schema, error)
+	RepositoryFunc             func(context.Context, string, string) (Repository, error)
+	IssueFunc                  func(context.Context, Ref) (Issue, error)
+	PullRequestFunc            func(context.Context, Ref) (PullRequest, error)
+	ProjectItemsFunc           func(context.Context, string, string, map[string]config.FieldKind) ([]ProjectItem, error)
+}
+
+func (f *Fake) PullRequestReviewFacts(ctx context.Context, pr Identity) (ReviewFacts, error) {
+	if f.PullRequestReviewFactsFunc == nil {
+		return ReviewFacts{}, failure(Permanent)
+	}
+	return f.PullRequestReviewFactsFunc(ctx, pr)
 }
 
 func (f *Fake) DiscoverSchema(ctx context.Context, s config.SourceConfig) (config.Schema, error) {

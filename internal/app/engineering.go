@@ -14,6 +14,7 @@ import (
 	"github.com/parametron-io/parametron-workflow/internal/observe"
 	"github.com/parametron-io/parametron-workflow/internal/prbinding"
 	"github.com/parametron-io/parametron-workflow/internal/pronboarding"
+	"github.com/parametron-io/parametron-workflow/internal/prreview"
 	"github.com/parametron-io/parametron-workflow/internal/semanticflow"
 	"github.com/parametron-io/parametron-workflow/internal/semanticreconcile"
 	"github.com/parametron-io/parametron-workflow/internal/storage"
@@ -72,10 +73,6 @@ func composeEngineering(c Config, d config.ResolvedConfig, store *storage.Store,
 	if err != nil {
 		return nil, err
 	}
-	reconciler, err := er.New(er.Config{Project: d.Engineering, Projects: reader, Activity: activity, Fields: fields, Numbers: numbers})
-	if err != nil {
-		return nil, err
-	}
 	prItems, ok := c.Client.(github.PullRequestProjectItemReader)
 	if !ok || missingCapability(prItems) {
 		return nil, pronboarding.ErrInvalid
@@ -100,7 +97,15 @@ func composeEngineering(c Config, d config.ResolvedConfig, store *storage.Store,
 	if err != nil {
 		return nil, err
 	}
-	flowCfg := ef.Config{Onboarding: onboarding, PRProjectItems: prItems, Deployment: d, Resolver: resolver, Reader: reader, Foundation: reader, Snapshot: snapshots, Reconciler: reconciler, Activity: activityCfg, ProjectItems: items, Branches: branch}
+	review, err := prreview.New(prreview.Config{Deployment: d, Binding: binding, Onboarding: onboarding, Reader: reader, Reviews: c.Client, PRItems: prItems, Items: items, Status: fields, Draft: draft, Store: store, Clock: c.Clock})
+	if err != nil {
+		return nil, err
+	}
+	reconciler, err := er.New(er.Config{Review: review, Project: d.Engineering, Projects: reader, Activity: activity, Fields: fields, Numbers: numbers})
+	if err != nil {
+		return nil, err
+	}
+	flowCfg := ef.Config{Review: review, Onboarding: onboarding, PRProjectItems: prItems, Deployment: d, Resolver: resolver, Reader: reader, Foundation: reader, Snapshot: snapshots, Reconciler: reconciler, Activity: activityCfg, ProjectItems: items, Branches: branch}
 	if c.Runner != nil {
 		consumer := c.SemanticConsumer
 		mutator := c.Mutator

@@ -202,4 +202,9 @@ ORIGINAL push DeliveryID only when a current #35 Decision exists, retaining
 #38's current eligibility and branch checks. CLOSED/no-Decision acceptance stays
 durable, skips Handle, creates no In Progress authority or completion, and does
 not prevent normal reconciliation/roadmap clearing. See [execution.md](execution.md).
-PR/review/completion and terminal close/reopen synchronization remain Phase #5.
+The pure pre-development policy remains unchanged by PR review/rework.
+Production separately validates durable review authority for exact Target Status
+overlays and guards first-activity Status writes; it does not retrofit review
+semantics into this pure API or move a parent Phase into In Review for child review.
+See [review execution](execution.md#accepted-pr-review-and-rework).
+PR completion and terminal close/reopen synchronization remain deferred.

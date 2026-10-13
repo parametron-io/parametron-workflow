@@ -20,6 +20,7 @@ import (
 	er "github.com/parametron-io/parametron-workflow/internal/engineeringreconcile"
 	"github.com/parametron-io/parametron-workflow/internal/github"
 	"github.com/parametron-io/parametron-workflow/internal/observe"
+	"github.com/parametron-io/parametron-workflow/internal/prreview"
 	"github.com/parametron-io/parametron-workflow/internal/semanticflow"
 	"github.com/parametron-io/parametron-workflow/internal/storage"
 	"github.com/parametron-io/parametron-workflow/internal/worker"
@@ -43,8 +44,14 @@ type Reader interface {
 type Onboarding interface {
 	Handle(context.Context, storage.Event) error
 }
+type Review interface {
+	Handle(context.Context, storage.Event) error
+	Converge(context.Context, storage.Resource) error
+	TargetStatus(context.Context, storage.Resource) (config.StatusRole, bool, error)
+}
 
 type Config struct {
+	Review         Review
 	Onboarding     Onboarding
 	PRProjectItems github.PullRequestProjectItemReader
 	Deployment     config.ResolvedConfig
@@ -65,6 +72,9 @@ type Flow struct {
 }
 
 func New(c Config) (*Flow, error) {
+	if c.Review != nil && (absent(c.Review) || absent(c.Onboarding)) {
+		return nil, ErrInvalid
+	}
 	if absent(c.Resolver) || absent(c.Reader) || absent(c.Foundation) || absent(c.Snapshot) || absent(c.Reconciler) || absent(c.ProjectItems) || absent(c.Branches) || (c.Enricher != nil && (absent(c.Enricher) || absent(c.Semantic))) {
 		return nil, ErrInvalid
 	}
@@ -104,6 +114,15 @@ func (f *Flow) withLane(ctx context.Context, fn func() error) error {
 	return fn()
 }
 func (f *Flow) Resolve(ctx context.Context, e storage.Event) (storage.Resource, error) {
+	if e.Delivery.EventName == "pull_request_review" {
+		_, ok, err := prreview.Notification(e.Delivery)
+		if err != nil {
+			return storage.Resource{}, err
+		}
+		if !ok {
+			return storage.Resource{}, worker.ErrNotApplicable
+		}
+	}
 	switch e.Delivery.EventName {
 	case "push":
 		// Notifications outside the configured deployment have no supported
@@ -159,6 +178,24 @@ func (f *Flow) Process(ctx context.Context, e storage.Event) error {
 		return observe.ErrBinding
 	}
 	if e.Resource.Kind == "pull_request" {
+		if f.cfg.Onboarding == nil && f.cfg.Review == nil {
+			return f.cfg.Foundation.Process(ctx, e)
+		}
+		candidate, reviewEvent, err := prreview.Notification(e.Delivery)
+		if err != nil {
+			return err
+		}
+		if reviewEvent {
+			if f.cfg.Review == nil {
+				return prreview.ErrInvalid
+			}
+			return f.withLane(ctx, func() error { return f.cfg.Review.Handle(ctx, e) })
+		}
+		// Unsupported review notifications can reach Process with a durable
+		// binding after recovery; they still grant no onboarding/review effects.
+		if e.Delivery.EventName == "pull_request_review" || candidate.Kind == "review" {
+			return nil
+		}
 		if f.cfg.Onboarding == nil {
 			return f.cfg.Foundation.Process(ctx, e)
 		}
@@ -184,7 +221,13 @@ func (f *Flow) Process(ctx context.Context, e storage.Event) error {
 					return err
 				}
 			}
-			return f.cfg.Onboarding.Handle(ctx, e)
+			if err := f.cfg.Onboarding.Handle(ctx, e); err != nil {
+				return err
+			}
+			if f.cfg.Review != nil {
+				return f.cfg.Review.Converge(ctx, *e.Resource)
+			}
+			return nil
 		})
 	}
 	if e.Resource.Kind != "issue" {
@@ -215,8 +258,9 @@ func (f *Flow) Process(ctx context.Context, e storage.Event) error {
 }
 
 type guardedProjects struct {
-	reader   ea.ProjectReader
-	snapshot ec.Snapshot
+	reader    ea.ProjectReader
+	snapshot  ec.Snapshot
+	resources map[string]storage.Resource
 }
 
 func (g guardedProjects) ReadCurrent(ctx context.Context, t storage.Resource) (observe.ObservedState, error) {
@@ -227,7 +271,80 @@ func (g guardedProjects) ReadCurrent(ctx context.Context, t storage.Resource) (o
 	if err := g.snapshot.CheckCurrent(t, o); err != nil {
 		return observe.ObservedState{}, err
 	}
+	if g.resources != nil {
+		for _, project := range o.Projects {
+			if project.Profile != config.Engineering {
+				continue
+			}
+			for _, item := range project.Items {
+				if previous, ok := g.resources[item.ID]; ok && previous != o.Resource {
+					return observe.ObservedState{}, er.ErrProject
+				}
+				g.resources[item.ID] = o.Resource
+			}
+		}
+	}
 	return o, nil
+}
+
+// Activity retains its own authorization and Start Date semantics. This guard
+// only prevents its earlier Status write from erasing a valid review cycle.
+type reviewActivityFields struct {
+	fields   github.LifecycleFields
+	projects guardedProjects
+	review   Review
+	project  config.ResolvedProject
+}
+
+func (g reviewActivityFields) SetProjectDate(ctx context.Context, project, item, field, date string) error {
+	return g.fields.SetProjectDate(ctx, project, item, field, date)
+}
+func (g reviewActivityFields) SetProjectOption(ctx context.Context, project, item, field, option string) error {
+	if project != g.project.ID || field != g.project.Fields[config.Status] || option != g.project.StatusOptions[config.InProgress] {
+		return ErrInvalid
+	}
+	resource, ok := g.projects.resources[item]
+	if !ok {
+		return er.ErrProject
+	}
+	status, active, err := g.review.TargetStatus(ctx, resource)
+	if errors.Is(err, prreview.ErrSuperseded) {
+		return nil
+	}
+	if err != nil {
+		return err
+	}
+	if active {
+		if status == config.InReview {
+			return nil
+		}
+		if status != config.InProgress {
+			return ErrInvalid
+		}
+	}
+	// The review read can overlap current directive edits. Recheck the exact
+	// snapshot and item before retaining activity's authorized Status write.
+	o, err := g.projects.ReadCurrent(ctx, resource)
+	if err != nil {
+		return err
+	}
+	found := false
+	for _, p := range o.Projects {
+		if p.ID == project && p.Profile == config.Engineering {
+			for _, i := range p.Items {
+				if i.ID == item && !i.Archived {
+					found = true
+				}
+			}
+		}
+	}
+	if !found {
+		return er.ErrProject
+	}
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	return g.fields.SetProjectOption(ctx, project, item, field, option)
 }
 func (f *Flow) reconcile(ctx context.Context, event storage.Event) error {
 	snapshot, err := f.cfg.Snapshot.ResolveSnapshot(ctx)
@@ -247,7 +364,12 @@ func (f *Flow) reconcile(ctx context.Context, event storage.Event) error {
 		decisions[decision.Resource] = true
 	}
 	activityCfg := f.cfg.Activity
-	activityCfg.Projects = guardedProjects{reader: activityCfg.Projects, snapshot: snapshot}
+	projects := guardedProjects{reader: activityCfg.Projects, snapshot: snapshot}
+	if f.cfg.Review != nil {
+		projects.resources = map[string]storage.Resource{}
+		activityCfg.Fields = reviewActivityFields{fields: activityCfg.Fields, projects: projects, review: f.cfg.Review, project: activityCfg.Project}
+	}
+	activityCfg.Projects = projects
 	activity, err := ea.New(activityCfg)
 	if err != nil {
 		return err

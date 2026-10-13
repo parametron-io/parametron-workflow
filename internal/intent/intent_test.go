@@ -125,7 +125,7 @@ func TestReferences(t *testing.T) {
 	} {
 		t.Run(tc.input, func(t *testing.T) {
 			got := parse(t, "Parent: "+tc.input)
-			if *got.Parent != (IssueRef{tc.repo, tc.n}) {
+			if *got.Parent != (IssueRef{Repository: tc.repo, Number: tc.n}) {
 				t.Fatalf("%+v", got.Parent)
 			}
 		})
@@ -153,7 +153,7 @@ func TestSingular(t *testing.T) {
 			if name == "Target" {
 				ref = got.Target
 			}
-			if ref == nil || *ref != (IssueRef{"parametron-workflow", 10}) {
+			if ref == nil || *ref != (IssueRef{Repository: "parametron-workflow", Number: 10}) {
 				t.Fatalf("%+v", got)
 			}
 			for _, body := range []string{name + ": #10\n" + name + ": #11", name + ": #10 #11"} {
@@ -176,7 +176,7 @@ func TestMultiReferences(t *testing.T) {
 			if name == "Refs" {
 				refs = got.Refs
 			}
-			want := []IssueRef{{"parametron-workflow", 9}, {"parametron-workflow", 10}, {"engine", 41}, {"parametron-workflow", 11}}
+			want := []IssueRef{{Repository: "parametron-workflow", Number: 9}, {Repository: "parametron-workflow", Number: 10}, {Repository: "engine", Number: 41}, {Repository: "parametron-workflow", Number: 11}}
 			if !reflect.DeepEqual(refs, want) {
 				t.Fatalf("%+v", refs)
 			}
