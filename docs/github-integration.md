@@ -200,7 +200,8 @@ are integrated through `internal/app`, along with explicit Phase #3 directives,
 semantic acceptance, and authorized metadata/routing reconciliation. Engineering
 lifecycle/reconciliation, branches and first activity are now production-composed;
 accepted PR onboarding and deterministic review/rework are production-composed.
-Merge/completion, relationships and broader PR reconciliation remain deferred.
+Relationships and broader continuous/global PR orchestration remain deferred.
+Separate native lifecycle capabilities are implemented as described below.
 Client itself stays read-only: composition requires
 separate narrow capabilities and deterministic Go authorization.
 
@@ -401,3 +402,45 @@ assignment or controller-driven Ready-for-review mutation was added. The existin
 narrow Draft converter is reused for authorized rework. Local transport/GraphQL
 fixtures exercise pagination, identities, changing facts, errors and cancellation;
 they do not verify authenticated live compatibility or deployed GitHub App grants.
+
+## Native lifecycle and Issue state capabilities
+
+#50 adds `github.NativeLifecycleReader.NativeLifecycle(ctx, identity, kind)` and
+`github.IssueStates.CloseIssue` / `ReopenIssue`. They are narrow capabilities;
+workflow authority remains deterministic Go policy, with no arbitrary GraphQL
+mutation policy interface. Production Engineering requires both capabilities.
+
+NativeLifecycle reads exact Issue or PR state before and after paginated native
+timeline reads. Issues support ClosedEvent/ReopenedEvent; PRs additionally support
+MergedEvent. Every transition has a unique nonempty ID, exact resource identity,
+nonzero timestamp and strictly increasing chronology; equal timestamps cannot
+establish ordering. The final transition must agree with current OPEN/CLOSED/MERGED
+state (an empty timeline is valid only for OPEN). Both transport and bounded
+provider/fake output validation reject unsupported or inconsistent facts.
+
+Identity checks cover repository owner/name/node ID, resource node ID and number,
+plus resource kind. Timeline event resource identities must match exactly.
+Pagination uses the existing connection boundary and malformed pages/responses
+fail closed. Changed state across reads or incompatible chronology produces
+`ErrNativeLifecycleChanged`; malformed identity/timeline evidence uses typed
+Malformed failures, and invalid caller arguments use Permanent failures.
+A native timeline fact is evidence, never mutation authorization by itself.
+
+CloseIssue performs an exact native OPEN preflight and typed `closeIssue` mutation;
+ReopenIssue requires CLOSED and uses `reopenIssue`. A raced no-op is
+`ErrNativeLifecycleChanged`, not a receipt. The mutation response must contain
+exact Issue identity and destination state before returning `IssueStateReceipt`
+(`Issue`, `State`). Null/mismatched response data is Malformed; later observed
+CLOSED state is not a substitute for the response receipt.
+
+Context cancellation/deadlines propagate, including checks before writes and
+after responses. Existing typed transport error categories remain intact; there
+is no hidden transport retry. A failed/canceled close may already have executed
+remotely, so the completion controller's durable attempt/receipt protocol handles
+that uncertainty rather than transport replay. See [persistence](persistence.md#pr-completion-close-provenance)
+and [execution](execution.md#accepted-pr-completion-and-terminal-synchronization).
+
+Local HTTP fixtures cover exact operations/variables and every preflight identity
+dimension, pagination, malformed/duplicate/unordered transitions, mutation receipt
+identity/state, cancellation, typed failures and absence of hidden retries. They
+do not verify authenticated live GitHub permissions or deployed App grants.

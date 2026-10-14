@@ -30,9 +30,15 @@ Draft normalization, and durable completion. #48's pure
 independently tested. Production companion composition, numeric-field convergence,
 ownership-provenance acquisition and orchestration remain deferred.
 `internal/prreview` implements deterministic review/rework after accepted binding
-and completed onboarding, without a semantic Runner. Merge/completion,
-relationship projection, managed feedback and broader PR reconciliation remain deferred.
-Repository-native terminal close/reopen synchronization,
+and completed onboarding, without a semantic Runner. Issue #50 implements
+independently verified accepted PR merge/abandonment,
+native Issue close/reopen synchronization and the direct-child Phase closure gate.
+Native Issue Close is manual completion authority; Project Done projects valid
+terminal state and never authorizes closure. Durable merge-close attempts and
+validated receipts protect later native reopen. Production Engineering integration
+and local policy, transport, persistence/restart and worker tests cover these
+boundaries; see [terminal execution](docs/execution.md#accepted-pr-completion-and-terminal-synchronization).
+Relationship projection, managed feedback, full Phase #5 continuous/global orchestration,
 nested-child lifecycle, Bug Tracker scoring/admission, branch deletion/revocation,
 native Project position reconciliation, heavy agents, automatic merge, and
 distributed coordination are deferred. Declarative graph facts are current;
@@ -1105,10 +1111,9 @@ parent Phase roadmap anchor described earlier.
 Read-only binding validation is owned by `internal/prbinding` and consumed by
 production Engineering PR routing through `internal/pronboarding`. Accepted
 onboarding, review/rework and #48 pure companion ordering are implemented;
-production companion integration, relationships and completion remain deferred. Sections 18.1
-and 19–25 distinguish those boundaries. Phase #4 supports
-direct Phase branch/activity work, but does not enforce terminal closure gates or
-close/reopen synchronization. Production does not yet write PR companion numbers.
+production companion integration and relationships remain deferred. #50 separately
+implements accepted completion and terminal synchronization (Sections 22–27).
+Production does not yet write PR companion numbers.
 
 A Pull Request does not become valid workflow implementation work merely by
 being opened or manually moved on the Project board.
@@ -1318,8 +1323,9 @@ Later cycles require the previous cycle's completed rework and its exact native
 `ConvertToDraftEvent`, immediately followed by the new readiness transition.
 Current authorization is revalidated before persistence and consequential effects.
 PR and Target Status writes independently honor their current `Set-Status`;
-neither overrides `Set-Status: false`. No terminal synchronization exception is
-introduced. See [review execution](docs/execution.md#accepted-pr-review-and-rework)
+neither overrides `Set-Status: false`. This review boundary introduces no terminal
+exception; the separate #50 consistency exception follows Section 25.
+See [review execution](docs/execution.md#accepted-pr-review-and-rework)
 and [cycle provenance](docs/persistence.md#pr-review-cycle-provenance).
 
 ---
@@ -1396,7 +1402,14 @@ are not atomic, and exactly-once external mutation execution is not guaranteed.
 
 ## 22. Merge, Completion, and Next Work
 
-For a normal Task or Feature target, the successful merge path is:
+Only an accepted implementation PR with durable completed onboarding and a
+current authoritatively verified merge supplies controller closure authority.
+Historical accepted evidence is checked against fresh exact PR, Target, branch,
+author/developer, Type, Project membership and native timeline facts. The terminal
+path does not broaden #46’s OPEN-only binding validator. The native merge must
+follow completed onboarding; approval or review readiness alone never completes work.
+
+For a normal Task or Feature Target, the successful merge path is:
 
 ```text
 PR merged
@@ -1406,7 +1419,10 @@ PR merged
 → Target Issue Status = Done
 ```
 
-The controller then recomputes downstream dependency eligibility.
+Existing #35/#36 authorities recompute downstream dependency eligibility and
+numeric roadmap state from fresh facts. Completion adds no independent ordering
+policy. See [execution](docs/execution.md#accepted-pr-completion-and-terminal-synchronization)
+and [close provenance](docs/persistence.md#pr-completion-close-provenance).
 
 If closing the target removes the final blocker from the next child in the same
 active Phase:
@@ -1437,7 +1453,7 @@ The canonical recovery path is:
 PR closed without merge
 → PR Status = Done
 → Target Issue remains open
-→ Target Issue → In Progress
+→ Target Issue → In Progress where normal Set-Status ownership permits
 ```
 
 The Target Issue must not become `Done` or close merely because its
@@ -1445,7 +1461,9 @@ implementation PR was closed.
 
 The existing Development relationship may remain as historical traceability.
 A later replacement PR may bind to the same Target through a valid `Target:`
-directive and the authorized development branch policy.
+directive and the authorized development branch policy. It requires its own
+accepted authority. Durable Target branch/start provenance is preserved. A current
+validated replacement review in In Review takes precedence over abandonment rollback.
 
 Under normal status ownership, the target returns directly to `In Progress`;
 it is not reset through `Backlog` or `Ready`.
@@ -1470,7 +1488,9 @@ Target: #45
 `Phase` is therefore not an invalid PR Target solely because of Issue Type.
 
 Direct Phase implementation does not replace or implicitly complete the Phase's
-child work.
+child work. Its accepted implementation PR merge never automatically closes the
+Phase, even when all direct children are CLOSED. It completes the implementation
+attempt only; the Phase requires explicit maintainer native Close.
 
 ```text
 Phase implementation completed
@@ -1494,29 +1514,21 @@ documentation synchronization, and applicable exit criteria remain required
 for legitimate closure. The controller rule below is an additional lifecycle
 gate, not a substitute for engineering verification.
 
-A Phase may be closed only when all of its child Issues are closed.
+The complete authoritative declarative `Parent` graph determines direct children,
+including cross-repository children. All direct children must be CLOSED for a
+native Phase close to be valid. All-closed children supply eligibility only;
+neither their completion nor a direct Phase PR merge initiates Phase closure.
 
-Conceptually:
+A natively CLOSED Phase with an authoritative OPEN direct child is reopened,
+then returned directly to freshly recomputed canonical nonterminal Status.
+The typed rejection reason is `open_direct_children`, ready for a later feedback
+boundary. Managed user-facing feedback emission is not implemented. Incomplete
+or invalid graph/identity evidence fails closed.
 
-```text
-Phase close requested
-        ↓
-all child Issues closed?
-   ├─ no
-   │   → reject / reconcile closure
-   │   → preserve canonical open workflow state
-   │   → explain the rejection through managed feedback
-   │
-   └─ yes
-       → close Phase
-       → Status = Done
-```
-
-The same closure gate applies when a merged PR directly targets the Phase. A
-Phase-targeted implementation merge does not close the Phase while child Issues
-remain open.
-
-A Phase must never persist as `Done` while it still has open child work.
+An OPEN Phase with Project Done is corrected to canonical nonterminal Status
+regardless of child completion eligibility. Project Done never requests Close.
+Nested-child lifecycle remains deferred. This mechanical gate does not establish
+Verification Standard evidence or replace maintainer verification responsibility.
 
 ---
 
@@ -1581,25 +1593,27 @@ child of inactive Phase
 → Backlog
 ```
 
-For Issues, a valid `Status = Done` state may also cause the controller to close
-the open Issue when closure conditions permit.
-
-Phase closure conditions still apply and cannot be bypassed by setting Done.
-
-Repository-native state and Project state must not remain contradictory, for
-example:
+Repository-native Issue Close is authoritative for manual completion. A validated
+accepted PR merge supplies the separate narrow Task/Feature closure authority
+in Section 22. Project Done never supplies native closure authority:
 
 ```text
-Issue = closed
-Project Status = In Progress
+valid native Issue CLOSED → Project Done
+native Issue OPEN + Project Done → keep Issue OPEN → canonical nonterminal Status
 ```
 
-or:
+This holds after manual Done edits, delayed Project notifications, native reopen,
+retry and restart, including `Set-Status: false`. It grants no general ownership
+of ordinary Backlog/Blocked/Ready/In Progress/In Review transitions. Ordinary
+reconciliation and abandonment rollback retain their Set-Status gates. A Phase
+close additionally requires Section 24’s direct-child gate.
 
-```text
-Issue = reopened
-Project Status = Done
-```
+Canonical open state reuses #35/#36 policy, validated completed first-activity
+provenance and applicable accepted implementation/review/rework evidence from
+#47/#49. Reopen never restores a stale Status or unconditionally selects Ready.
+Stale pre-close review intervals cannot authorize effects. Fresh supported
+post-reopen readiness can enter review when validated completed rework permits
+continuation; unsupported or ambiguous review continuation fails closed.
 
 ---
 
@@ -1643,6 +1657,11 @@ child manually moved to Ready while parent Phase is inactive
 The controller only reconciles fields it owns. Set-Status gates normal Status
 writes; numeric Roadmap Order remains an unconditional controller-owned invariant,
 independent of Status and Set-Position.
+
+Terminal consistency uses fresh primary/Project facts before ordinary Engineering
+convergence. Changed authoritative state requires fresh recomputation; no snapshot
+survives a native mutation. Section 25 defines terminal Status exceptions;
+downstream eligibility and ordering remain #35/#36-owned.
 
 ### 26.1 Implemented Engineering reconciliation
 
@@ -1747,8 +1766,12 @@ Implemented PR onboarding uses its own initialization stage facts; review uses
 per-cycle start, Draft-attempt and Draft-completion facts. Status remains separately
 convergent while the relevant cycle and fresh authorization remain applicable.
 See [persistence](docs/persistence.md#pr-review-cycle-provenance) for validation
-and ambiguity boundaries. Relationship and terminal invariants listed above
-remain future contracts where identified as deferred.
+and ambiguity boundaries. Relationship invariants remain future contracts where
+identified as deferred.
+Accepted merge-close uses separate identity-bound attempt/receipt provenance.
+Validated completion prevents close replay after explicit native reopen; an
+attempt without a valid receipt fails closed as indeterminate, even when the
+Issue is observed CLOSED. See [close provenance](docs/persistence.md#pr-completion-close-provenance).
 
 ---
 
@@ -1847,7 +1870,8 @@ The controller should own:
 - item added to Project → canonical ingress / Backlog initialization
 - sub-issue added → correct Project membership
 - item closed → Done synchronization
-- valid Done Issue → close Issue
+- accepted verified Task/Feature PR merge → authorized native Target Close
+- native-open Issue with Project Done → canonical nonterminal Status; preserve OPEN
 - item reopened → canonical open-state recomputation
 
 GitHub's built-in completed-item archival may remain enabled:
@@ -1918,8 +1942,8 @@ and lifecycle model defined here.
 ## 34. End-to-End Example
 
 The flow below combines implemented branch/activity, PR onboarding and review/rework
-with planned Development projection, production companion numeric convergence,
-merge/completion and terminal synchronization. Those planned steps are marked:
+and accepted completion/terminal synchronization with planned Development
+projection and production companion numeric convergence. Planned steps are marked:
 
 ```text
 Phase #45 unblocked
@@ -1957,7 +1981,7 @@ PR #80 Draft → Ready for review
 → PR #80 In Review
 → #48 In Review
 
-PR #80 merged (completion and subsequent closure effects planned)
+accepted PR #80 authoritatively verified merged
 → PR #80 Done
 → #48 closed + Done
 
@@ -1968,7 +1992,7 @@ PR #80 merged (completion and subsequent closure effects planned)
 
 ...
 
-all Phase #45 children closed (closure gate/synchronization planned)
+all authoritative direct Phase #45 children closed
 → Phase #45 becomes eligible for explicit maintainer closure
 → maintainer closes Phase with comment
 → Phase #45 Done

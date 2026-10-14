@@ -347,3 +347,72 @@ new provenance type is introduced. Onboarding normalization remains in its own
 namespaces. SQLite and GitHub are not atomic and external mutation execution is
 not exactly-once. See [review execution](execution.md#accepted-pr-review-and-rework)
 for retry/terminal categories and worker restart behavior.
+
+## PR completion close provenance
+
+#50 adds two immutable namespaces in the existing provenance store, with no SQLite
+schema change. They are separate from branch, activity, onboarding and review facts:
+
+| Namespace | Metadata type | Key |
+| --- | --- | --- |
+| `pr_completion_close_attempt_v1` | `closeEvidence` | `<owner>/<repository>/pull_request/<number>` |
+| `pr_completion_close_completed_v1` | `closeReceipt` | Same PR key |
+
+Owner/repository come from the canonical lowercase PR resource; the PR node ID is
+bound through metadata and the originating stored delivery rather than the key.
+Field-level authority is [provenance.go](../internal/prcompletion/provenance.go).
+Metadata uses Go `json.Marshal` encoding with these exact exported field names:
+
+- `closeEvidence`: `Version` (1), `Onboarding`, `Merge`.
+- `Onboarding` is the complete validated `pronboarding.Completion`: `Completed`,
+  `Resource`, `Binding`, `Project`, `DeliveryID`, `CompletedAt`. `Binding` contains
+  `PR`, `Target`, `Kind`, `Branch`, `Developer`, `Policy`, preserving #46/#47
+  identities and accepted authorization evidence.
+- `Merge` is `github.NativeTransition`: `ID`, `Kind`, `Resource`, `CreatedAt`,
+  containing the validated native merged transition.
+- `closeReceipt`: `Version` (1), `Evidence` (the same complete `closeEvidence`),
+  `Disposition`, `Receipt`. `Receipt` is either null or `github.IssueStateReceipt`
+  with `Issue` (exact Target identity) and `State` (`CLOSED`).
+
+Nested values retain their existing exported JSON fields: storage Resource has
+`Owner`, `Repository`, `Kind`, `Number`, `NodeID`; GitHub Identity has
+`ID`, `Repository`, `Number`; Repository has `ID`, `Owner`, `Name`;
+Branch has `Repository`, `Name`, `SHA`; Developer (Actor) has `Login`,
+`ID`, `Type`. These embed existing Go value definitions, not a new schema. Each provenance row also stores `Namespace`, `Key`, `DeliveryID`
+and `CreatedAt`. Loading requires byte-for-byte canonical re-marshalling, exact
+namespace/key, nonzero creation time and nonempty delivery ID. The originating
+stored event must match delivery ID and PR owner/repository/kind/number, have a
+nonzero ReceivedAt, and match the node ID when the stored resource supplies one.
+The accepted onboarding reader independently validates its original delivery,
+stage pairing, canonical metadata and chronology; historical completion is input
+to fresh effect-specific authorization, not current binding authority by itself.
+
+An attempt's evidence must equal current validated completion/merge evidence and
+its timestamp must not precede onboarding completion or merge. It is persisted
+before native Close, followed by another current authority/timeline check.
+Once recorded, interruption is indeterminate. A successful mutation response must
+identify exactly the Target with state CLOSED before a completed row is recorded.
+
+Completed `Disposition = "mutation"` requires a matching attempt, identical
+originating DeliveryID, completion time not before attempt or merge, matching
+evidence/version, and a nonnull exact CLOSED receipt. Completed
+`Disposition = "already_closed"` records a labeled no-op only when no attempt
+exists and the Target was already CLOSED; it requires a null Receipt. It does
+not attribute an observed close to a controller mutation. A completed row must
+have matching version/evidence and cannot predate merge. Unsupported dispositions,
+orphan mutation receipts, corrupt metadata or mismatched identity/chronology fail
+closed as provenance errors.
+
+A valid completed row suppresses any further close from that accepted merge,
+including after later explicit native reopen. An attempt without a valid receipt
+returns `ErrAmbiguous` across retries and restart, regardless of an observed CLOSED
+or OPEN Target. Observing CLOSED cannot independently establish mutation success.
+No recovery synthesizes a receipt or unconditionally replays an ambiguous close;
+manual investigation may be required. Even before attempting, a native ReopenedEvent
+at or after merge prevents historical merge-close authority.
+
+GitHub and SQLite are not atomic. Lost mutation responses, receipt-write failures
+and cancellation can leave durable attempts without completion. Exactly-once
+external mutation execution is not guaranteed. Existing worker recovery releases
+claims; it does not erase or resolve these facts. See [terminal execution](execution.md#accepted-pr-completion-and-terminal-synchronization)
+for retry classifications and local regression coverage.

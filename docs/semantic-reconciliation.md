@@ -136,7 +136,7 @@ At Phase #3 standalone completion this package introduced no lifecycle, branch,
 activity or PR integration. Its writes remain Type/labels/routing, Priority,
 Effort, and narrow Backlog ingress; it neither writes nor clears other fields.
 Current production Engineering separately owns Phase activation, eligibility,
-Status/Roadmap convergence, branches, and first activity/Start Date. PR onboarding/
-review/completion, terminal close/reopen synchronization, native relationships,
-Bug triage/Priority Score, Estimate execution, and native Project position remain
-deferred. Phase closure belongs to the later PR/completion contract.
+Status/Roadmap convergence, branches, first activity/Start Date, PR onboarding,
+review/completion and #50 terminal synchronization/Phase closure gating. These
+remain separate from this semantic package. Native relationships, Bug triage/
+Priority Score, Estimate execution, and native Project position remain deferred.
