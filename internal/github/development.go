@@ -30,13 +30,13 @@ func (r DevelopmentReferences) Validate(pr Identity) error {
 	}
 	ids := map[string]Identity{}
 	names := map[Ref]Identity{}
-	repositories := map[string]Repository{}
-	repositoryNames := map[string]string{}
+	repositories := map[string]Repository{pr.Repository.ID: pr.Repository}
+	repositoryNames := map[string]string{strings.ToLower(pr.Repository.Owner + "/" + pr.Repository.Name): pr.Repository.ID}
 	for _, list := range [][]Identity{r.Manual, r.Keyword} {
 		seen := map[string]bool{}
 		for _, i := range list {
 			ref := Ref{Owner: strings.ToLower(i.Repository.Owner), Repository: strings.ToLower(i.Repository.Name), Number: i.Number}
-			if !ValidDevelopmentIdentity(i) || seen[i.ID] {
+			if !ValidDevelopmentIdentity(i) || i.ID == pr.ID || seen[i.ID] {
 				return failure(Malformed)
 			}
 			name := strings.ToLower(i.Repository.Owner + "/" + i.Repository.Name)
@@ -59,7 +59,8 @@ func (r DevelopmentReferences) Validate(pr Identity) error {
 	return nil
 }
 func (t *Transport) DevelopmentReferences(ctx context.Context, pr Identity) (DevelopmentReferences, error) {
-	if _, err := t.nativeIdentity(ctx, pr, "pull_request"); err != nil {
+	state, err := t.nativeIdentity(ctx, pr, "pull_request")
+	if err != nil {
 		return DevelopmentReferences{}, err
 	}
 	out := DevelopmentReferences{PR: pr, Complete: true}
@@ -92,8 +93,12 @@ func (t *Transport) DevelopmentReferences(ctx context.Context, pr Identity) (Dev
 	if err := out.Validate(pr); err != nil {
 		return DevelopmentReferences{}, err
 	}
-	if _, err := t.nativeIdentity(ctx, pr, "pull_request"); err != nil {
+	final, err := t.nativeIdentity(ctx, pr, "pull_request")
+	if err != nil {
 		return DevelopmentReferences{}, err
+	}
+	if final != state {
+		return DevelopmentReferences{}, failure(Conflict)
 	}
 	return out, ctx.Err()
 }

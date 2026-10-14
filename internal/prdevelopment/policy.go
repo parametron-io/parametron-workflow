@@ -70,6 +70,9 @@ func Evaluate(in Input) ([]Action, error) {
 	}
 	for _, list := range [][]github.Identity{in.References.Manual, in.References.Keyword} {
 		for _, i := range list {
+			if i.Repository.ID == b.Target.Repository.ID && i.Repository != b.Target.Repository || strings.EqualFold(i.Repository.Owner, b.Target.Repository.Owner) && strings.EqualFold(i.Repository.Name, b.Target.Repository.Name) && i.Repository.ID != b.Target.Repository.ID {
+				return nil, ErrAmbiguous
+			}
 			if i != b.Target && (i.ID == b.Target.ID || i.Number == b.Target.Number && strings.EqualFold(i.Repository.Owner, b.Target.Repository.Owner) && strings.EqualFold(i.Repository.Name, b.Target.Repository.Name)) {
 				return nil, ErrAmbiguous
 			}
