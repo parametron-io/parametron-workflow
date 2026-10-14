@@ -75,7 +75,10 @@ terminal state and never authorizes closure. Durable merge-close attempts and
 validated receipts protect later native reopen. Production Engineering integration
 and local policy, transport, persistence/restart and worker tests cover these
 boundaries; see [terminal execution](docs/execution.md#accepted-pr-completion-and-terminal-synchronization).
-Development relationship projection, managed feedback, full Phase #5 orchestration,
+Issue #51 implements independently tested standalone Development policy/controller
+and separate GitHub transport; see [Development relationships](docs/pr-development.md).
+Production-wide Development routing, other relationship projection, managed feedback,
+and full Phase #5 orchestration,
 nested lifecycle, Bug Tracker
 scoring/admission, branch deletion/revocation, heavy agents, automatic merge,
 native Project positioning, and distributed coordination are deferred. Assignees
@@ -142,6 +145,9 @@ Durable gating, freshness, completion, and recovery are documented in
 [docs/semantic-integration.md](docs/semantic-integration.md).
 Accepted metadata/routing convergence is documented in
 [docs/semantic-reconciliation.md](docs/semantic-reconciliation.md).
+
+Accepted PR Development authority, transport, lifecycle and verification boundaries
+are documented in [docs/pr-development.md](docs/pr-development.md).
 
 ## Development
 

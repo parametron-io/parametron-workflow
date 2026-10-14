@@ -138,5 +138,7 @@ Effort, and narrow Backlog ingress; it neither writes nor clears other fields.
 Current production Engineering separately owns Phase activation, eligibility,
 Status/Roadmap convergence, branches, first activity/Start Date, PR onboarding,
 review/completion and #50 terminal synchronization/Phase closure gating. These
-remain separate from this semantic package. Native relationships, Bug triage/
+remain separate from this semantic package. Standalone
+[Development relationships](pr-development.md) are implemented separately;
+production-wide Development routing, other relationship projection, Bug triage/
 Priority Score, Estimate execution, and native Project position remain deferred.

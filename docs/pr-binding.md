@@ -147,6 +147,11 @@ actions or transactional snapshot isolation. GitHub reads are not atomic. The
 current branch/provenance contracts cannot distinguish deletion and recreation
 with identical ref and SHA; no ref-incarnation tracking or revocation is added.
 
+`internal/prdevelopment` consumes fresh accepted binding and validated #47
+completion, with independent current membership checks. It does not redefine
+#46 eligibility or derive authority from native links. See
+[Development relationships](pr-development.md) for its standalone contract.
+
 ## Verification and deployment
 
 Committed tests cover constructor validation, pure developer eligibility, strict

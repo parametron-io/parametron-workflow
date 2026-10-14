@@ -200,7 +200,10 @@ are integrated through `internal/app`, along with explicit Phase #3 directives,
 semantic acceptance, and authorized metadata/routing reconciliation. Engineering
 lifecycle/reconciliation, branches and first activity are now production-composed;
 accepted PR onboarding and deterministic review/rework are production-composed.
-Relationships and broader continuous/global PR orchestration remain deferred.
+Standalone [Development reconciliation](pr-development.md) and its separate
+transport capabilities are implemented and independently tested. Production-wide
+Development routing, other relationships and broader continuous/global PR
+orchestration remain deferred.
 Separate native lifecycle capabilities are implemented as described below.
 Client itself stays read-only: composition requires
 separate narrow capabilities and deterministic Go authorization.
@@ -444,3 +447,37 @@ Local HTTP fixtures cover exact operations/variables and every preflight identit
 dimension, pagination, malformed/duplicate/unordered transitions, mutation receipt
 identity/state, cancellation, typed failures and absence of hidden retries. They
 do not verify authenticated live GitHub permissions or deployed App grants.
+
+## Development relationship capabilities
+
+#51 adds separate `github.DevelopmentReader.DevelopmentReferences(ctx, pr)` and
+`github.DevelopmentWriter.AddDevelopmentReference(ctx, pr, issue)` /
+`RemoveDevelopmentReference(ctx, pr, issue)`. Neither `Client` nor `Mutator` is
+extended. Policy receives no arbitrary GraphQL execution.
+
+`DevelopmentReferences` contains exact `PR`, `Manual`, `Keyword`, and `Complete`
+evidence. Transport fully paginates `closingIssuesReferences` twice: manual links
+with `userLinkedOnly:true`, and non-manual/keyword references with
+`excludeUserLinked:true`. Nodes must decode as Issues with repository-qualified
+identities. Validation rejects duplicates within a class, inconsistent repository
+names/node IDs or endpoint numbers/node IDs, incomplete data, and an Issue endpoint
+reusing the PR node ID. Identical overlap across the two classes is valid.
+
+Exact PR identity and lifecycle are checked before and after observation; a changed
+state is Conflict. Mutation preflight requires OPEN PR, exact Issue identity and
+fresh complete relationship observation. Already-present manual adds and absent
+manual removals are no-ops; keyword-only references are never removed. Narrow
+`addCloseIssueReferences` / `removeCloseIssueReferences` inputs contain `issueId`
+and a single-element `pullRequestIds`. The response must contain the exact Issue
+identity. A receipt validates the response, not atomic convergence; the controller
+re-reads current state afterward. Supported API operations do not grant workflow
+authority or prove live credential permissions.
+
+Typed GitHub failures and context cancellation/deadlines propagate, including
+in-flight operations; no hidden retry is performed. Local
+[HTTP/GraphQL tests](../internal/github/development_test.go) verify filters,
+pagination, endpoint/lifecycle preflight, exact mutation inputs and receipts,
+malformed/error handling and cancellation. Authenticated live API compatibility
+and GitHub App permission rehearsal remain unverified. No speculative installation
+permission configuration or production-wide relationship orchestration is added.
+See [the dedicated contract](pr-development.md) for authorization and exclusions.
