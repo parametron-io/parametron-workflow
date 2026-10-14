@@ -15,7 +15,9 @@ Deterministic onboarding and review/rework work without a semantic Runner.
 current PR/Target/Project and native review evidence to authorize durable review
 cycles and one-shot rework Draft effects. See
 [review execution](execution.md#accepted-pr-review-and-rework).
-Relationship projection, production companion integration and numeric convergence,
+Standalone [Development reconciliation](pr-development.md) is implemented and
+independently tested. Production-wide Development routing, other relationship
+projection, production companion integration and numeric convergence,
 managed feedback and full Phase #5 continuous/global orchestration remain deferred.
 Accepted completion and terminal synchronization are implemented separately below.
 
@@ -232,7 +234,9 @@ Status writes, but cannot replay a Draft attempt without its durable receipt;
 unresolved ambiguity requires manual investigation. The Engineering lane is
 process-local, with no distributed serialization or GitHub/SQLite atomicity.
 
-Relationship projection, production companion integration and numeric convergence,
+Standalone [Development reconciliation](pr-development.md) is implemented and
+independently tested. Production-wide Development routing, other relationship
+projection, production companion integration and numeric convergence,
 full Phase #5 continuous/global orchestration, Bug Tracker scoring/admission, nested lifecycle,
 branch deletion/revocation, native Project positioning, heavy agents, automatic
 merge, managed feedback/decision-record persistence, App token minting, and

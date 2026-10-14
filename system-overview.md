@@ -38,11 +38,14 @@ terminal state and never authorizes closure. Durable merge-close attempts and
 validated receipts protect later native reopen. Production Engineering integration
 and local policy, transport, persistence/restart and worker tests cover these
 boundaries; see [terminal execution](docs/execution.md#accepted-pr-completion-and-terminal-synchronization).
-Relationship projection, managed feedback, full Phase #5 continuous/global orchestration,
+Issue #51 implements independently tested [standalone Development reconciliation](docs/pr-development.md)
+from fresh accepted binding, validated onboarding and current managed membership.
+Production-wide Development routing, other relationship projection, managed feedback,
+and full Phase #5 continuous/global orchestration,
 nested-child lifecycle, Bug Tracker scoring/admission, branch deletion/revocation,
 native Project position reconciliation, heavy agents, automatic merge, and
 distributed coordination are deferred. Declarative graph facts are current;
-this completion does not claim native relationship projection is implemented.
+Parent/dependency/SubIssues projection remains a future contract.
 Assignee initialization is suppressed while reliable assignability evidence is
 unavailable. Future sections below specify contracts rather than implemented
 Phase #4 behavior.
@@ -741,6 +744,14 @@ Pull Request and projects to GitHub's native Development relationship.
 
 `Refs` must never substitute for `Target` in lifecycle policy.
 
+Standalone #51 projection consumes current accepted #46 binding and validated
+#47 onboarding completion, independently requiring exact current Engineering
+membership for PR and Target. Native links, labels, Project positions and branch
+names alone cannot select or replace the Target. Repository-qualified identities
+are preserved. Manual links are correctable only with unambiguous owned evidence;
+keyword links are never removed and conflicting keyword evidence fails closed.
+See [Development relationships](docs/pr-development.md); production routing remains deferred.
+
 ### 11.5 Security Alert
 
 GitHub Security Alert relationships are treated as external/native metadata.
@@ -1193,11 +1204,13 @@ including after completion, without replaying initial Status or Draft effects.
 This is a narrow onboarding controller, not a general Project reconciliation engine.
 Durable evidence is historical fact, never a permanent authorization grant.
 
-Native Development relationship projection/drift repair, semantic PR labeling,
-and production PR companion numeric convergence remain deferred. Pure #48
-allocation is implemented separately (Section 19). The intended later contract
-projects `Target` into Development and repairs contradictory manual relationships;
-no relationship mutation is implemented here. See [PR binding](docs/pr-binding.md),
+Standalone `internal/prdevelopment` now projects accepted `Target` authority and
+repairs contradictory manual Development links after fresh binding, validated
+onboarding and current membership checks. It adds no onboarding or lifecycle
+effects. Production-wide invocation, semantic PR labeling and production PR
+companion numeric convergence remain deferred. Pure #48 allocation is implemented
+separately (Section 19). See [Development relationships](docs/pr-development.md),
+[PR binding](docs/pr-binding.md),
 [execution](docs/execution.md#accepted-pr-onboarding), and
 [persistence](docs/persistence.md#accepted-pr-onboarding-provenance).
 
@@ -1459,7 +1472,10 @@ PR closed without merge
 The Target Issue must not become `Done` or close merely because its
 implementation PR was closed.
 
-The existing Development relationship may remain as historical traceability.
+The standalone Development controller preserves existing relationships for CLOSED
+or MERGED PRs without adding or removing links. Historical traceability is not
+Target completion evidence. Reopened PRs require fresh current binding and lifecycle
+prerequisites; an old link cannot authorize fresh writes to a closed Target.
 A later replacement PR may bind to the same Target through a valid `Target:`
 directive and the authorized development branch policy. It requires its own
 accepted authority. Durable Target branch/start provenance is preserved. A current
@@ -1737,6 +1753,14 @@ changed/incomplete categories retry; generic activity/branch storage failures an
 structural/policy/provenance/Project/configuration corruption are bounded terminal
 failures. Typed GitHub transient/rate-limit behavior remains separate.
 
+Standalone #51 Development reconciliation uses its own process-local lane and
+two fresh authority/state barriers before each effect, then reassesses from new
+observations. Contradictory manual removals precede a missing canonical add.
+Partial failures return to the caller; retry skips effects already converged.
+This is bounded recovery, not an atomic snapshot or distributed lock. No production
+event routing or dedicated worker error mapping is composed for this controller.
+See [execution](docs/execution.md#standalone-development-relationship-reconciliation).
+
 ---
 
 ## 27. One-Shot Actions vs Continuous Invariants
@@ -1791,7 +1815,12 @@ GitHub Development relationship
 ```
 
 If a user manually adds an unrelated Development Issue through the GitHub UI,
-the controller removes that drift and restores the declared Target projection.
+the standalone controller can remove proven contradictory manual drift and restore
+the declared Target projection only while current accepted binding, validated
+onboarding, exact managed membership and unambiguous endpoint evidence authorize
+it. Keyword-derived references cannot be removed; conflicting evidence fails
+closed. Production does not yet invoke this correction automatically on every
+manual change.
 
 The same principle applies to other controller-owned relationships.
 
@@ -1942,8 +1971,9 @@ and lifecycle model defined here.
 ## 34. End-to-End Example
 
 The flow below combines implemented branch/activity, PR onboarding and review/rework
-and accepted completion/terminal synchronization with planned Development
-projection and production companion numeric convergence. Planned steps are marked:
+and accepted completion/terminal synchronization with standalone Development
+projection and planned production companion numeric convergence. Development is
+not yet production-routed; planned steps are marked:
 
 ```text
 Phase #45 unblocked
@@ -1963,8 +1993,9 @@ PR #80 opened
 Target: #48
 → Target + branch + author validated
 → PR added to Project
-→ Development relationship projected (planned)
 → PR normalized to Draft once
+→ durable onboarding completion recorded
+→ Development relationship projected (standalone capability; production routing deferred)
 → PR Roadmap Order converges after Target within +1..+9 companions (planned production integration)
 
 PR #80 Draft → Ready for review

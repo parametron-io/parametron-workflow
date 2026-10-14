@@ -489,7 +489,8 @@ separate; no provider/storage diagnostics leak into stable categories.
 [#48 pure PR companion ordering](pr-companion-ordering.md) is implemented and
 independently tested. Production companion composition, numeric convergence,
 ownership-provenance acquisition and orchestration remain deferred.
-Later Phase #5 work retains relationships and continuous/global orchestration.
+Later Phase #5 work retains production-wide Development routing, other
+relationship projection and continuous/global orchestration.
 Nested lifecycle, Bug Tracker scoring/admission,
 heavy agents, automatic merge, and distributed coordination remain deferred.
 
@@ -544,9 +545,36 @@ cancellation follows worker release semantics. A transport retry can encounter a
 persisted attempt and then fail closed with `ErrAmbiguous`; it is not automatic
 convergence. No recovery operation synthesizes successful provenance.
 
-Relationship projection, production companion integration and numeric
+Standalone [Development reconciliation](pr-development.md) is implemented and
+independently tested. Production-wide Development routing, other relationship
+projection, production companion integration and numeric
 reconciliation remain deferred. Separate #50 completion and terminal
 synchronization composition is described below.
+
+## Standalone Development relationship reconciliation
+
+`prdevelopment.New(Config)` / `Reconcile(ctx, resource)` is independently tested
+and consumes fresh #46 binding plus validated #47 completion; history alone is
+not authorization. Exact configured PR/Target repositories and Engineering/Bug
+Project identities are checked. Both resources require one nonarchived Engineering
+item and no Bug Tracker membership. The controller restores no membership itself.
+
+Its context-aware lane serializes calls on one controller instance. Each effect
+requires two fresh read/check barriers covering binding, completion, current
+PR/Target, membership and complete typed links. Material drift rejects the write.
+Manual contradictions are removed in stable order before a missing canonical add;
+correct manual or keyword links avoid redundant writes. Successful effects trigger
+fresh reassessment; partial failures return immediately and later calls start from
+new observations, skipping already-converged effects. Unobservable success fails
+closed and persistent drift is bounded to 256 effects per call. Cancellation
+propagates, including lane waits. CLOSED/MERGED PRs receive no relationship writes;
+reopening requires current authorization again.
+
+This lane is process-local, not distributed serialization, an atomic GitHub
+snapshot or a transaction. No production event routing or dedicated worker error
+classification is implemented for this controller. Review/completion mappings
+below do not apply to it. See [Development relationships](pr-development.md) for
+exact configuration, policy, lifecycle and verification boundaries.
 
 ## Accepted PR review and rework
 
@@ -733,7 +761,9 @@ later native reopen, stale reviews and fresh supported review continuation.
 Production worker fixtures exercise merge/restart/reopen, manual Done drift,
 invalid Phase close and direct Phase implementation. These establish local
 contracts, not authenticated live GitHub permissions or end-to-end deployment proof.
-Companion production allocation/numeric convergence, Development projection,
+Standalone [Development reconciliation](pr-development.md) is implemented and
+independently tested. Companion production allocation/numeric convergence,
+production-wide Development routing, other relationship projection,
 managed feedback, nested lifecycle, Bug Tracker policy, automatic merge, branch
 deletion/revocation, continuous/global orchestration and distributed coordination
 remain deferred.
