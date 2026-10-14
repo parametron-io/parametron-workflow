@@ -106,6 +106,10 @@ type connection struct {
 
 // connection follows every page and rejects missing metadata or cursor cycles.
 func (t *Transport) connection(ctx context.Context, id, typ, field, selection string) ([]json.RawMessage, error) {
+	return t.connectionWithExtra(ctx, id, typ, field, selection, "")
+}
+
+func (t *Transport) connectionWithExtra(ctx context.Context, id, typ, field, selection, override string) ([]json.RawMessage, error) {
 	var result []json.RawMessage
 	var cursor any
 	seen := map[string]bool{}
@@ -125,6 +129,9 @@ func (t *Transport) connection(ctx context.Context, id, typ, field, selection st
 		}
 		if field == "timelineItems" {
 			extra = ",itemTypes:[READY_FOR_REVIEW_EVENT,CONVERT_TO_DRAFT_EVENT]"
+		}
+		if override != "" {
+			extra = override
 		}
 		q := `query($id:ID!,$cursor:String){node(id:$id){__typename ... on ` + typ + ` {result:` + field + `(first:100,after:$cursor` + extra + `){nodes{` + selection + `} pageInfo{hasNextPage endCursor}}}}}`
 		if err := t.query(ctx, q, map[string]any{"id": id, "cursor": cursor}, &data); err != nil {

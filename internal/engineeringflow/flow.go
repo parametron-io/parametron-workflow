@@ -18,8 +18,10 @@ import (
 	ec "github.com/parametron-io/parametron-workflow/internal/engineeringcontext"
 	ep "github.com/parametron-io/parametron-workflow/internal/engineeringpolicy"
 	er "github.com/parametron-io/parametron-workflow/internal/engineeringreconcile"
+	et "github.com/parametron-io/parametron-workflow/internal/engineeringterminal"
 	"github.com/parametron-io/parametron-workflow/internal/github"
 	"github.com/parametron-io/parametron-workflow/internal/observe"
+	"github.com/parametron-io/parametron-workflow/internal/prcompletion"
 	"github.com/parametron-io/parametron-workflow/internal/prreview"
 	"github.com/parametron-io/parametron-workflow/internal/semanticflow"
 	"github.com/parametron-io/parametron-workflow/internal/storage"
@@ -51,6 +53,8 @@ type Review interface {
 }
 
 type Config struct {
+	Completion     *prcompletion.Controller
+	Terminal       *et.Controller
 	Review         Review
 	Onboarding     Onboarding
 	PRProjectItems github.PullRequestProjectItemReader
@@ -72,6 +76,9 @@ type Flow struct {
 }
 
 func New(c Config) (*Flow, error) {
+	if c.Completion != nil && c.Terminal == nil {
+		return nil, ErrInvalid
+	}
 	if c.Review != nil && (absent(c.Review) || absent(c.Onboarding)) {
 		return nil, ErrInvalid
 	}
@@ -178,6 +185,32 @@ func (f *Flow) Process(ctx context.Context, e storage.Event) error {
 		return observe.ErrBinding
 	}
 	if e.Resource.Kind == "pull_request" {
+		if f.cfg.Completion != nil {
+			handled := false
+			err := f.withLane(ctx, func() error {
+				result, completionErr := f.cfg.Completion.Handle(ctx, e)
+				handled = result.Handled
+				if completionErr != nil && (!handled || result.Target.Kind == "" || ctx.Err() != nil) {
+					return completionErr
+				}
+				if !handled || result.Target.Kind == "" {
+					return completionErr
+				}
+				if f.cfg.Terminal != nil {
+					if _, err := f.cfg.Terminal.Synchronize(ctx, result.Target); err != nil {
+						return errors.Join(completionErr, err)
+					}
+				}
+				snapshot, err := f.cfg.Snapshot.ResolveSnapshot(ctx)
+				if err != nil {
+					return errors.Join(completionErr, err)
+				}
+				return errors.Join(completionErr, f.cfg.Reconciler.Reconcile(ctx, snapshot, result.Target))
+			})
+			if err != nil || handled {
+				return err
+			}
+		}
 		if f.cfg.Onboarding == nil && f.cfg.Review == nil {
 			return f.cfg.Foundation.Process(ctx, e)
 		}
@@ -233,6 +266,31 @@ func (f *Flow) Process(ctx context.Context, e storage.Event) error {
 	if e.Resource.Kind != "issue" {
 		return ErrInvalid
 	}
+	if f.cfg.Terminal != nil {
+		observed, err := f.cfg.Reader.ReadCurrent(ctx, *e.Resource)
+		if err != nil {
+			return err
+		}
+		terminal := observed.Issue != nil && observed.Issue.State == "CLOSED"
+		for _, p := range observed.Projects {
+			if p.ID == f.cfg.Deployment.Engineering.ID {
+				for _, item := range p.Items {
+					terminal = terminal || item.Fields[config.Status].OptionID == f.cfg.Deployment.Engineering.StatusOptions[config.Done]
+				}
+			}
+		}
+		// Native consistency never waits for optional semantic execution.
+		if terminal {
+			err := f.withLane(ctx, func() error { return f.reconcile(ctx, e) })
+			// Preserve configured semantic processing after consistency correction.
+			// Missing Type authority can also be supplied by that path; an
+			// incomplete snapshot authorizes no terminal effect.
+			if err != nil && !errors.Is(err, ec.ErrIncomplete) || f.cfg.Enricher == nil || e.Delivery.EventName == "push" || e.Delivery.EventName == "projects_v2_item" {
+				return err
+			}
+		}
+	}
+
 	var enriched semanticflow.PolicyInput
 	semantic := e.Delivery.EventName != "push" && e.Delivery.EventName != "projects_v2_item" && f.cfg.Enricher != nil
 	if semantic {
@@ -347,6 +405,11 @@ func (g reviewActivityFields) SetProjectOption(ctx context.Context, project, ite
 	return g.fields.SetProjectOption(ctx, project, item, field, option)
 }
 func (f *Flow) reconcile(ctx context.Context, event storage.Event) error {
+	if f.cfg.Terminal != nil {
+		if _, err := f.cfg.Terminal.Synchronize(ctx, *event.Resource); err != nil {
+			return err
+		}
+	}
 	snapshot, err := f.cfg.Snapshot.ResolveSnapshot(ctx)
 	if err != nil {
 		return err

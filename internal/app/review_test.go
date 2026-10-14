@@ -29,6 +29,13 @@ type reviewRuntimeClient struct {
 	statusFailure string
 }
 
+func (f *reviewRuntimeClient) NativeLifecycle(ctx context.Context, id github.Identity, kind string) (github.NativeLifecycle, error) {
+	if id != f.pr.Identity || kind != "pull_request" || f.pr.State != "OPEN" {
+		f.t.Fatalf("unexpected native lifecycle read: %+v/%s", id, kind)
+	}
+	return github.NativeLifecycle{Resource: id, Kind: kind, State: f.pr.State}, ctx.Err()
+}
+
 func (f *reviewRuntimeClient) PullRequestReviewFacts(ctx context.Context, pr github.Identity) (github.ReviewFacts, error) {
 	if pr != f.pr.Identity {
 		f.t.Fatalf("wrong native facts identity %+v", pr)

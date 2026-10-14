@@ -35,6 +35,7 @@ type Store interface {
 	RecordProvenance(context.Context, storage.Provenance) (bool, error)
 }
 type Config struct {
+	Native     github.NativeLifecycleReader
 	Deployment config.ResolvedConfig
 	Binding    Binding
 	Onboarding CompletionReader
@@ -64,6 +65,9 @@ func absent(v any) bool {
 	return false
 }
 func New(c Config) (*Controller, error) {
+	if c.Native != nil && absent(c.Native) {
+		return nil, ErrInvalid
+	}
 	for _, v := range []any{c.Binding, c.Onboarding, c.Reader, c.Reviews, c.PRItems, c.Items, c.Status, c.Draft, c.Store} {
 		if absent(v) {
 			return nil, ErrInvalid
@@ -292,13 +296,36 @@ func (c *Controller) Handle(ctx context.Context, e storage.Event) error {
 		if err != nil {
 			return err
 		}
+		if c.cfg.Native != nil {
+			facts, err := c.cfg.Native.NativeLifecycle(ctx, a.binding.Evidence.PR, "pull_request")
+			if err != nil {
+				return err
+			}
+			if err := facts.Validate(a.binding.Evidence.PR, "pull_request", "OPEN"); err != nil {
+				return err
+			}
+			for _, t := range facts.Transitions {
+				if t.Kind == "ReopenedEvent" && !candidate.At.After(t.CreatedAt) {
+					return nil
+				}
+			}
+		}
 		records, err := c.load(ctx)
 		if err != nil {
 			return err
 		}
 		for _, state := range records {
 			if key(resource(state.start.Binding.Target, "issue")) == key(resource(a.binding.Evidence.Target, "issue")) && state.start.Binding.PR != a.binding.Evidence.PR {
-				return ErrRejected
+				if c.cfg.Native == nil {
+					return ErrRejected
+				}
+				applicable, err := c.applicable(ctx, state)
+				if err != nil {
+					return err
+				}
+				if applicable {
+					return ErrRejected
+				}
 			}
 		}
 		current, err := latest(records, a.binding.Evidence.PR)
@@ -306,6 +333,18 @@ func (c *Controller) Handle(ctx context.Context, e storage.Event) error {
 			return err
 		}
 		var cycle *Cycle
+		if current != nil {
+			applicable, err := c.applicable(ctx, current)
+			if err != nil {
+				return err
+			}
+			// A new readiness notification may establish a current interval's
+			// cycle. Evaluate still requires the completed rework chain; older
+			// review submissions cannot resume superseded authority.
+			if !applicable && (candidate.Kind != "ready" || current.attempt == nil || current.doneAt.IsZero()) {
+				return ErrRejected
+			}
+		}
 		if current != nil {
 			cy := current.cycle()
 			cycle = &cy
@@ -443,6 +482,13 @@ func (c *Controller) active(ctx context.Context, state *record) (authority, conf
 	if state == nil {
 		return zero, "", ErrInvalid
 	}
+	applicable, err := c.applicable(ctx, state)
+	if err != nil {
+		return zero, "", err
+	}
+	if !applicable {
+		return zero, "", errInactive
+	}
 	a, err := c.fresh(ctx, state.start.Resource, nil)
 	if err != nil {
 		return a, "", err
@@ -530,7 +576,7 @@ func (c *Controller) Converge(ctx context.Context, r storage.Resource) error {
 			return err
 		}
 		err = c.converge(ctx, state)
-		if errors.Is(err, ErrSuperseded) {
+		if errors.Is(err, ErrSuperseded) || errors.Is(err, errInactive) {
 			return nil
 		}
 		return err
@@ -540,6 +586,27 @@ func (c *Controller) Converge(ctx context.Context, r storage.Resource) error {
 // TargetStatus supplies only an exact Target overlay. Parent Phase policy is
 // untouched. Conflicting implementation PRs cannot compete for Status ownership.
 func (c *Controller) TargetStatus(ctx context.Context, target storage.Resource) (config.StatusRole, bool, error) {
+	status, active, err := c.CanonicalTargetStatus(ctx, target)
+	if err != nil || !active {
+		return status, false, err
+	}
+	o, err := c.cfg.Reader.ReadCurrent(ctx, target)
+	if err != nil {
+		return "", false, err
+	}
+	if o.Issue == nil || o.PullRequest != nil || resource(o.Issue.Identity, "issue") != target || o.Resource != target {
+		return "", false, ErrChanged
+	}
+	if o.Issue.State != "OPEN" {
+		return "", false, nil
+	}
+	own, err := ownership(o.Issue.Body, o.Issue.Identity)
+	return status, own, err
+}
+
+// CanonicalTargetStatus returns validated review authority independently of
+// ordinary field ownership, for the narrow native-open/Done consistency repair.
+func (c *Controller) CanonicalTargetStatus(ctx context.Context, target storage.Resource) (config.StatusRole, bool, error) {
 	records, err := c.load(ctx)
 	if err != nil {
 		return "", false, err
@@ -547,7 +614,17 @@ func (c *Controller) TargetStatus(ctx context.Context, target storage.Resource) 
 	prs := map[github.Identity]bool{}
 	for _, state := range records {
 		if key(resource(state.start.Binding.Target, "issue")) == key(target) {
-			prs[state.start.Binding.PR] = true
+			current, err := latest(records, state.start.Binding.PR)
+			if err != nil {
+				return "", false, err
+			}
+			applicable, err := c.applicable(ctx, current)
+			if err != nil {
+				return "", false, err
+			}
+			if applicable {
+				prs[state.start.Binding.PR] = true
+			}
 		}
 	}
 	if len(prs) > 1 {
@@ -561,13 +638,89 @@ func (c *Controller) TargetStatus(ctx context.Context, target storage.Resource) 
 		if resource(state.start.Binding.Target, "issue") != target {
 			return "", false, ErrChanged
 		}
-		a, status, err := c.active(ctx, state)
+		_, status, err := c.active(ctx, state)
+		if errors.Is(err, errInactive) {
+			return "", false, nil
+		}
 		if err != nil {
 			return "", false, err
 		}
-		return status, a.targetOwned, nil
+		return status, true, nil
 	}
 	return "", false, ctx.Err()
+}
+
+// PRStatus is a read-only canonical Status accessor. It never normalizes Draft
+// or creates a review cycle. The caller separately validates current binding.
+func (c *Controller) PRStatus(ctx context.Context, r storage.Resource) (config.StatusRole, error) {
+	records, err := c.load(ctx)
+	if err != nil {
+		return "", err
+	}
+	var identity github.Identity
+	for _, state := range records {
+		if key(state.start.Resource) == key(r) {
+			identity = state.start.Binding.PR
+		}
+	}
+	if identity.ID == "" {
+		return config.InProgress, nil
+	}
+	state, err := latest(records, identity)
+	if err != nil {
+		return "", err
+	}
+	_, status, err := c.active(ctx, state)
+	if errors.Is(err, errInactive) {
+		return config.InProgress, nil
+	}
+	return status, err
+}
+
+var errInactive = errors.New("pr review: native terminal or superseded by reopening")
+
+func (c *Controller) applicable(ctx context.Context, state *record) (bool, error) {
+	if state == nil {
+		return false, ErrInvalid
+	}
+	o, err := c.cfg.Reader.ReadCurrent(ctx, state.start.Resource)
+	if err != nil {
+		return false, err
+	}
+	if o.PullRequest == nil || o.PullRequest.Identity != state.start.Binding.PR {
+		return false, ErrChanged
+	}
+	if o.PullRequest.State == "CLOSED" || o.PullRequest.State == "MERGED" {
+		return false, nil
+	}
+	if o.PullRequest.State != "OPEN" {
+		return false, ErrChanged
+	}
+	target, err := c.cfg.Reader.ReadCurrent(ctx, resource(state.start.Binding.Target, "issue"))
+	if err != nil {
+		return false, err
+	}
+	if target.Issue == nil || target.Issue.Identity != state.start.Binding.Target {
+		return false, ErrChanged
+	}
+	if target.Issue.State == "CLOSED" {
+		return false, nil
+	}
+	if c.cfg.Native != nil {
+		facts, err := c.cfg.Native.NativeLifecycle(ctx, o.PullRequest.Identity, "pull_request")
+		if err != nil {
+			return false, err
+		}
+		if err := facts.Validate(o.PullRequest.Identity, "pull_request", "OPEN"); err != nil {
+			return false, err
+		}
+		for _, t := range facts.Transitions {
+			if t.Kind == "ReopenedEvent" && !state.start.Ready.CreatedAt.After(t.CreatedAt) {
+				return false, nil
+			}
+		}
+	}
+	return true, ctx.Err()
 }
 
 func (c *Controller) storageError(ctx context.Context, err error) error {
