@@ -2,6 +2,7 @@ package pronboarding
 
 import (
 	"context"
+	"encoding/json"
 	"time"
 
 	"github.com/parametron-io/parametron-workflow/internal/prbinding"
@@ -9,7 +10,8 @@ import (
 )
 
 // Completion is validated historical onboarding evidence, not current binding
-// authorization. Consumers must obtain a fresh accepted binding before effects.
+// authorization. Consumers must obtain fresh effect-specific authorization.
+// Ordinary onboarding/review effects still require a fresh accepted binding.
 type Completion struct {
 	Completed   bool
 	Resource    storage.Resource
@@ -66,4 +68,35 @@ func (c *Controller) Completed(ctx context.Context, r storage.Resource) (Complet
 		return Completion{}, err
 	}
 	return Completion{Completed: true, Resource: r, Binding: f.e.Binding, Project: f.e.Project, DeliveryID: f.delivery, CompletedAt: last}, nil
+}
+
+// Completions enumerates validated package-owned completion evidence. Consumers
+// must still revalidate current authority; raw provenance never leaves here.
+func (c *Controller) Completions(ctx context.Context) ([]Completion, error) {
+	reader, ok := c.cfg.Store.(interface {
+		ProvenanceRecords(context.Context, string) ([]storage.Provenance, error)
+	})
+	if !ok || absent(reader) {
+		return nil, ErrInvalid
+	}
+	records, err := reader.ProvenanceRecords(ctx, prefix+"completed_v1")
+	if err != nil {
+		return nil, c.storageError(ctx, err)
+	}
+	out := make([]Completion, 0, len(records))
+	for _, p := range records {
+		var e evidence
+		if json.Unmarshal(p.Metadata, &e) != nil {
+			return nil, ErrProvenance
+		}
+		completed, err := c.Completed(ctx, e.Resource)
+		if err != nil {
+			return nil, err
+		}
+		if !completed.Completed || p.Key != key(e.Resource) || p.Namespace != prefix+"completed_v1" || p.DeliveryID != completed.DeliveryID || !p.CreatedAt.Equal(completed.CompletedAt) {
+			return nil, ErrProvenance
+		}
+		out = append(out, completed)
+	}
+	return out, ctx.Err()
 }

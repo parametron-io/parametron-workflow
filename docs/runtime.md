@@ -16,8 +16,8 @@ current PR/Target/Project and native review evidence to authorize durable review
 cycles and one-shot rework Draft effects. See
 [review execution](execution.md#accepted-pr-review-and-rework).
 Relationship projection, production companion integration and numeric convergence,
-merge/completion, managed feedback and
-general PR lifecycle reconciliation remain deferred.
+managed feedback and full Phase #5 continuous/global orchestration remain deferred.
+Accepted completion and terminal synchronization are implemented separately below.
 
 [#48 pure PR companion ordering](pr-companion-ordering.md) is implemented and
 independently tested, but is not composed into this production path. Persisted
@@ -87,7 +87,8 @@ transport, validates process settings, discovers live GitHub schema, calls
 Engineering composition when enabled, worker/ingress, and finally binds HTTP.
 Engineering requires IssueLister, Branches, CommitComparison, LifecycleFields,
 NumericFields, ProjectItemReader, DeveloperReads, DraftConverter,
-PullRequestProjectItemReader, ReviewFactsReader (part of Client), and the narrow
+PullRequestProjectItemReader, ReviewFactsReader (part of Client),
+NativeLifecycleReader, IssueStates, and the narrow
 `pronboarding.Projects` method set
 (`AddProjectItem`, `SetProjectOption`) on the shared client; missing narrow capabilities
 fail composition before HTTP serving. The same client performs discovery and
@@ -231,9 +232,8 @@ Status writes, but cannot replay a Draft attempt without its durable receipt;
 unresolved ambiguity requires manual investigation. The Engineering lane is
 process-local, with no distributed serialization or GitHub/SQLite atomicity.
 
-Phase #5 merge/completion, relationship projection, production companion
-integration and numeric convergence, terminal
-close/reopen synchronization, Bug Tracker scoring/admission, nested lifecycle,
+Relationship projection, production companion integration and numeric convergence,
+full Phase #5 continuous/global orchestration, Bug Tracker scoring/admission, nested lifecycle,
 branch deletion/revocation, native Project positioning, heavy agents, automatic
 merge, managed feedback/decision-record persistence, App token minting, and
 distributed coordination remain deferred.
@@ -262,3 +262,42 @@ activity resume, current-graph parent progression, topology-changing partial
 failure, process-local lane cancellation/semantic overlap, Project/push routing,
 non-applicable settlement, narrow numeric transport, explicit semantic authority,
 terminal storage classification, and default CLI Engineering enablement.
+
+## Accepted completion and native terminal consistency
+
+Production Engineering additionally requires `github.NativeLifecycleReader` and
+`github.IssueStates`; missing or typed-nil capabilities fail composition with
+`prcompletion.ErrInvalid`. `app` composes `internal/prcompletion`,
+`internal/engineeringterminal`, native-aware review and the existing reconciler
+using the shared Store, reader, complete Snapshot and narrow GitHub capabilities.
+No semantic Runner is required for this deterministic path.
+
+Within the process-local Engineering lane, current terminal PR handling precedes
+onboarding/review. Accepted verified merges project PR Done and authorize narrow
+native Task/Feature Target Close; abandonment projects PR Done while preserving
+an OPEN Target and ordinary owned In Progress rollback. Direct Phase PR merge
+never closes the Phase. Native Issue terminal consistency runs before ordinary
+convergence, with fresh barriers after native mutation and existing #35/#36
+recomputation for dependency/roadmap effects.
+
+Native Issue Close is manual completion authority. Project Done never initiates
+Close. Valid CLOSED Issues project Done; OPEN/Done contradictions receive fresh
+canonical nonterminal Status, even with Set-Status disabled. Ordinary lifecycle
+writes remain ownership-gated. Explicit Phase native Close requires all
+authoritative direct children CLOSED; an invalid close is reopened with a typed
+feedback-ready rejection, without comment emission. Configured semantic processing
+for supported Issue notifications remains available after terminal correction;
+terminal routing does not silently disable it. This adds no production provider.
+
+Validated completed close provenance prevents historical merge replay after later
+native reopen. Receipt-less attempts remain indeterminate across restart and may
+require investigation; GitHub/SQLite atomicity and exactly-once mutation execution
+are not guaranteed. Partial Project drift retries from fresh facts.
+`pr_completion_changed` retries; other `pr_completion_*` categories and
+`engineering_terminal_invalid` are terminal. Propagated GitHub transient/rate-limit
+failures retain retry handling and cancellation releases claims without resolving
+ambiguous attempts. See [execution](execution.md#accepted-pr-completion-and-terminal-synchronization)
+for exact error mappings and committed policy, transport, SQLite/restart and
+production-worker coverage. Local tests do not establish live GitHub permissions.
+Full Phase #5 continuous/global orchestration and the other deferred capabilities
+listed above remain future work.

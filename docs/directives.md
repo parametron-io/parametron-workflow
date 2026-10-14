@@ -157,5 +157,6 @@ Set-Status ownership in
 Status and eligibility are independent of Set-Status ownership and Automation
 suppression. Production Engineering now consumes current intent through complete
 Snapshot and pure policy before branch/activity and field reconciliation. The
-parser itself adds no workflow authority. Native relationship projection and
-terminal close/reopen synchronization remain deferred.
+parser itself adds no workflow authority. Native relationship projection remains
+deferred; #50 terminal synchronization is separately composed in
+[Engineering execution](execution.md#accepted-pr-completion-and-terminal-synchronization).

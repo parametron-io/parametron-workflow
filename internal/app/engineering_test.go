@@ -76,9 +76,12 @@ func (f appNarrowFields) ClearProjectNumber(context.Context, string, string, str
 	f.t.Error("absent Roadmap value must not clear")
 	return nil
 }
-func (f appNarrowFields) CurrentProjectItem(context.Context, string) (github.CurrentProjectItem, error) {
-	f.t.Error("ordinary Issue used Project notification lookup")
-	return github.CurrentProjectItem{}, nil
+func (f appNarrowFields) CurrentProjectItem(ctx context.Context, id string) (github.CurrentProjectItem, error) {
+	if id != "item" {
+		f.t.Fatalf("terminal consistency read unrelated item %q", id)
+	}
+	i := github.Identity{ID: "current", Repository: github.Repository{ID: "R", Owner: "parametron-io", Name: "repo"}, Number: 39}
+	return github.CurrentProjectItem{ID: id, ProjectID: "engineering", ContentKind: "Issue", Issue: &i}, ctx.Err()
 }
 func (f appNarrowFields) CompareCommits(context.Context, github.Repository, string, string) (github.Comparison, error) {
 	f.t.Error("ordinary CLOSED Issue compared commits")
@@ -161,7 +164,7 @@ func TestEngineeringSemanticCompositionUsesOnlyExplicitMutationAuthority(t *test
 				i := current(39)
 				return []github.ListedIssue{{Identity: i.Identity, Title: i.Title, Body: i.Body, State: i.State, Type: i.Type}}, ctx.Err()
 			}}
-			c.Client = engineeringCapabilityClient{Client: base, IssueLister: lister, Branches: github.BranchFake{}, CommitComparison: narrow, LifecycleFields: narrow, NumericFields: narrow, ProjectItemReader: narrow, appOnboardingCapabilities: narrow}
+			c.Client = engineeringCapabilityClient{Client: base, IssueLister: lister, Branches: github.BranchFake{}, CommitComparison: narrow, LifecycleFields: narrow, NumericFields: narrow, ProjectItemReader: narrow, appOnboardingCapabilities: narrow, NativeLifecycleReader: base, IssueStates: base}
 			c.Engineering = true
 			r := openRuntime(t, c)
 			for _, id := range []string{"first", "later"} {
@@ -226,6 +229,8 @@ func TestEngineeringFailureClassification(t *testing.T) {
 }
 
 type engineeringCapabilityClient struct {
+	github.NativeLifecycleReader
+	github.IssueStates
 	appOnboardingCapabilities
 	github.Client
 	github.IssueLister

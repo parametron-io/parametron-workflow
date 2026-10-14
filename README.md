@@ -68,10 +68,15 @@ rollback across durable cycles. See
 Pure [PR companion ordering](docs/pr-companion-ordering.md) is implemented and
 independently tested by #48. Production composition, live PR numeric-field
 convergence, ownership-provenance acquisition, and companion orchestration remain
-deferred. Development relationship projection, merge/completion,
-managed feedback, and general PR lifecycle reconciliation remain deferred.
-Terminal close/reopen synchronization, nested
-lifecycle, Bug Tracker
+deferred. Issue #50 implements independently verified accepted PR merge/abandonment,
+native Issue close/reopen synchronization and the direct-child Phase closure gate.
+Native Issue Close is manual completion authority; Project Done projects valid
+terminal state and never authorizes closure. Durable merge-close attempts and
+validated receipts protect later native reopen. Production Engineering integration
+and local policy, transport, persistence/restart and worker tests cover these
+boundaries; see [terminal execution](docs/execution.md#accepted-pr-completion-and-terminal-synchronization).
+Development relationship projection, managed feedback, full Phase #5 orchestration,
+nested lifecycle, Bug Tracker
 scoring/admission, branch deletion/revocation, heavy agents, automatic merge,
 native Project positioning, and distributed coordination are deferred. Assignees
 remain unchanged because reliable assignability evidence is unavailable.

@@ -163,7 +163,8 @@ not introduce production composition, live PR numeric-field writes/clears,
 persisted ownership-provenance acquisition, fresh field convergence/drift repair,
 retry or cross-resource sequencing, or webhook-driven companion orchestration.
 The Engineering Project does not automatically display these newly computed PR
-numbers today. Relationship projection, review transitions, merge/completion,
-terminal close/reopen synchronization, managed feedback, and Bug Tracker changes
-remain deferred. See [runtime](runtime.md), [execution](execution.md), and
+numbers today. Shared review/rework and #50 completion/terminal synchronization
+are implemented separately from companion allocation. Relationship projection,
+managed feedback, and Bug Tracker changes remain deferred. See [runtime](runtime.md),
+[execution](execution.md), and
 [architectural lifecycle contracts](../system-overview.md#19-pull-request-roadmap-order-companions).

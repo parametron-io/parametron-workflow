@@ -10,9 +10,11 @@ import (
 	ec "github.com/parametron-io/parametron-workflow/internal/engineeringcontext"
 	ef "github.com/parametron-io/parametron-workflow/internal/engineeringflow"
 	er "github.com/parametron-io/parametron-workflow/internal/engineeringreconcile"
+	et "github.com/parametron-io/parametron-workflow/internal/engineeringterminal"
 	"github.com/parametron-io/parametron-workflow/internal/github"
 	"github.com/parametron-io/parametron-workflow/internal/observe"
 	"github.com/parametron-io/parametron-workflow/internal/prbinding"
+	"github.com/parametron-io/parametron-workflow/internal/prcompletion"
 	"github.com/parametron-io/parametron-workflow/internal/pronboarding"
 	"github.com/parametron-io/parametron-workflow/internal/prreview"
 	"github.com/parametron-io/parametron-workflow/internal/semanticflow"
@@ -97,15 +99,31 @@ func composeEngineering(c Config, d config.ResolvedConfig, store *storage.Store,
 	if err != nil {
 		return nil, err
 	}
-	review, err := prreview.New(prreview.Config{Deployment: d, Binding: binding, Onboarding: onboarding, Reader: reader, Reviews: c.Client, PRItems: prItems, Items: items, Status: fields, Draft: draft, Store: store, Clock: c.Clock})
+	native, ok := c.Client.(github.NativeLifecycleReader)
+	if !ok || missingCapability(native) {
+		return nil, prcompletion.ErrInvalid
+	}
+	issueStates, ok := c.Client.(github.IssueStates)
+	if !ok || missingCapability(issueStates) {
+		return nil, prcompletion.ErrInvalid
+	}
+	review, err := prreview.New(prreview.Config{Native: native, Deployment: d, Binding: binding, Onboarding: onboarding, Reader: reader, Reviews: c.Client, PRItems: prItems, Items: items, Status: fields, Draft: draft, Store: store, Clock: c.Clock})
 	if err != nil {
 		return nil, err
 	}
-	reconciler, err := er.New(er.Config{Review: review, Project: d.Engineering, Projects: reader, Activity: activity, Fields: fields, Numbers: numbers})
+	completion, err := prcompletion.New(prcompletion.Config{Deployment: d, Reader: reader, Snapshots: snapshots, Onboarding: onboarding, Binding: binding, Review: review, Native: native, Issues: issueStates, Developers: developers, Items: items, PRItems: prItems, Fields: fields, Store: store, Clock: c.Clock})
 	if err != nil {
 		return nil, err
 	}
-	flowCfg := ef.Config{Review: review, Onboarding: onboarding, PRProjectItems: prItems, Deployment: d, Resolver: resolver, Reader: reader, Foundation: reader, Snapshot: snapshots, Reconciler: reconciler, Activity: activityCfg, ProjectItems: items, Branches: branch}
+	reconciler, err := er.New(er.Config{Completion: completion, Review: review, Project: d.Engineering, Projects: reader, Activity: activity, Fields: fields, Numbers: numbers})
+	if err != nil {
+		return nil, err
+	}
+	terminal, err := et.New(et.Config{Project: d.Engineering, BugTracker: d.BugTracker.ID, Snapshots: snapshots, Reader: reader, Canonical: reconciler, Issues: issueStates, Items: items, Fields: fields})
+	if err != nil {
+		return nil, err
+	}
+	flowCfg := ef.Config{Completion: completion, Terminal: terminal, Review: review, Onboarding: onboarding, PRProjectItems: prItems, Deployment: d, Resolver: resolver, Reader: reader, Foundation: reader, Snapshot: snapshots, Reconciler: reconciler, Activity: activityCfg, ProjectItems: items, Branches: branch}
 	if c.Runner != nil {
 		consumer := c.SemanticConsumer
 		mutator := c.Mutator

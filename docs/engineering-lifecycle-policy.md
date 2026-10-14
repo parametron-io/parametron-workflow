@@ -207,4 +207,5 @@ Production separately validates durable review authority for exact Target Status
 overlays and guards first-activity Status writes; it does not retrofit review
 semantics into this pure API or move a parent Phase into In Review for child review.
 See [review execution](execution.md#accepted-pr-review-and-rework).
-PR completion and terminal close/reopen synchronization remain deferred.
+PR completion and terminal close/reopen synchronization are separate implemented
+#50 boundaries; see [terminal execution](execution.md#accepted-pr-completion-and-terminal-synchronization).

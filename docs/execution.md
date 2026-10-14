@@ -489,8 +489,8 @@ separate; no provider/storage diagnostics leak into stable categories.
 [#48 pure PR companion ordering](pr-companion-ordering.md) is implemented and
 independently tested. Production companion composition, numeric convergence,
 ownership-provenance acquisition and orchestration remain deferred.
-Later Phase #5 work retains relationships and merge/completion. Terminal
-close/reopen synchronization, nested lifecycle, Bug Tracker scoring/admission,
+Later Phase #5 work retains relationships and continuous/global orchestration.
+Nested lifecycle, Bug Tracker scoring/admission,
 heavy agents, automatic merge, and distributed coordination remain deferred.
 
 ## Accepted PR onboarding
@@ -544,9 +544,9 @@ cancellation follows worker release semantics. A transport retry can encounter a
 persisted attempt and then fail closed with `ErrAmbiguous`; it is not automatic
 convergence. No recovery operation synthesizes successful provenance.
 
-Relationship projection, production companion integration and
-numeric reconciliation, merge/completion,
-Target/Phase completion and terminal close/reopen synchronization remain deferred.
+Relationship projection, production companion integration and numeric
+reconciliation remain deferred. Separate #50 completion and terminal
+synchronization composition is described below.
 
 ## Accepted PR review and rework
 
@@ -628,6 +628,112 @@ terminal. Cancellation retains its separate pending/recovery handling.
 Local tests cover repeated cycles, duplicates/reordering, current authorization
 drift, partial writes, cancellation/restart, corrupt history and ambiguous effects.
 Transport/GraphQL fixtures validate bounded local behavior, not authenticated live
-API execution or deployed GitHub App grants. Merge/completion, terminal
-synchronization, relationships, managed feedback and broader PR reconciliation
-remain outside this controller.
+API execution or deployed GitHub App grants. Merge/completion and terminal
+synchronization remain outside the #49 review controller and are implemented by
+the separate #50 composition below. Relationships, managed feedback and broader
+continuous/global orchestration remain deferred.
+
+## Accepted PR completion and terminal synchronization
+
+`internal/prcompletion` and `internal/engineeringterminal` implement #50 in the
+existing process-local Engineering lane. PR completion routing runs before stale
+onboarding/review effects, including for delayed review notifications. Current
+native state selects the path, never webhook payload state. A valid OPEN PR
+without Done drift continues through existing accepted onboarding/review contracts.
+An OPEN PR with Done drift requires completed onboarding, fresh accepted #46
+binding and validated canonical PR review Status before correction; correction
+alone does not replay onboarding or Draft effects.
+
+For an accepted authoritatively verified MERGED implementation PR, PR Status
+converges to Done and the normal Task/Feature Target may be natively closed.
+Terminal Issue synchronization then projects valid CLOSED state to Done. Approval
+alone grants no completion. A CLOSED PR without merge is abandonment: PR Done,
+Target remains OPEN and returns to In Progress where ordinary Set-Status ownership
+permits. A validated current replacement review in In Review wins over abandonment
+rollback. Durable branch/start provenance is retained; a replacement PR needs its
+own accepted authority. A direct Phase implementation PR requires explicit
+`Create-Branch: true`; merge completes only that attempt and never closes the
+Phase, even if all children are CLOSED.
+
+Repository-native Issue Close is authoritative for manual completion. Project
+Done is terminal-state projection, never closure intent. Valid native CLOSED
+Issues converge to Done; OPEN Issues with Done stay OPEN and receive canonical
+nonterminal Status, including after native reopen, delayed Project delivery or
+restart. These consistency corrections apply with `Set-Status: false`; ordinary
+Backlog/Blocked/Ready/In Progress/In Review transitions retain normal ownership.
+Reopen reuses #35/#36 policy, validated completed activity and accepted
+implementation/#49 review/rework evidence, never unconditional Ready. Native
+close/reopen intervals invalidate stale review effects; fresh supported readiness
+with completed rework may resume review, while ambiguous continuation fails closed.
+
+The authoritative complete declarative Parent graph, including cross-repository
+direct children, gates Phase closure. All direct children CLOSED permits explicit
+maintainer native Close; it triggers no automatic close. Invalid native Phase
+closure with an OPEN direct child is corrected by native reopen followed by a
+freshly computed nonterminal Status. An OPEN Phase with Done is corrected even
+when all children are CLOSED. The typed `open_direct_children` rejection is
+feedback-ready; no managed feedback comment is emitted. The mechanical gate does
+not replace maintainer Verification Standard responsibility. Nested lifecycle is
+deferred.
+
+Completion revalidates durable accepted onboarding against exact current PR,
+Target, branch, author/developer eligibility, Type, nonarchived Engineering items
+and native terminal timeline evidence. The terminal transition must follow
+onboarding completion. #46's binding validator remains OPEN-only. Fresh primary,
+Project and complete graph barriers precede consequential writes; changed facts
+stop the attempt for recomputation. After native writes, new snapshots drive
+terminal consistency and existing #35/#36 dependency/numeric roadmap reconciliation.
+No separate downstream ordering authority is introduced.
+
+Issue terminal consistency runs before ordinary Engineering convergence. It does
+not wait for optional semantic execution. For supported Issue notifications,
+configured semantic enrichment/consumption remains available after correction;
+missing Type authority may take that path, but an incomplete graph authorizes no
+terminal effect. Push and Project-item routing retain their semantic exclusions.
+Terminal PR handling takes precedence over onboarding/review routing. This is
+bounded production integration, not general polling or full Phase #5 global
+orchestration.
+
+Partial Project writes retry against fresh current drift. Native merge-close is
+more conservative: an immutable attempt precedes the mutation and a validated
+response receipt precedes completed provenance. A completed receipt prevents the
+same historical merge from reclosing a later explicitly reopened Target. An
+attempt without a valid completed receipt is indeterminate, even if current native
+state is CLOSED; retries/restart never infer success or issue another close.
+Lost responses, cancellation after attempt/close, and receipt persistence failure
+may require manual investigation. Native reopen evidence at or after the merge
+also blocks historical close authority. See [close provenance](persistence.md#pr-completion-close-provenance).
+GitHub and SQLite are not atomic and exactly-once external execution is not guaranteed.
+
+The worker classifier adds these stable local categories:
+
+| Error | Category | Handling |
+| --- | --- | --- |
+| `prcompletion.ErrChanged` | `pr_completion_changed` | Retry fresh state |
+| `prcompletion.ErrInvalid` | `pr_completion_invalid` | Terminal invalid composition/identity |
+| `prcompletion.ErrRejected` | `pr_completion_rejected` | Terminal rejected authority |
+| `prcompletion.ErrProject` | `pr_completion_project` | Terminal conflicting Project identity |
+| `prcompletion.ErrProvenance` | `pr_completion_provenance` | Terminal corrupt/conflicting facts |
+| `prcompletion.ErrAmbiguous` | `pr_completion_ambiguous` | Terminal indeterminate close |
+| `prcompletion.ErrStorage` | `pr_completion_storage` | Terminal unclassified storage failure |
+| `prcompletion.ErrReopened` | `pr_completion_reopened` | Terminal Target reopen after merge |
+| `engineeringterminal.ErrInvalid` | `engineering_terminal_invalid` | Terminal invalid graph/state |
+
+Propagated context, onboarding, binding, review and GitHub errors retain their
+existing handling. Typed GitHub transient/rate-limit failures retry; other typed
+GitHub categories are terminal. Cancellation retains pending/recovery behavior,
+but never clears an indeterminate close attempt or fabricates its receipt.
+
+Committed local tests cover merge versus abandonment, ownership exceptions,
+direct Phase merge without objective closure, cross-repository direct-child gates,
+invalid Phase-close recovery, native-open Done drift, changed membership,
+partial Project writes, exact transport identities/pagination/errors/cancellation,
+adversarial provenance, lost responses/receipts, cancellation and SQLite restart,
+later native reopen, stale reviews and fresh supported review continuation.
+Production worker fixtures exercise merge/restart/reopen, manual Done drift,
+invalid Phase close and direct Phase implementation. These establish local
+contracts, not authenticated live GitHub permissions or end-to-end deployment proof.
+Companion production allocation/numeric convergence, Development projection,
+managed feedback, nested lifecycle, Bug Tracker policy, automatic merge, branch
+deletion/revocation, continuous/global orchestration and distributed coordination
+remain deferred.

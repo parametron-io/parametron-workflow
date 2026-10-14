@@ -22,9 +22,11 @@ import (
 	eo "github.com/parametron-io/parametron-workflow/internal/engineeringorder"
 	ep "github.com/parametron-io/parametron-workflow/internal/engineeringpolicy"
 	er "github.com/parametron-io/parametron-workflow/internal/engineeringreconcile"
+	et "github.com/parametron-io/parametron-workflow/internal/engineeringterminal"
 	"github.com/parametron-io/parametron-workflow/internal/github"
 	"github.com/parametron-io/parametron-workflow/internal/observe"
 	"github.com/parametron-io/parametron-workflow/internal/prbinding"
+	"github.com/parametron-io/parametron-workflow/internal/prcompletion"
 	po "github.com/parametron-io/parametron-workflow/internal/pronboarding"
 	"github.com/parametron-io/parametron-workflow/internal/prreview"
 	"github.com/parametron-io/parametron-workflow/internal/semantic"
@@ -83,6 +85,16 @@ func classify(err error) worker.Classification {
 		category  string
 		retryable bool
 	}{
+		{github.ErrNativeLifecycleChanged, "native_lifecycle_changed", true},
+		{prcompletion.ErrChanged, "pr_completion_changed", true},
+		{prcompletion.ErrInvalid, "pr_completion_invalid", false},
+		{prcompletion.ErrRejected, "pr_completion_rejected", false},
+		{prcompletion.ErrProject, "pr_completion_project", false},
+		{prcompletion.ErrProvenance, "pr_completion_provenance", false},
+		{prcompletion.ErrAmbiguous, "pr_completion_ambiguous", false},
+		{prcompletion.ErrStorage, "pr_completion_storage", false},
+		{prcompletion.ErrReopened, "pr_completion_reopened", false},
+		{et.ErrInvalid, "engineering_terminal_invalid", false},
 		{github.ErrReviewFactsChanged, "pr_review_changed", true},
 		{prreview.ErrInvalid, "pr_review_invalid", false},
 		{prreview.ErrRejected, "pr_review_rejected", false},

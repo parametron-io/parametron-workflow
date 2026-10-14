@@ -35,16 +35,20 @@ type ReviewStatus interface {
 	TargetStatus(context.Context, storage.Resource) (config.StatusRole, bool, error)
 }
 type Config struct {
-	Review   ReviewStatus
-	Project  config.ResolvedProject
-	Projects ProjectReader
-	Activity ea.StateReader
-	Fields   github.LifecycleFields
-	Numbers  github.NumericFields
+	Completion ReviewStatus
+	Review     ReviewStatus
+	Project    config.ResolvedProject
+	Projects   ProjectReader
+	Activity   ea.StateReader
+	Fields     github.LifecycleFields
+	Numbers    github.NumericFields
 }
 type Reconciler struct{ cfg Config }
 
 func New(c Config) (*Reconciler, error) {
+	if c.Completion != nil && absent(c.Completion) {
+		return nil, ErrInvalid
+	}
 	if c.Review != nil && absent(c.Review) {
 		return nil, ErrInvalid
 	}
@@ -226,6 +230,18 @@ func (r *Reconciler) Reconcile(ctx context.Context, s ec.Snapshot, trigger stora
 		if !ok {
 			continue
 		}
+		if r.cfg.Completion != nil {
+			overlay, active, err := r.cfg.Completion.TargetStatus(ctx, t)
+			if err != nil {
+				return err
+			}
+			if active {
+				if overlay != config.InProgress {
+					return ErrInvalid
+				}
+				status = overlay
+			}
+		}
 		if r.cfg.Review != nil {
 			review, active, err := r.cfg.Review.TargetStatus(ctx, t)
 			if errors.Is(err, prreview.ErrSuperseded) {
@@ -249,7 +265,7 @@ func (r *Reconciler) Reconcile(ctx context.Context, s ec.Snapshot, trigger stora
 		// Review validation may perform several current reads. Recheck snapshot
 		// identity and current Project state immediately before this Status write.
 		item := items[t]
-		if r.cfg.Review != nil {
+		if r.cfg.Review != nil || r.cfg.Completion != nil {
 			item, err = r.item(ctx, s, t)
 			if err != nil {
 				return err
