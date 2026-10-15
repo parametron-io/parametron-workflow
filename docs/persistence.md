@@ -151,8 +151,9 @@ the original creation time; conflicting delivery association or metadata returns
 processing metadata and resource binding changes.
 
 This surface records generic one-shot facts only. Branch creation and first
-activity and accepted PR onboarding use the protocols described here; managed
-feedback remains later work.
+activity and accepted PR onboarding use the protocols described here. Standalone
+[managed feedback](managed-feedback.md) is implemented without durable feedback
+storage or a new SQLite schema; feedback decision-record persistence remains deferred.
 Issue #27 uses this unchanged surface for namespace `semantic.classification`
 and format-1 bounded, canonical initial-classification completion records;
 decoding, gating, and authorization stay in `internal/semanticflow`. See

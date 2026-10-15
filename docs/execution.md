@@ -658,8 +658,9 @@ drift, partial writes, cancellation/restart, corrupt history and ambiguous effec
 Transport/GraphQL fixtures validate bounded local behavior, not authenticated live
 API execution or deployed GitHub App grants. Merge/completion and terminal
 synchronization remain outside the #49 review controller and are implemented by
-the separate #50 composition below. Relationships, managed feedback and broader
-continuous/global orchestration remain deferred.
+the separate #50 composition below. Standalone Development and
+[managed feedback](managed-feedback.md) are implemented separately; their
+production-wide routing and broader continuous/global orchestration remain deferred.
 
 ## Accepted PR completion and terminal synchronization
 
@@ -764,6 +765,7 @@ contracts, not authenticated live GitHub permissions or end-to-end deployment pr
 Standalone [Development reconciliation](pr-development.md) is implemented and
 independently tested. Companion production allocation/numeric convergence,
 production-wide Development routing, other relationship projection,
-managed feedback, nested lifecycle, Bug Tracker policy, automatic merge, branch
+production feedback routing/manual lifecycle producer integration, nested lifecycle,
+Bug Tracker policy, automatic merge, branch
 deletion/revocation, continuous/global orchestration and distributed coordination
 remain deferred.
