@@ -38,6 +38,25 @@ type CommentWriter interface {
 	UpdateIssueComment(context.Context, IssueComment, string) (IssueComment, error)
 }
 
+// CommentAuthorReader identifies a user-token credential before any comment
+// mutation. Credentials without this endpoint must fail explicitly; an App
+// installation account is not a user-token author and is never guessed.
+type CommentAuthorReader interface {
+	AuthenticatedCommentAuthor(context.Context) (Actor, error)
+}
+
+func (t *Transport) AuthenticatedCommentAuthor(ctx context.Context) (Actor, error) {
+	var u restUser
+	if err := t.developerRead(ctx, "/user", &u); err != nil {
+		return Actor{}, err
+	}
+	a := Actor{ID: u.NodeID, Login: u.Login, Type: u.Type}
+	if u.ID <= 0 || !ValidCommentAuthor(a) {
+		return Actor{}, failure(Malformed)
+	}
+	return a, ctx.Err()
+}
+
 // Expected authors come from trusted deployment configuration, including account
 // type and stable node ID; no inference about the credential's author is made.
 func ValidCommentAuthor(a Actor) bool {

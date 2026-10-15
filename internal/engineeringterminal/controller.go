@@ -26,14 +26,15 @@ type Fields interface {
 	SetProjectOption(context.Context, string, string, string, string) error
 }
 type Config struct {
-	Project    config.ResolvedProject
-	BugTracker string
-	Snapshots  Snapshots
-	Reader     Reader
-	Canonical  Canonical
-	Issues     github.IssueStates
-	Items      github.ProjectItemReader
-	Fields     Fields
+	Project     config.ResolvedProject
+	BugTracker  string
+	Snapshots   Snapshots
+	Reader      Reader
+	Canonical   Canonical
+	Issues      github.IssueStates
+	Items       github.ProjectItemReader
+	Fields      Fields
+	Corrections CorrectionStore
 }
 type Controller struct{ cfg Config }
 
@@ -49,6 +50,9 @@ func missing(v any) bool {
 	return false
 }
 func New(c Config) (*Controller, error) {
+	if c.Corrections != nil && missing(c.Corrections) {
+		return nil, ErrInvalid
+	}
 	for _, v := range []any{c.Snapshots, c.Reader, c.Canonical, c.Issues, c.Items, c.Fields} {
 		if missing(v) {
 			return nil, ErrInvalid
@@ -218,6 +222,31 @@ func (c *Controller) Synchronize(ctx context.Context, root storage.Resource) ([]
 			if err := ctx.Err(); err != nil {
 				return rejections, err
 			}
+			if c.cfg.Corrections != nil {
+				if err := c.selectCorrection(ctx, check, *decision.Rejection); err != nil {
+					return rejections, err
+				}
+				// The evidence commit is not a native reopen grant. Repeat the
+				// current graph/item barrier before retaining the selected effect.
+				barrier, err := c.cfg.Snapshots.ResolveSnapshot(ctx)
+				if err != nil {
+					return rejections, err
+				}
+				graph, err := barrier.Context(node.Resource)
+				if err != nil {
+					return rejections, err
+				}
+				if !reflect.DeepEqual(check, graph) {
+					return rejections, ec.ErrChanged
+				}
+				observed, freshItem, managed, err := c.item(ctx, barrier, node.Resource)
+				if err != nil {
+					return rejections, err
+				}
+				if !managed || !reflect.DeepEqual(latest, observed) || latestItem.ID != freshItem.ID {
+					return rejections, ec.ErrChanged
+				}
+			}
 			receipt, err := c.cfg.Issues.ReopenIssue(ctx, latest.Issue.Identity)
 			if err != nil {
 				return rejections, err
@@ -226,6 +255,11 @@ func (c *Controller) Synchronize(ctx context.Context, root storage.Resource) ([]
 				return rejections, ErrInvalid
 			}
 			rejections = append(rejections, *decision.Rejection)
+			if c.cfg.Corrections != nil {
+				if err := c.markCorrection(ctx, node.Resource, false); err != nil {
+					return rejections, err
+				}
+			}
 			// Refresh after mutation; changed blockers/Phase selection determine the
 			// retained open Status, never the earlier hypothetical projection.
 			s, err = c.cfg.Snapshots.ResolveSnapshot(ctx)

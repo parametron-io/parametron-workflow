@@ -16,6 +16,14 @@ import (
 // fabricated resource or blocking subsequent events in the same Step.
 var ErrNotApplicable = errors.New("worker: notification not applicable")
 
+// EffectError preserves independently completed/failed effects while making the
+// composition owner's failure precedence explicit. A secondary provider error
+// must not hide a primary terminal ownership error in provider-first taxonomy.
+type EffectError struct{ Primary, Additional error }
+
+func (e *EffectError) Error() string   { return "worker: multiple effect failures" }
+func (e *EffectError) Unwrap() []error { return []error{e.Primary, e.Additional} }
+
 type ResourceResolver interface {
 	Resolve(context.Context, storage.Event) (storage.Resource, error)
 }
@@ -74,6 +82,9 @@ func (w *Worker) Recover(ctx context.Context) error {
 	return w.cfg.Store.RecoverInterrupted(ctx)
 }
 func (w *Worker) classify(err error) Classification {
+	if effects, ok := err.(*EffectError); ok && effects.Primary != nil {
+		return w.classify(effects.Primary)
+	}
 	var ge *github.Error
 	if errors.As(err, &ge) {
 		switch ge.Category {

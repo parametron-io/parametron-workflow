@@ -569,7 +569,7 @@ func (c *Controller) Converge(ctx context.Context, r storage.Resource) error {
 			}
 		}
 		if identity.ID == "" {
-			return nil
+			return c.convergePreReview(ctx, r)
 		}
 		state, err := latest(records, identity)
 		if err != nil {
@@ -581,6 +581,103 @@ func (c *Controller) Converge(ctx context.Context, r storage.Resource) error {
 		}
 		return err
 	})
+}
+
+// convergePreReview repairs only the PR's owned Status. Initial effects remain
+// onboarding-owned, and Target Status remains under its existing authorities.
+// An unaccepted native readiness transition is a barrier, never authorization
+// either to advance review or to overwrite a newer review interval.
+func (c *Controller) convergePreReview(ctx context.Context, r storage.Resource) error {
+	// This newly continuous effect must not turn an ordinary unbound or
+	// not-yet-onboarded PR into a failed lifecycle action. Invalid completion
+	// provenance and operational failures still propagate unchanged.
+	d, err := c.cfg.Binding.Evaluate(ctx, r)
+	if err != nil {
+		return err
+	}
+	if d.Outcome == prbinding.Rejected {
+		if d.Reason == prbinding.Changed || d.Reason == prbinding.UnresolvedTarget || d.Reason == prbinding.MissingPR {
+			return ErrChanged
+		}
+		return nil
+	}
+	if d.Outcome != prbinding.Accepted {
+		return ErrInvalid
+	}
+	completed, err := c.cfg.Onboarding.Completed(ctx, r)
+	if err != nil {
+		return err
+	}
+	if !completed.Completed {
+		return nil
+	}
+	observed, err := c.cfg.Reader.ReadCurrent(ctx, r)
+	if err != nil {
+		return err
+	}
+	if observed.PullRequest == nil || observed.Resource != r || observed.PullRequest.Identity != d.Evidence.PR {
+		return ErrChanged
+	}
+	if observed.PullRequest.State == "CLOSED" || observed.PullRequest.State == "MERGED" {
+		return nil
+	}
+	a, err := c.fresh(ctx, r, nil)
+	if err != nil {
+		return err
+	}
+	if !a.prOwned {
+		return nil
+	}
+	barrier := a.onboarding.CompletedAt
+	if c.cfg.Native == nil {
+		return ErrInvalid
+	}
+	native, err := c.cfg.Native.NativeLifecycle(ctx, a.binding.Evidence.PR, "pull_request")
+	if err != nil {
+		return err
+	}
+	if err := native.Validate(a.binding.Evidence.PR, "pull_request", "OPEN"); err != nil {
+		return err
+	}
+	for _, t := range native.Transitions {
+		if t.Kind == "ReopenedEvent" && t.CreatedAt.After(barrier) {
+			barrier = t.CreatedAt
+		}
+	}
+	for _, t := range a.facts.Transitions {
+		if t.Kind == "ReadyForReviewEvent" && !t.CreatedAt.Before(barrier) {
+			return nil
+		}
+	}
+	option := c.cfg.Deployment.Engineering.StatusOptions[config.InProgress]
+	if a.prItem.Fields[config.Status].OptionID == option {
+		return ctx.Err()
+	}
+	check, err := c.fresh(ctx, r, &a.binding.Evidence)
+	if err != nil {
+		return err
+	}
+	latest, err := c.cfg.Native.NativeLifecycle(ctx, a.binding.Evidence.PR, "pull_request")
+	if err != nil {
+		return err
+	}
+	if !reflect.DeepEqual(a, check) || !reflect.DeepEqual(native, latest) {
+		return ErrChanged
+	}
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	if err := c.cfg.Status.SetProjectOption(ctx, c.cfg.Deployment.Engineering.ID, check.prItem.ID, c.cfg.Deployment.Engineering.Fields[config.Status], option); err != nil {
+		return err
+	}
+	after, err := c.fresh(ctx, r, &check.binding.Evidence)
+	if err != nil {
+		return err
+	}
+	if after.prItem.ID != check.prItem.ID || after.prItem.Fields[config.Status].OptionID != option || !reflect.DeepEqual(after.facts, check.facts) {
+		return ErrChanged
+	}
+	return ctx.Err()
 }
 
 // TargetStatus supplies only an exact Target overlay. Parent Phase policy is

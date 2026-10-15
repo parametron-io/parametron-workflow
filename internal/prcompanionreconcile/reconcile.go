@@ -8,6 +8,7 @@ import (
 	"maps"
 	"math"
 	"reflect"
+	"sort"
 	"strings"
 	"time"
 
@@ -124,6 +125,7 @@ func (c *Controller) configured(i github.Identity) bool {
 }
 
 type view struct {
+	Input     pc.Input
 	Discovery prdiscovery.Result
 	Context   ec.Context
 	Primary   eo.Plan
@@ -268,8 +270,15 @@ func (c *Controller) loadWithPending(ctx context.Context, pending *record) (view
 			in.Owned = append(in.Owned, pc.OwnedField{PR: o.PR, Target: o.Acquisition.Binding.Evidence.Target})
 		}
 	}
+	// Ownership is loaded into a map. Canonicalize the read-only producer input
+	// so adding it to freshness barriers cannot make map iteration look like
+	// changed authority across otherwise identical reads.
+	sort.Slice(in.Owned, func(i, j int) bool { return in.Owned[i].PR.ID < in.Owned[j].PR.ID })
 	plan, err := pc.Evaluate(in)
 	if err != nil {
+		if errors.Is(err, pc.ErrCapacity) {
+			v.Input, v.Context, v.Discovery, v.Primary = in, current, d, primary
+		}
 		return v, err
 	}
 	items := map[storage.Resource]observe.ProjectItem{}
@@ -310,7 +319,27 @@ func (c *Controller) loadWithPending(ctx context.Context, pending *record) (view
 			return v, err
 		}
 	}
-	return view{d, current, primary, plan, owned, items}, ctx.Err()
+	return view{Input: in, Discovery: d, Context: current, Primary: primary, Plan: plan, Ownership: owned, Items: items}, ctx.Err()
+}
+
+// CurrentInput is a read-only producer for feedback. It shares the numeric
+// reconciler's complete primary/discovery/ownership validation and never returns
+// a partial capacity plan or exposes mutable ownership records. Call under the
+// existing Engineering lane. Capacity is a valid typed policy result here.
+func (c *Controller) CurrentInput(ctx context.Context) (pc.Input, error) {
+	ctx = github.WithRequestLimit(ctx, prdiscovery.MaxRequests)
+	a, err := c.load(ctx)
+	if err != nil && !errors.Is(err, pc.ErrCapacity) {
+		return pc.Input{}, err
+	}
+	b, next := c.load(ctx)
+	if next != nil && !errors.Is(next, pc.ErrCapacity) {
+		return pc.Input{}, next
+	}
+	if errors.Is(err, pc.ErrCapacity) != errors.Is(next, pc.ErrCapacity) || !reflect.DeepEqual(a.Input, b.Input) || !reflect.DeepEqual(a.Context, b.Context) {
+		return pc.Input{}, ErrChanged
+	}
+	return b.Input, ctx.Err()
 }
 func sameAuthority(a, b view) bool {
 	if !reflect.DeepEqual(a.Context, b.Context) || !reflect.DeepEqual(a.Primary, b.Primary) || !reflect.DeepEqual(a.Plan, b.Plan) || len(a.Discovery.Entries) != len(b.Discovery.Entries) {

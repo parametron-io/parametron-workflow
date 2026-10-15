@@ -17,10 +17,11 @@ import (
 )
 
 var (
-	ErrInvalid   = errors.New("pr development: invalid identity or composition")
-	ErrRejected  = errors.New("pr development: current authority rejected")
-	ErrChanged   = errors.New("pr development: current evidence changed")
-	ErrAmbiguous = errors.New("pr development: ambiguous relationship evidence")
+	ErrInvalid    = errors.New("pr development: invalid identity or composition")
+	ErrRejected   = errors.New("pr development: current authority rejected")
+	ErrChanged    = errors.New("pr development: current evidence changed")
+	ErrAmbiguous  = errors.New("pr development: ambiguous relationship evidence")
+	ErrIncomplete = errors.New("pr development: incomplete current authority")
 )
 
 type Action struct {
