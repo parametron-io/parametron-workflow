@@ -165,6 +165,9 @@ func (t *Transport) request(ctx context.Context, method, endpoint string, body [
 	if err := ctx.Err(); err != nil {
 		return nil, contextFailure(ctx, err, Transient)
 	}
+	if err := consumeRequest(ctx); err != nil {
+		return nil, err
+	}
 	token, err := t.tokens.Token(ctx)
 	if err != nil {
 		var classified *Error
