@@ -82,7 +82,7 @@ func (c *Controller) lookup(ctx context.Context, r Resource, a github.Actor) (*g
 		}
 		seen[x.ID] = true
 		seenDatabase[x.DatabaseID] = true
-		if x.Author.ID == a.ID && !github.SameCommentAuthor(a, x.Author) {
+		if (x.Author.ID == a.ID || strings.EqualFold(x.Author.Login, a.Login)) && !github.SameCommentAuthor(a, x.Author) {
 			return nil, ErrOwnership
 		}
 		if !github.SameCommentAuthor(a, x.Author) {
@@ -90,7 +90,7 @@ func (c *Controller) lookup(ctx context.Context, r Resource, a github.Actor) (*g
 		}
 		// Controller comments with malformed/unknown managed versions cannot establish
 		// absence. Human marker copies are never adopted.
-		if strings.Contains(x.Body, "parametron-workflow:managed-feedback:") {
+		if strings.Contains(x.Body, "parametron-workflow:managed-feedback") {
 			if !strings.HasPrefix(x.Body, Marker+"\n") || strings.Count(x.Body, Marker) != 1 {
 				return nil, ErrOwnership
 			}

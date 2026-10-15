@@ -64,7 +64,7 @@ type wireComment struct {
 
 func (w wireComment) normalized(r CommentResource) (IssueComment, error) {
 	u, e := url.Parse(w.URL)
-	if e != nil || u.Scheme != "https" || u.Host == "" || u.User != nil || u.RawQuery != "" || w.DatabaseID <= 0 || u.Fragment != "issuecomment-"+strconv.FormatInt(w.DatabaseID, 10) || w.Type != "IssueComment" || !validIDs(w.ID) || w.Body == nil || w.Author == nil {
+	if e != nil || u.Scheme != "https" || u.Host != "github.com" || u.User != nil || u.RawQuery != "" || w.DatabaseID <= 0 || u.Fragment != "issuecomment-"+strconv.FormatInt(w.DatabaseID, 10) || w.Type != "IssueComment" || !validIDs(w.ID) || w.Body == nil || w.Author == nil {
 		return IssueComment{}, failure(Malformed)
 	}
 	path := "/" + r.Identity.Repository.Owner + "/" + r.Identity.Repository.Name

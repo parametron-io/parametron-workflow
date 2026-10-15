@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"sort"
+	"strconv"
 	"strings"
 
 	"github.com/parametron-io/parametron-workflow/internal/engineeringterminal"
@@ -154,13 +155,34 @@ type Current struct {
 	Violations []Violation
 }
 
+// validViolation checks the bounded adapter output contract again at rendering.
+// Private values are not a substitute for validating category-specific evidence.
+func validViolation(v Violation) bool {
+	switch v.category {
+	case BindingTarget, BindingBranch, BindingDeveloper:
+		expected, err := BindingRejection(v.resource, prbinding.Decision{Outcome: prbinding.Rejected, Reason: prbinding.Reason(v.detail)})
+		return err == nil && expected == v
+	case CompanionCapacity:
+		n, err := strconv.Atoi(v.detail)
+		return v.resource.Kind == "pull_request" && err == nil && n > 9 && n <= 10000 && strconv.Itoa(n) == v.detail && github.ValidDevelopmentIdentity(v.related)
+	case Lifecycle:
+		expected, err := LifecycleRejection(ManualRejection{Resource: v.resource, Reason: LifecycleReason(v.detail)})
+		return err == nil && expected == v
+	case PhaseClosure:
+		return v.resource.Kind == "issue" && v.detail == "" && v.related == (github.Identity{})
+	case Development:
+		return v.resource.Kind == "pull_request" && v.detail == "" && github.ValidDevelopmentIdentity(v.related)
+	}
+	return false
+}
+
 func canonical(c Current) ([]Violation, error) {
 	if !valid(c.Resource) || !c.Complete || len(c.Violations) > 256 {
 		return nil, ErrInvalid
 	}
 	out := append([]Violation(nil), c.Violations...)
 	for _, v := range out {
-		if v.resource != c.Resource || v.category < BindingTarget || v.category > Development {
+		if v.resource != c.Resource || !validViolation(v) {
 			return nil, ErrInvalid
 		}
 	}
