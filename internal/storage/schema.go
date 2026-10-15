@@ -41,6 +41,17 @@ var migrations = [][]string{{
  created_at TEXT NOT NULL,
  PRIMARY KEY(namespace, stable_key)
  )`,
+}, {
+	`CREATE TABLE pr_companion_fields (
+ stable_key TEXT NOT NULL CHECK(length(stable_key) > 0),
+ item_id TEXT NOT NULL CHECK(length(item_id) > 0),
+ project_id TEXT NOT NULL CHECK(length(project_id) > 0),
+ field_id TEXT NOT NULL CHECK(length(field_id) > 0),
+ revision INTEGER NOT NULL CHECK(revision > 0),
+ metadata BLOB NOT NULL CHECK(length(metadata) > 0),
+ PRIMARY KEY(stable_key, project_id, field_id),
+ UNIQUE(item_id, field_id)
+ )`,
 }}
 
 func initialize(ctx context.Context, db *sql.DB) error {

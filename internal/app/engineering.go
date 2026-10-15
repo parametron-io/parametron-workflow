@@ -1,6 +1,7 @@
 package app
 
 import (
+	"fmt"
 	"reflect"
 	"time"
 
@@ -14,7 +15,9 @@ import (
 	"github.com/parametron-io/parametron-workflow/internal/github"
 	"github.com/parametron-io/parametron-workflow/internal/observe"
 	"github.com/parametron-io/parametron-workflow/internal/prbinding"
+	"github.com/parametron-io/parametron-workflow/internal/prcompanionreconcile"
 	"github.com/parametron-io/parametron-workflow/internal/prcompletion"
+	"github.com/parametron-io/parametron-workflow/internal/prdiscovery"
 	"github.com/parametron-io/parametron-workflow/internal/pronboarding"
 	"github.com/parametron-io/parametron-workflow/internal/prreview"
 	"github.com/parametron-io/parametron-workflow/internal/semanticflow"
@@ -124,6 +127,22 @@ func composeEngineering(c Config, d config.ResolvedConfig, store *storage.Store,
 		return nil, err
 	}
 	flowCfg := ef.Config{Completion: completion, Terminal: terminal, Review: review, Onboarding: onboarding, PRProjectItems: prItems, Deployment: d, Resolver: resolver, Reader: reader, Foundation: reader, Snapshot: snapshots, Reconciler: reconciler, Activity: activityCfg, ProjectItems: items, Branches: branch}
+	prLister, ok := c.Client.(github.PullRequestLister)
+	if !ok || missingCapability(prLister) {
+		return nil, fmt.Errorf("%w: missing PullRequestLister", prcompanionreconcile.ErrInvalid)
+	}
+	repositories := make([]github.Repository, 0, len(d.Repositories))
+	for _, repository := range d.Repositories {
+		repositories = append(repositories, github.Repository{Owner: repository.Owner, Name: repository.Name, ID: repository.ID})
+	}
+	discovery, err := prdiscovery.New(prdiscovery.Config{Repositories: repositories, Project: d.Engineering.ID, BugProject: d.BugTracker.ID, Lister: prLister, Binding: binding, Onboarding: onboarding, Reader: reader})
+	if err != nil {
+		return nil, err
+	}
+	flowCfg.Companions, err = prcompanionreconcile.New(prcompanionreconcile.Config{Repositories: repositories, Project: d.Engineering, BugProject: d.BugTracker.ID, Discovery: discovery, Snapshots: snapshots, Reader: reader, Numbers: numbers, Store: store, Clock: c.Clock})
+	if err != nil {
+		return nil, err
+	}
 	if c.Runner != nil {
 		consumer := c.SemanticConsumer
 		mutator := c.Mutator

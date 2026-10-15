@@ -23,6 +23,15 @@ type Snapshot struct {
 	facts        map[storage.Resource]github.ListedIssue
 }
 
+// CanonicalContext projects the complete Issue-only graph using its first
+// canonical Issue as the API root. It never selects an affected subset.
+func (s Snapshot) CanonicalContext() (Context, error) {
+	if len(s.nodes) == 0 {
+		return Context{}, fail(ErrIncomplete)
+	}
+	return s.Context(s.nodes[0].Resource)
+}
+
 func (s Snapshot) Context(root storage.Resource) (Context, error) {
 	root = identity(root)
 	if root.Kind != "issue" || !validIssueNumber(root.Number) || !github.ValidBranchRepository(github.Repository{ID: "validation", Owner: root.Owner, Name: root.Repository}) {

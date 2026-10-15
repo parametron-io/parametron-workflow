@@ -52,7 +52,12 @@ type Review interface {
 	TargetStatus(context.Context, storage.Resource) (config.StatusRole, bool, error)
 }
 
+type CompanionReconciler interface {
+	Reconcile(context.Context, string) error
+}
+
 type Config struct {
+	Companions     CompanionReconciler
 	Completion     *prcompletion.Controller
 	Terminal       *et.Controller
 	Review         Review
@@ -76,6 +81,9 @@ type Flow struct {
 }
 
 func New(c Config) (*Flow, error) {
+	if c.Companions != nil && absent(c.Companions) {
+		return nil, ErrInvalid
+	}
 	if c.Completion != nil && c.Terminal == nil {
 		return nil, ErrInvalid
 	}
@@ -119,6 +127,27 @@ func (f *Flow) withLane(ctx context.Context, fn func() error) error {
 		return err
 	}
 	return fn()
+}
+
+func (f *Flow) withCompanions(ctx context.Context, deliveryID string, fn func() error) error {
+	return f.withLane(ctx, func() error {
+		return f.convergeCompanions(ctx, deliveryID, fn())
+	})
+}
+
+// Called only while holding the existing Engineering lane.
+func (f *Flow) convergeCompanions(ctx context.Context, deliveryID string, err error) error {
+	// Numeric convergence is independent of lifecycle routing and always starts
+	// from new complete observations, including after partial lifecycle effects.
+	// It cannot replay onboarding, review, Draft or native close actions.
+	if f.cfg.Companions != nil && ctx.Err() == nil {
+		if numericErr := f.cfg.Companions.Reconcile(ctx, deliveryID); numericErr != nil {
+			// Do not let a prior transport error mask terminal ownership
+			// ambiguity in the worker's provider-first classification.
+			return numericErr
+		}
+	}
+	return err
 }
 func (f *Flow) Resolve(ctx context.Context, e storage.Event) (storage.Resource, error) {
 	if e.Delivery.EventName == "pull_request_review" {
@@ -187,7 +216,15 @@ func (f *Flow) Process(ctx context.Context, e storage.Event) error {
 	if e.Resource.Kind == "pull_request" {
 		if f.cfg.Completion != nil {
 			handled := false
-			err := f.withLane(ctx, func() error {
+			err := f.withLane(ctx, func() (err error) {
+				defer func() {
+					// An unhandled OPEN PR must reach onboarding before numeric
+					// preflight requires membership. Terminal/handled routes still
+					// converge numbers before their early return, even after errors.
+					if handled || err != nil {
+						err = f.convergeCompanions(ctx, e.Delivery.ID, err)
+					}
+				}()
 				result, completionErr := f.cfg.Completion.Handle(ctx, e)
 				handled = result.Handled
 				if completionErr != nil && (!handled || result.Target.Kind == "" || ctx.Err() != nil) {
@@ -222,7 +259,7 @@ func (f *Flow) Process(ctx context.Context, e storage.Event) error {
 			if f.cfg.Review == nil {
 				return prreview.ErrInvalid
 			}
-			return f.withLane(ctx, func() error { return f.cfg.Review.Handle(ctx, e) })
+			return f.withCompanions(ctx, e.Delivery.ID, func() error { return f.cfg.Review.Handle(ctx, e) })
 		}
 		// Unsupported review notifications can reach Process with a durable
 		// binding after recovery; they still grant no onboarding/review effects.
@@ -255,12 +292,12 @@ func (f *Flow) Process(ctx context.Context, e storage.Event) error {
 				}
 			}
 			if err := f.cfg.Onboarding.Handle(ctx, e); err != nil {
-				return err
+				return f.convergeCompanions(ctx, e.Delivery.ID, err)
 			}
 			if f.cfg.Review != nil {
-				return f.cfg.Review.Converge(ctx, *e.Resource)
+				return f.convergeCompanions(ctx, e.Delivery.ID, f.cfg.Review.Converge(ctx, *e.Resource))
 			}
-			return nil
+			return f.convergeCompanions(ctx, e.Delivery.ID, nil)
 		})
 	}
 	if e.Resource.Kind != "issue" {
@@ -281,7 +318,7 @@ func (f *Flow) Process(ctx context.Context, e storage.Event) error {
 		}
 		// Native consistency never waits for optional semantic execution.
 		if terminal {
-			err := f.withLane(ctx, func() error { return f.reconcile(ctx, e) })
+			err := f.withCompanions(ctx, e.Delivery.ID, func() error { return f.reconcile(ctx, e) })
 			// Preserve configured semantic processing after consistency correction.
 			// Missing Type authority can also be supplied by that path; an
 			// incomplete snapshot authorizes no terminal effect.
@@ -311,7 +348,7 @@ func (f *Flow) Process(ctx context.Context, e storage.Event) error {
 				return err
 			}
 		}
-		return f.reconcile(ctx, e)
+		return f.convergeCompanions(ctx, e.Delivery.ID, f.reconcile(ctx, e))
 	})
 }
 

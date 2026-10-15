@@ -26,7 +26,10 @@ import (
 	"github.com/parametron-io/parametron-workflow/internal/github"
 	"github.com/parametron-io/parametron-workflow/internal/observe"
 	"github.com/parametron-io/parametron-workflow/internal/prbinding"
+	pc "github.com/parametron-io/parametron-workflow/internal/prcompanion"
+	pcr "github.com/parametron-io/parametron-workflow/internal/prcompanionreconcile"
 	"github.com/parametron-io/parametron-workflow/internal/prcompletion"
+	"github.com/parametron-io/parametron-workflow/internal/prdiscovery"
 	po "github.com/parametron-io/parametron-workflow/internal/pronboarding"
 	"github.com/parametron-io/parametron-workflow/internal/prreview"
 	"github.com/parametron-io/parametron-workflow/internal/semantic"
@@ -85,6 +88,24 @@ func classify(err error) worker.Classification {
 		category  string
 		retryable bool
 	}{
+		{pcr.ErrOwnership, "pr_companion_ownership", false},
+		{pcr.ErrAmbiguous, "pr_companion_ambiguous", false},
+		{pcr.ErrStorage, "pr_companion_storage", false},
+		{pcr.ErrInvalid, "pr_companion_invalid", false},
+		{pcr.ErrProject, "pr_companion_project", false},
+		{pc.ErrCapacity, "pr_companion_capacity", false},
+		{pc.ErrInvalid, "pr_companion_policy_invalid", false},
+		{pc.ErrBinding, "pr_companion_binding", false},
+		{pc.ErrOwnership, "pr_companion_ownership", false},
+		{pc.ErrPrimary, "pr_companion_primary", false},
+		{pc.ErrTarget, "pr_companion_target", true},
+		{pcr.ErrChanged, "pr_companion_changed", true},
+		{pcr.ErrIncomplete, "pr_companion_incomplete", true},
+		{github.ErrRequestLimit, "pr_companion_budget", true},
+		{prdiscovery.ErrInvalid, "pr_discovery_invalid", false},
+		{prdiscovery.ErrLimit, "pr_discovery_limit", false},
+		{prdiscovery.ErrChanged, "pr_discovery_changed", true},
+		{prdiscovery.ErrIncomplete, "pr_discovery_incomplete", true},
 		{github.ErrNativeLifecycleChanged, "native_lifecycle_changed", true},
 		{prcompletion.ErrChanged, "pr_completion_changed", true},
 		{prcompletion.ErrInvalid, "pr_completion_invalid", false},
