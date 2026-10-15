@@ -50,7 +50,7 @@ func TestInitialization(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "events.sqlite")
 	s := openTest(t, path)
 	var version int
-	if err := s.db.QueryRow("PRAGMA user_version").Scan(&version); err != nil || version != 1 {
+	if err := s.db.QueryRow("PRAGMA user_version").Scan(&version); err != nil || version != 2 {
 		t.Fatalf("version %d: %v", version, err)
 	}
 	for pragma, want := range map[string]any{"foreign_keys": int64(1), "journal_mode": "wal", "synchronous": int64(2), "busy_timeout": int64(5000)} {
@@ -73,7 +73,7 @@ func TestInitialization(t *testing.T) {
 
 func TestSchemaRejection(t *testing.T) {
 	for _, tc := range []struct{ name, setup string }{
-		{"future", "PRAGMA user_version=2"},
+		{"future", "PRAGMA user_version=3"},
 		{"unversioned", "CREATE TABLE unrelated (value TEXT)"},
 		{"similarly named application table", "CREATE TABLE sqliteOther (value TEXT)"},
 		{"missing", "PRAGMA user_version=1"},

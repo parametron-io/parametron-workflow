@@ -164,7 +164,9 @@ func TestEngineeringSemanticCompositionUsesOnlyExplicitMutationAuthority(t *test
 				i := current(39)
 				return []github.ListedIssue{{Identity: i.Identity, Title: i.Title, Body: i.Body, State: i.State, Type: i.Type}}, ctx.Err()
 			}}
-			c.Client = engineeringCapabilityClient{Client: base, IssueLister: lister, Branches: github.BranchFake{}, CommitComparison: narrow, LifecycleFields: narrow, NumericFields: narrow, ProjectItemReader: narrow, appOnboardingCapabilities: narrow, NativeLifecycleReader: base, IssueStates: base}
+			c.Client = engineeringCapabilityClient{PullRequestLister: &github.PullRequestListerFake{ListPullRequestsFunc: func(ctx context.Context, _ github.Repository) ([]github.ListedPullRequest, error) {
+				return nil, ctx.Err()
+			}}, Client: base, IssueLister: lister, Branches: github.BranchFake{}, CommitComparison: narrow, LifecycleFields: narrow, NumericFields: narrow, ProjectItemReader: narrow, appOnboardingCapabilities: narrow, NativeLifecycleReader: base, IssueStates: base}
 			c.Engineering = true
 			r := openRuntime(t, c)
 			for _, id := range []string{"first", "later"} {
@@ -229,6 +231,7 @@ func TestEngineeringFailureClassification(t *testing.T) {
 }
 
 type engineeringCapabilityClient struct {
+	github.PullRequestLister
 	github.NativeLifecycleReader
 	github.IssueStates
 	appOnboardingCapabilities

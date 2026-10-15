@@ -108,10 +108,10 @@ func TestSignedReviewLifecycleProductionWorkerAndRestart(t *testing.T) {
 	f := &reviewRuntimeClient{onboardingRuntimeClient: base, now: &now, facts: github.ReviewFacts{PR: base.pr.Identity}}
 	c.Client = f
 	r := openRuntime(t, c)
-	onboardingNotification(t, r, "branch", "issues")
+	onboardingNotification(t, r, f, "branch", "issues")
 	step(t, r)
 	state(t, r, "branch", storage.Completed, 1)
-	onboardingNotification(t, r, "onboard", "pull_request")
+	onboardingNotification(t, r, f, "onboard", "pull_request")
 	step(t, r)
 	state(t, r, "onboard", storage.Completed, 1)
 	if f.drafts != 1 || f.adds != 1 {
@@ -222,9 +222,9 @@ func TestWorkerNewReadyProgressesPastOlderPartialRework(t *testing.T) {
 	f := &reviewRuntimeClient{onboardingRuntimeClient: base, now: &now, facts: github.ReviewFacts{PR: base.pr.Identity}}
 	c.Client = f
 	r := openRuntime(t, c)
-	onboardingNotification(t, r, "branch", "issues")
+	onboardingNotification(t, r, f, "branch", "issues")
 	step(t, r)
-	onboardingNotification(t, r, "onboard", "pull_request")
+	onboardingNotification(t, r, f, "onboard", "pull_request")
 	step(t, r)
 	state(t, r, "onboard", storage.Completed, 1)
 	repository := map[string]any{"owner": map[string]any{"login": f.repo.Owner}, "name": f.repo.Name}
