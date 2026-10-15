@@ -45,6 +45,40 @@ hyphen, and slash, with no empty, dot-leading, hyphen-leading, dot-ending, or
 fail explicitly. Branch eligibility and provenance are owned by
 engineeringbranch, not this capability. See [execution.md](execution.md).
 
+## Managed feedback comment capabilities
+
+Issue #52 adds separate `github.CommentReader` (`IssueComments`, `IssueComment`)
+and `github.CommentWriter` (`CreateIssueComment`, `UpdateIssueComment`)
+interfaces. These remain separate from `Client` and `Mutator`, and support only
+Issue-comment conversation surfaces, including PR conversation comments, never
+review comments. Production routing does not yet invoke the feedback consumer.
+See [managed feedback](managed-feedback.md) for ownership and reconciliation.
+
+Transport requires exact repository/resource node and numeric identity, resource
+kind, comment node and positive database ID, and valid author stable ID, login
+and User/Bot type. Comment URLs require HTTPS and host exactly `github.com`,
+no userinfo/query, the exact `/owner/repo/issues/N` or `/owner/repo/pull/N` path
+and matching `issuecomment-<databaseId>` fragment. Enterprise origins are not
+configurable. Transport validates this evidence; the controller separately
+verifies the expected author and canonical marker. A marker alone grants no ownership.
+
+Enumeration preflights native identity before and after pagination, validates
+exact parent/type on every page, stable totals, complete final counts and unique
+node/database identities. Pages are bounded to 100 and totals to 100000; missing,
+partial or contradictory evidence fails closed. Exact single-comment lookup
+validates the requested node and normalized identity. Creation uses `addComment`
+with exact subject ID/body; update uses `updateIssueComment` with exact comment
+ID/body after comparing a fresh full comment against the expected record.
+Receipts require exact body, valid normalized evidence and matching update ID.
+Expected controller authorship and post-write convergence are controller checks.
+
+Typed transport errors and cancellation/deadlines propagate with no hidden blind
+retries. Local [transport tests](../internal/github/comments_test.go) and
+[HTTP integration tests](../internal/workflowfeedback/integration_test.go) cover
+pagination, exact operations/receipts, failures and uncertain-write recovery.
+They do not establish authenticated live API compatibility or deployed GitHub App
+permissions. Fresh reads do not provide an atomic GitHub snapshot.
+
 ## Normalized data
 
 `github.Actor` carries `Login`, stable node `ID`, and `Type` evidence. PR author

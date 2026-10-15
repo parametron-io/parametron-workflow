@@ -40,7 +40,10 @@ and local policy, transport, persistence/restart and worker tests cover these
 boundaries; see [terminal execution](docs/execution.md#accepted-pr-completion-and-terminal-synchronization).
 Issue #51 implements independently tested [standalone Development reconciliation](docs/pr-development.md)
 from fresh accepted binding, validated onboarding and current managed membership.
-Production-wide Development routing, other relationship projection, managed feedback,
+Issue #52 implements independently tested standalone managed rejection feedback;
+see [managed feedback](docs/managed-feedback.md). Production feedback routing,
+automatic emission and explicit manual lifecycle producer integration remain deferred.
+Production-wide Development routing, other relationship projection,
 and full Phase #5 continuous/global orchestration,
 nested-child lifecycle, Bug Tracker scoring/admission, branch deletion/revocation,
 native Project position reconciliation, heavy agents, automatic merge, and
@@ -1537,8 +1540,9 @@ neither their completion nor a direct Phase PR merge initiates Phase closure.
 
 A natively CLOSED Phase with an authoritative OPEN direct child is reopened,
 then returned directly to freshly recomputed canonical nonterminal Status.
-The typed rejection reason is `open_direct_children`, ready for a later feedback
-boundary. Managed user-facing feedback emission is not implemented. Incomplete
+The typed rejection reason is `open_direct_children`, consumable by the standalone
+[managed feedback adapter](docs/managed-feedback.md). Production Phase closure
+does not invoke that consumer or emit managed comments. Incomplete
 or invalid graph/identity evidence fails closed.
 
 An OPEN Phase with Project Done is corrected to canonical nonterminal Status
@@ -1847,7 +1851,10 @@ Typical human-owned surfaces include:
 
 ## 29. Rejected Intent and Managed Feedback
 
-Routine successful reconciliation should be quiet.
+Routine successful reconciliation and Roadmap Order housekeeping remain quiet.
+Issue #52 implements the standalone consumer described in the
+[managed feedback contract](docs/managed-feedback.md); production-wide routing
+and automatic emission remain deferred.
 
 When a human action is rejected because it violates workflow policy, the
 controller should explain:
@@ -1866,13 +1873,34 @@ Examples include:
 - invalid Phase closure with open children
 - manually altered Development relationship
 
-The controller should avoid comment spam by maintaining one managed automation
-feedback comment per resource.
+These examples require current typed rejection authority from the owning policy
+packages. PR binding, validated companion capacity input, explicit Phase closure
+rejections and validated contradictory Development removals have adapters.
+Ordinary canonical Development additions remain silent. Manual lifecycle reasons
+have a bounded input contract, but the explicit human-intent producer remains
+unimplemented. Status drift, webhook payloads, historical decisions and comment
+contents cannot independently authorize feedback.
 
-Repeated equivalent violations should reuse or update the existing managed
-comment rather than creating a new comment for every attempt.
+The standalone controller uses fixed templates with no LLM and combines the
+complete current violation set in deterministic, deduplicated order in one
+verified Issue/PR conversation comment. Ownership requires exact resource and
+comment node/numeric identity, expected stable author ID/login/account type,
+complete live enumeration, exact relookup and the canonical versioned marker.
+A marker alone is insufficient; ambiguous evidence fails closed and unrelated
+human/bot discussion and review comments are preserved.
 
-A new violation may update the same comment with the current constraint set.
+Equivalent rendered content is a no-op. Changed violations update the same
+verified comment; full resolution replaces active content with explicit
+non-active resolved text. An empty current set creates no comment.
+
+Fresh authority and comment checks precede writes; live comment and authority
+verification follow them. Retry after uncertain writes begins from live state,
+without replaying lifecycle mutations. Serialization is local to one controller
+instance, with no atomic policy/comment snapshot or distributed exactly-once
+guarantee. Feedback failure grants no authorization and does not reverse
+legitimate reconciliation. Policy ownership stays with the original producers;
+production Phase closure can return feedback-ready evidence without emitting a
+comment. These adapters do not imply that every producer is production-wired.
 
 Routine housekeeping corrections such as normal item reordering need not
 produce user-facing comments.

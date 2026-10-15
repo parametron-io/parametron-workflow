@@ -18,7 +18,11 @@ cycles and one-shot rework Draft effects. See
 Standalone [Development reconciliation](pr-development.md) is implemented and
 independently tested. Production-wide Development routing, other relationship
 projection, production companion integration and numeric convergence,
-managed feedback and full Phase #5 continuous/global orchestration remain deferred.
+production feedback routing and full Phase #5 continuous/global orchestration remain deferred.
+Standalone [managed feedback](managed-feedback.md) policy, renderer, controller and
+comment transport are implemented and independently tested. `app.Run`, the CLI
+and worker do not construct or invoke the feedback controller or automatically
+emit its comments. Explicit manual lifecycle producer integration remains deferred.
 Accepted completion and terminal synchronization are implemented separately below.
 
 [#48 pure PR companion ordering](pr-companion-ordering.md) is implemented and
@@ -239,7 +243,8 @@ independently tested. Production-wide Development routing, other relationship
 projection, production companion integration and numeric convergence,
 full Phase #5 continuous/global orchestration, Bug Tracker scoring/admission, nested lifecycle,
 branch deletion/revocation, native Project positioning, heavy agents, automatic
-merge, managed feedback/decision-record persistence, App token minting, and
+merge, production feedback routing/manual lifecycle producer integration,
+feedback decision-record persistence, App token minting, and
 distributed coordination remain deferred.
 
 ## Standalone first activity (#38)

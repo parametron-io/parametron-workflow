@@ -166,7 +166,9 @@ The Engineering Project does not automatically display these newly computed PR
 numbers today. Shared review/rework and #50 completion/terminal synchronization
 are implemented separately from companion allocation. Standalone
 [Development reconciliation](pr-development.md) is also implemented and independently
-tested; its production routing, other relationship projection, managed feedback,
-and Bug Tracker changes remain deferred. See [runtime](runtime.md),
+tested. Standalone [managed feedback](managed-feedback.md) is implemented separately;
+production feedback routing and explicit manual lifecycle producer integration,
+Development production routing, other relationship projection and Bug Tracker
+changes remain deferred. See [runtime](runtime.md),
 [execution](execution.md), and
 [architectural lifecycle contracts](../system-overview.md#19-pull-request-roadmap-order-companions).

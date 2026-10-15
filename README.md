@@ -77,7 +77,12 @@ and local policy, transport, persistence/restart and worker tests cover these
 boundaries; see [terminal execution](docs/execution.md#accepted-pr-completion-and-terminal-synchronization).
 Issue #51 implements independently tested standalone Development policy/controller
 and separate GitHub transport; see [Development relationships](docs/pr-development.md).
-Production-wide Development routing, other relationship projection, managed feedback,
+Issue #52 implements independently tested standalone managed rejection feedback:
+typed adapters, fixed-template rendering, verified comment reconciliation and
+narrow comment transport. See [managed feedback](docs/managed-feedback.md).
+Production feedback routing, automatic emission and explicit manual lifecycle
+producer integration remain deferred.
+Production-wide Development routing, other relationship projection,
 and full Phase #5 orchestration,
 nested lifecycle, Bug Tracker
 scoring/admission, branch deletion/revocation, heavy agents, automatic merge,
