@@ -27,7 +27,8 @@ func TestCompanionCapabilityRequiredBeforeServing(t *testing.T) {
 		appOnboardingCapabilities
 		github.NativeLifecycleReader
 		github.IssueStates
-	}{f, f, f, f}
+		github.IssueClosureReader
+	}{f, f, f, f, f}
 	if r, err := compose(context.Background(), c); !errors.Is(err, cr.ErrInvalid) || r != nil {
 		t.Fatal(r, err)
 	}

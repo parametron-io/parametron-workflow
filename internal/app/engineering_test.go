@@ -160,13 +160,20 @@ func TestEngineeringSemanticCompositionUsesOnlyExplicitMutationAuthority(t *test
 				})
 			}
 			narrow := appNarrowFields{t}
+			surfaces := newRuntimeSurfaces(base)
+			c.FeedbackActor = runtimeBot
+			// Preserve this test's semantic-only purpose with independently
+			// correlated native closure authority for the eventual Task.
+			if err := surfaces.closureComment(current(39).Identity, "Force-Close: semantic composition fixture"); err != nil {
+				t.Fatal(err)
+			}
 			lister := &github.ListerFake{ListIssuesFunc: func(ctx context.Context, r github.Repository) ([]github.ListedIssue, error) {
 				i := current(39)
 				return []github.ListedIssue{{Identity: i.Identity, Title: i.Title, Body: i.Body, State: i.State, Type: i.Type}}, ctx.Err()
 			}}
 			c.Client = engineeringCapabilityClient{PullRequestLister: &github.PullRequestListerFake{ListPullRequestsFunc: func(ctx context.Context, _ github.Repository) ([]github.ListedPullRequest, error) {
 				return nil, ctx.Err()
-			}}, Client: base, IssueLister: lister, Branches: github.BranchFake{}, CommitComparison: narrow, LifecycleFields: narrow, NumericFields: narrow, ProjectItemReader: narrow, appOnboardingCapabilities: narrow, NativeLifecycleReader: base, IssueStates: base}
+			}}, Client: base, IssueLister: lister, Branches: github.BranchFake{}, CommitComparison: narrow, LifecycleFields: narrow, NumericFields: narrow, ProjectItemReader: narrow, appOnboardingCapabilities: narrow, NativeLifecycleReader: base, IssueStates: base, runtimeSurfaces: surfaces}
 			c.Engineering = true
 			r := openRuntime(t, c)
 			for _, id := range []string{"first", "later"} {
@@ -231,6 +238,7 @@ func TestEngineeringFailureClassification(t *testing.T) {
 }
 
 type engineeringCapabilityClient struct {
+	*runtimeSurfaces
 	github.PullRequestLister
 	github.NativeLifecycleReader
 	github.IssueStates

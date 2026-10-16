@@ -77,6 +77,7 @@ func completionRuntimeFixture(t *testing.T) (Config, *completionRuntimeClient, *
 	c, base := onboardingRuntimeFixture(t)
 	now := time.Date(2026, 10, 13, 10, 0, 0, 0, time.UTC)
 	c.Clock = func() time.Time { return now }
+	base.runtimeSurfaces.clock = c.Clock
 	c.Runner = nil
 	f := &completionRuntimeClient{reviewRuntimeClient: &reviewRuntimeClient{onboardingRuntimeClient: base, now: &now, facts: github.ReviewFacts{PR: base.pr.Identity}}, native: map[string]github.NativeLifecycle{}}
 	original := base.IssueFunc

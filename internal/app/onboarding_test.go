@@ -21,6 +21,7 @@ import (
 // A read client plus narrow deterministic writes, deliberately without Mutator.
 type onboardingRuntimeClient struct {
 	*github.Fake
+	*runtimeSurfaces
 	t                                        *testing.T
 	repo                                     github.Repository
 	user                                     github.Actor
@@ -48,6 +49,8 @@ func onboardingRuntimeFixture(t *testing.T) (Config, *onboardingRuntimeClient) {
 		return schema, err
 	}
 	f := &onboardingRuntimeClient{Fake: base, t: t, repo: github.Repository{ID: "R", Owner: "parametron-io", Name: "repo"}, user: github.Actor{ID: "U", Login: "developer", Type: "User"}, items: map[string]github.ProjectItem{}}
+	f.runtimeSurfaces = newRuntimeSurfaces(base)
+	c.FeedbackActor = runtimeBot
 	f.issue = github.Issue{Identity: github.Identity{ID: "I46", Repository: f.repo, Number: 46}, State: "OPEN", Body: "Classification: false", Type: &github.IssueType{ID: "type-Task", Name: "Task"}}
 	f.pr = github.PullRequest{Identity: github.Identity{ID: "PR47", Repository: f.repo, Number: 47}, State: "OPEN", Body: "Target: #46\nClassification: false", HeadRepository: f.repo, HeadRef: "development/issue-46", HeadSHA: strings.Repeat("a", 40), Author: &f.user}
 	f.items["I46"] = github.ProjectItem{ID: "ISSUEITEM", ProjectID: "engineering", Content: &github.Content{ID: "I46", Kind: "Issue"}, Values: map[string]github.FieldValue{}}
