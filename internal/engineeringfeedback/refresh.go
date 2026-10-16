@@ -188,8 +188,8 @@ func (f *Refresh) CurrentFeedback(ctx context.Context, r wf.Resource) (wf.Curren
 }
 
 // TrustedAuthor checks the configured stable identity against the actual shared
-// comment credential. User-token transport is supported; unsupported credentials
-// fail explicitly instead of guessing an installation bot account.
+// comment credential. User tokens and App-owned verified installation tokens
+// are supported; opaque installation tokens cannot establish Bot ownership.
 type TrustedAuthor struct {
 	Expected github.Actor
 	Reader   github.CommentAuthorReader

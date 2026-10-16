@@ -39,9 +39,8 @@ type CommentWriter interface {
 	UpdateIssueComment(context.Context, IssueComment, string) (IssueComment, error)
 }
 
-// CommentAuthorReader identifies a user-token credential before any comment
-// mutation. Credentials without this endpoint must fail explicitly; an App
-// installation account is not a user-token author and is never guessed.
+// CommentAuthorReader verifies the actual shared writer credential before any
+// comment mutation. An installation account is never treated as its Bot actor.
 type CommentAuthorReader interface {
 	AuthenticatedCommentAuthor(context.Context) (Actor, error)
 }
@@ -49,15 +48,16 @@ type CommentAuthorReader interface {
 var ErrCommentCredential = errors.New("github: comment credential author is not independently verifiable")
 
 // CommentCredentialSource explicitly selects the supported identity contract.
-// Installation tokens do not support GET /user. A future credential provider
-// must bind independently verified App/installation/bot identity to the actual
-// writer token before installation author validation can be enabled. A supplied
-// expected login or bot-node lookup alone cannot establish that binding.
+// Installation tokens do not support GET /user. Only the App-owned provider
+// below can establish their provenance; a token-kind flag grants no authority.
 type CommentCredentialSource interface{ CommentCredentialKind() string }
 
 func (t *Transport) AuthenticatedCommentAuthor(ctx context.Context) (Actor, error) {
 	if err := ctx.Err(); err != nil {
 		return Actor{}, err
+	}
+	if app, ok := t.tokens.(*AppCredentials); ok && app != nil {
+		return app.commentAuthor(ctx)
 	}
 	credential, ok := t.tokens.(CommentCredentialSource)
 	if !ok || credential.CommentCredentialKind() != "user" {
