@@ -45,6 +45,36 @@ func (c *engineeringContinuous) Converge(ctx context.Context, event storage.Even
 	if current.Completeness != prdiscovery.Complete || current.Freshness != prdiscovery.StableReads {
 		return prdiscovery.ErrIncomplete
 	}
+	var failures []error
+	// Terminal repair must remain reachable even when an earlier lifecycle route
+	// returned before its ordinary Target synchronization. This invokes the same
+	// owner, never replays onboarding/rework, and refreshes discovery afterward.
+	root := storage.Resource{}
+	if event.Resource.Kind == "issue" {
+		root = *event.Resource
+	}
+	if event.Resource.Kind == "pull_request" {
+		for _, entry := range current.Entries {
+			if entry.Resource == *event.Resource && entry.Target != nil && entry.Target.Issue != nil && entry.Target.Issue.Type != nil && entry.Target.Issue.Type.Name != "Bug" {
+				root = entry.Target.Resource
+			}
+		}
+	}
+	if root.Kind != "" {
+		rejections, err := c.terminal.SynchronizeFrom(ctx, root, event.Delivery.ID)
+		if err != nil {
+			return err
+		}
+		if len(rejections) > 0 {
+			if err := c.companions.Reconcile(ctx, event.Delivery.ID); err != nil {
+				failures = append(failures, err)
+			}
+		}
+		current, err = c.discovery.Discover(ctx)
+		if err != nil {
+			return err
+		}
+	}
 	targets := map[storage.Resource]bool{}
 	if event.Resource.Kind == "issue" {
 		targets[*event.Resource] = true
@@ -81,6 +111,10 @@ func (c *engineeringContinuous) Converge(ctx context.Context, event storage.Even
 		for changed := true; changed; {
 			changed = false
 			for _, edge := range graph.Parents {
+				if targets[edge.Child] && !targets[edge.Parent] {
+					targets[edge.Parent] = true
+					changed = true
+				}
 				if targets[edge.Parent] && !targets[edge.Child] {
 					targets[edge.Child] = true
 					changed = true
@@ -94,16 +128,15 @@ func (c *engineeringContinuous) Converge(ctx context.Context, event storage.Even
 			}
 		}
 	}
-	var failures []error
 	for _, entry := range current.Entries {
 		applicable := entry.Resource == *event.Resource || entry.Target != nil && targets[entry.Target.Resource]
 		if !applicable {
 			continue
 		}
-		// Bug Targets require a Bug-owned branch/lifecycle provider. Engineering
-		// binding rejection must not be presented as Bug lifecycle policy.
+		// Bug Targets are outside this Engineering gate. Engineering binding
+		// rejection must not be presented as a supported Bug lifecycle policy.
 		if entry.Target != nil && entry.Target.Issue != nil && entry.Target.Issue.Type != nil && entry.Target.Issue.Type.Name == "Bug" {
-			failures = append(failures, feedback.ErrBugAuthorityUnavailable)
+			failures = append(failures, feedback.ErrUnsupportedBugTarget)
 			continue
 		}
 		switch entry.Binding.Reason {
@@ -135,7 +168,7 @@ func (c *engineeringContinuous) Converge(ctx context.Context, event storage.Even
 			failures = append(failures, err)
 		}
 	}
-	if event.Resource.Kind == "issue" {
+	if event.Resource.Kind == "issue" || event.Resource.Kind == "pull_request" {
 		ids, err := c.store.CorrectionResources(ctx, "phase_closure_v1")
 		if err != nil {
 			return continuousFailures(append(failures, err))
@@ -156,14 +189,14 @@ func (c *engineeringContinuous) Converge(ctx context.Context, event storage.Even
 			if !wanted[node.Resource.NodeID] {
 				continue
 			}
-			// Refresh only correction-bearing Issues; ordinary Status housekeeping is
-			// silent. Missing manual-action evidence fails closed in Issue assembly.
+			// Terminal corrections carry actor-neutral owner evidence. No broad
+			// manual-action attribution is needed to refresh these exact Issues.
 			correction, err := c.terminal.CurrentCorrection(ctx, node.Resource)
 			if err != nil {
 				failures = append(failures, err)
 				continue
 			}
-			if correction == nil && node.Resource != *event.Resource {
+			if correction == nil && node.Resource != *event.Resource && !targets[node.Resource] {
 				continue
 			}
 			var repository github.Repository

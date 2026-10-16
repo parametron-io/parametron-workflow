@@ -126,7 +126,11 @@ func composeEngineering(ctx context.Context, c Config, d config.ResolvedConfig, 
 	if err != nil {
 		return nil, err
 	}
-	terminal, err := et.New(et.Config{Project: d.Engineering, BugTracker: d.BugTracker.ID, Snapshots: snapshots, Reader: reader, Canonical: reconciler, Issues: issueStates, Items: items, Fields: fields, Corrections: store})
+	closureTimeline, ok := c.Client.(github.IssueClosureReader)
+	if !ok || missingCapability(closureTimeline) {
+		return nil, fmt.Errorf("%w: missing IssueClosureReader", et.ErrAuthority)
+	}
+	terminal, err := et.New(et.Config{Project: d.Engineering, BugTracker: d.BugTracker.ID, Snapshots: snapshots, Reader: reader, Canonical: reconciler, Issues: issueStates, Items: items, Fields: fields, Corrections: store, Timeline: closureTimeline, Merges: completion, Store: store, Clock: c.Clock})
 	if err != nil {
 		return nil, err
 	}

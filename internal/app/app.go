@@ -94,13 +94,19 @@ func classify(err error) worker.Classification {
 		category  string
 		retryable bool
 	}{
+		{github.ErrCommentCredential, "feedback_credential_unverifiable", false},
 		{workflowfeedback.ErrOwnership, "feedback_ownership", false},
 		{workflowfeedback.ErrInvalid, "feedback_invalid", false},
 		{workflowfeedback.ErrAmbiguous, "feedback_ambiguous", false},
 		{workflowfeedback.ErrStale, "feedback_stale", true},
 		{workflowfeedback.ErrChanged, "feedback_changed", true},
-		{feedback.ErrHumanEvidenceUnavailable, "feedback_human_evidence_unavailable", false},
-		{feedback.ErrBugAuthorityUnavailable, "bug_pr_authority_unavailable", false},
+		{feedback.ErrUnsupportedBugTarget, "unsupported_bug_pr_target", false},
+		{et.ErrAuthority, "terminal_authority_unavailable", false},
+		{et.ErrProvenance, "force_close_provenance", false},
+		{et.ErrAmbiguous, "force_close_ambiguous", false},
+		{github.ErrClosureChanged, "issue_closure_changed", true},
+		{github.ErrClosureIncomplete, "issue_closure_incomplete", true},
+		{github.ErrClosureLimit, "issue_closure_limit", false},
 		{feedback.ErrIncomplete, "feedback_incomplete", true},
 		{prdevelopment.ErrCorrection, "pr_development_correction", false},
 		{et.ErrCorrection, "phase_closure_correction", false},

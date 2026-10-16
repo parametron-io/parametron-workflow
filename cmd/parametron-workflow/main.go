@@ -50,6 +50,13 @@ func readSecret(path string) (string, error) {
 // It rereads only its configured file for each transport request.
 type fileTokenSource struct{ path string }
 
+type typedTokenSource struct {
+	fileTokenSource
+	kind string
+}
+
+func (s typedTokenSource) CommentCredentialKind() string { return s.kind }
+
 func (s fileTokenSource) Token(ctx context.Context) (string, error) {
 	if err := ctx.Err(); err != nil {
 		return "", err
@@ -68,6 +75,7 @@ func load(args []string, output io.Writer) (app.Config, error) {
 	dataDir := fs.String("data-dir", "", "durable data directory (required)")
 	listen := fs.String("listen", "127.0.0.1:8080", "HTTP listen address")
 	tokenPath := fs.String("github-token-file", "", "GitHub credential file (required)")
+	credentialType := fs.String("github-credential-type", "installation", "GitHub credential type: installation or user; unverifiable comment authors fail startup")
 	secretPath := fs.String("webhook-secret-file", "", "webhook secret file (required)")
 	authorID := fs.String("feedback-author-id", "", "trusted managed-comment author node ID (required)")
 	authorLogin := fs.String("feedback-author-login", "", "canonical managed-comment author login (required)")
@@ -80,6 +88,9 @@ func load(args []string, output io.Writer) (app.Config, error) {
 	}
 	if fs.NArg() != 0 {
 		return app.Config{}, errors.New("unexpected positional arguments")
+	}
+	if *credentialType != "installation" && *credentialType != "user" {
+		return app.Config{}, errors.New("invalid GitHub credential type")
 	}
 	author := github.Actor{ID: *authorID, Login: *authorLogin, Type: *authorType}
 	if !github.ValidCommentAuthor(author) {
@@ -105,7 +116,7 @@ func load(args []string, output io.Writer) (app.Config, error) {
 	if err != nil {
 		return app.Config{}, err
 	}
-	client, err := github.NewTransport("", nil, fileTokenSource{*tokenPath})
+	client, err := github.NewTransport("", nil, typedTokenSource{fileTokenSource{*tokenPath}, *credentialType})
 	if err != nil {
 		return app.Config{}, errors.New("GitHub transport construction failed")
 	}

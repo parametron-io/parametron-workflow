@@ -4,6 +4,8 @@ import (
 	"context"
 	"maps"
 	"reflect"
+	"sort"
+	"time"
 
 	"github.com/parametron-io/parametron-workflow/internal/config"
 	ec "github.com/parametron-io/parametron-workflow/internal/engineeringcontext"
@@ -35,6 +37,10 @@ type Config struct {
 	Items       github.ProjectItemReader
 	Fields      Fields
 	Corrections CorrectionStore
+	Timeline    github.IssueClosureReader
+	Merges      MergeAuthority
+	Store       AuthorizationStore
+	Clock       func() time.Time
 }
 type Controller struct{ cfg Config }
 
@@ -50,6 +56,11 @@ func missing(v any) bool {
 	return false
 }
 func New(c Config) (*Controller, error) {
+	for _, capability := range []any{c.Timeline, c.Merges, c.Store} {
+		if missing(capability) {
+			return nil, ErrAuthority
+		}
+	}
 	if c.Corrections != nil && missing(c.Corrections) {
 		return nil, ErrInvalid
 	}
@@ -71,6 +82,9 @@ func New(c Config) (*Controller, error) {
 	}
 	c.Project.Fields = maps.Clone(c.Project.Fields)
 	c.Project.StatusOptions = maps.Clone(c.Project.StatusOptions)
+	if c.Clock == nil {
+		c.Clock = time.Now
+	}
 	return &Controller{c}, nil
 }
 func (c *Controller) item(ctx context.Context, s ec.Snapshot, r storage.Resource) (observe.ObservedState, observe.ProjectItem, bool, error) {
@@ -133,6 +147,12 @@ func (c *Controller) item(ctx context.Context, s ec.Snapshot, r storage.Resource
 // outcomes without comments. Every consequential effect uses a new complete
 // graph barrier; no pre-write Snapshot survives a native state change.
 func (c *Controller) Synchronize(ctx context.Context, root storage.Resource) ([]Rejection, error) {
+	return c.SynchronizeFrom(ctx, root, "")
+}
+
+// SynchronizeFrom uses the durable delivery only as acceptance provenance; all
+// terminal decisions come from current typed owner evidence.
+func (c *Controller) SynchronizeFrom(ctx context.Context, root storage.Resource, delivery string) ([]Rejection, error) {
 	s, err := c.cfg.Snapshots.ResolveSnapshot(ctx)
 	if err != nil {
 		return nil, err
@@ -142,7 +162,43 @@ func (c *Controller) Synchronize(ctx context.Context, root storage.Resource) ([]
 		return nil, err
 	}
 	var rejections []Rejection
-	for _, node := range graph.Nodes {
+	// Repair ordinary child closures before evaluating Phase eligibility, so a
+	// single notification cannot leave a Phase accepted on an unauthorized child
+	// CLOSED observation that this same synchronization subsequently reverses.
+	nodes := append([]ec.IssueNode(nil), graph.Nodes...)
+	depth := map[storage.Resource]int{}
+	parents := map[storage.Resource]storage.Resource{}
+	for _, edge := range graph.Parents {
+		if _, exists := parents[edge.Child]; exists {
+			return rejections, ErrInvalid
+		}
+		parents[edge.Child] = edge.Parent
+	}
+	for _, node := range nodes {
+		cursor := node.Resource
+		seen := map[storage.Resource]bool{}
+		for {
+			if seen[cursor] {
+				return rejections, ErrInvalid
+			}
+			seen[cursor] = true
+			parent := parents[cursor]
+			if parent.Kind == "" {
+				break
+			}
+			depth[node.Resource]++
+			cursor = parent
+		}
+	}
+	// This sequences the existing direct-child gates; it introduces no new
+	// hierarchy eligibility or completion policy.
+	sort.SliceStable(nodes, func(i, j int) bool {
+		if (nodes[i].Type == sp.Phase) != (nodes[j].Type == sp.Phase) {
+			return nodes[i].Type != sp.Phase
+		}
+		return depth[nodes[i].Resource] > depth[nodes[j].Resource]
+	})
+	for _, node := range nodes {
 		if node.Type != sp.Task && node.Type != sp.Feature && node.Type != sp.Phase {
 			continue
 		}
@@ -184,6 +240,10 @@ func (c *Controller) Synchronize(ctx context.Context, root storage.Resource) ([]
 		if !managed {
 			continue
 		}
+		decision, native, err := c.authorize(ctx, current, node.Resource, o.Issue.Identity, delivery, true)
+		if err != nil {
+			return rejections, err
+		}
 		force := false
 		if decision.Reopen {
 			// CanonicalStatus invokes the existing #35/#36 validation as well. This
@@ -223,7 +283,7 @@ func (c *Controller) Synchronize(ctx context.Context, root storage.Resource) ([]
 				return rejections, err
 			}
 			if c.cfg.Corrections != nil {
-				if err := c.selectCorrection(ctx, check, *decision.Rejection); err != nil {
+				if err := c.selectCorrection(ctx, check, *decision.Rejection, native, item); err != nil {
 					return rejections, err
 				}
 				// The evidence commit is not a native reopen grant. Repeat the
@@ -246,6 +306,13 @@ func (c *Controller) Synchronize(ctx context.Context, root storage.Resource) ([]
 				if !managed || !reflect.DeepEqual(latest, observed) || latestItem.ID != freshItem.ID {
 					return rejections, ec.ErrChanged
 				}
+			}
+			verified, evidence, err := c.authorize(ctx, check, node.Resource, latest.Issue.Identity, delivery, false)
+			if err != nil {
+				return rejections, err
+			}
+			if !reflect.DeepEqual(decision, verified) || !reflect.DeepEqual(native, evidence) {
+				return rejections, ec.ErrChanged
 			}
 			receipt, err := c.cfg.Issues.ReopenIssue(ctx, latest.Issue.Identity)
 			if err != nil {
@@ -288,6 +355,15 @@ func (c *Controller) Synchronize(ctx context.Context, root storage.Resource) ([]
 			if err != nil {
 				return rejections, err
 			}
+			if !force {
+				rejected := Rejection{Resource: node.Resource, Reason: UnauthorizedDone}
+				if c.cfg.Corrections != nil {
+					if err := c.selectCorrection(ctx, current, rejected, native, item); err != nil {
+						return rejections, err
+					}
+				}
+				rejections = append(rejections, rejected)
+			}
 		}
 		fresh, err := c.cfg.Snapshots.ResolveSnapshot(ctx)
 		if err != nil {
@@ -307,8 +383,40 @@ func (c *Controller) Synchronize(ctx context.Context, root storage.Resource) ([]
 		if !ok || !reflect.DeepEqual(latest, o) || latestItem.ID != item.ID {
 			return rejections, ec.ErrChanged
 		}
+		finalDecision, finalNative, err := c.authorize(ctx, check, node.Resource, latest.Issue.Identity, delivery, false)
+		if err != nil {
+			return rejections, err
+		}
+		if !force && (!reflect.DeepEqual(native, finalNative) || !reflect.DeepEqual(decision, finalDecision)) {
+			return rejections, ec.ErrChanged
+		}
 		if err := c.set(ctx, latestItem, desired); err != nil {
 			return rejections, err
+		}
+		if o.Issue.State == "OPEN" && c.cfg.Corrections != nil {
+			verified, err := c.cfg.Reader.ReadCurrent(ctx, node.Resource)
+			if err != nil {
+				return rejections, err
+			}
+			if verified.Issue == nil || verified.Issue.Identity != o.Issue.Identity || verified.Issue.State != "OPEN" {
+				return rejections, ec.ErrChanged
+			}
+			found := false
+			for _, p := range verified.Projects {
+				if p.ID == c.cfg.Project.ID {
+					for _, i := range p.Items {
+						if i.ID == item.ID && i.Fields[config.Status].OptionID == c.cfg.Project.StatusOptions[desired] {
+							found = true
+						}
+					}
+				}
+			}
+			if !found {
+				return rejections, ec.ErrChanged
+			}
+			if err := c.markCorrection(ctx, node.Resource, false); err != nil {
+				return rejections, err
+			}
 		}
 	}
 	return rejections, ctx.Err()

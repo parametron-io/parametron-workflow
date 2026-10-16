@@ -19,9 +19,8 @@ import (
 )
 
 var (
-	ErrIncomplete               = errors.New("engineering feedback: incomplete current producer evidence")
-	ErrHumanEvidenceUnavailable = errors.New("engineering feedback: verified human Project action reader unavailable")
-	ErrBugAuthorityUnavailable  = errors.New("engineering feedback: Bug-owned PR lifecycle and branch authority unavailable")
+	ErrIncomplete           = errors.New("engineering feedback: incomplete current producer evidence")
+	ErrUnsupportedBugTarget = errors.New("engineering feedback: Bug Tracker target is outside Engineering scope")
 )
 
 type Reader interface {
@@ -34,12 +33,6 @@ type Capacity interface {
 	CurrentInput(context.Context) (pc.Input, error)
 }
 
-// ManualActions must be owned by a lifecycle action validator. Neither the
-// webhook sender nor observed Status implements this capability. No production
-// provider exists yet; absence is explicit incomplete evidence on Issue refresh.
-type ManualActions interface {
-	CurrentRejections(context.Context, wf.Resource) ([]wf.ManualRejection, error)
-}
 type Config struct {
 	Repositories []github.Repository
 	Reader       Reader
@@ -47,7 +40,6 @@ type Config struct {
 	Capacity     Capacity
 	Development  *prdevelopment.Controller
 	Terminal     *et.Controller
-	Manual       ManualActions
 }
 type Refresh struct{ cfg Config }
 
@@ -64,7 +56,7 @@ func absent(v any) bool {
 }
 
 func New(c Config) (*Refresh, error) {
-	if len(c.Repositories) == 0 || absent(c.Reader) || absent(c.Binding) || absent(c.Capacity) || c.Development == nil || c.Terminal == nil || c.Manual != nil && absent(c.Manual) {
+	if len(c.Repositories) == 0 || absent(c.Reader) || absent(c.Binding) || absent(c.Capacity) || c.Development == nil || c.Terminal == nil {
 		return nil, wf.ErrInvalid
 	}
 	names, ids := map[string]bool{}, map[string]bool{}
@@ -105,7 +97,7 @@ func (f *Refresh) CurrentFeedback(ctx context.Context, r wf.Resource) (wf.Curren
 	}
 	for _, project := range current.Projects {
 		if project.Profile == "bug_tracker" && len(project.Items) != 0 {
-			return out, ErrBugAuthorityUnavailable
+			return out, ErrUnsupportedBugTarget
 		}
 	}
 	add := func(v wf.Violation, err error) error {
@@ -124,25 +116,13 @@ func (f *Refresh) CurrentFeedback(ctx context.Context, r wf.Resource) (wf.Curren
 			return out, err
 		}
 		if correction != nil {
-			if err := add(wf.ClosureRejection(r, correction.Rejection)); err != nil {
+			if err := add(wf.TerminalCorrection(r, *correction)); err != nil {
 				return out, err
 			}
 		}
-		if f.cfg.Manual == nil {
-			return out, errors.Join(ErrIncomplete, ErrHumanEvidenceUnavailable)
-		}
-		rejected, err := f.cfg.Manual.CurrentRejections(ctx, r)
-		if err != nil {
-			return out, err
-		}
-		for _, d := range rejected {
-			if d.Resource != r {
-				return out, wf.ErrInvalid
-			}
-			if err := add(wf.LifecycleRejection(d)); err != nil {
-				return out, err
-			}
-		}
+		// This production producer owns terminal-state correction only. The
+		// standalone nonterminal ManualRejection adapter is not an applicable
+		// production category and no human-action completeness is asserted here.
 	} else {
 		if current.PullRequest == nil || current.Issue != nil || current.PullRequest.Identity != r.Identity {
 			return out, wf.ErrChanged

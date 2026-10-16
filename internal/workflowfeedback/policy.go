@@ -35,6 +35,7 @@ const (
 	Lifecycle
 	PhaseClosure
 	Development
+	Terminal
 )
 
 // Violation has private fields so raw observations cannot be supplied as decisions.
@@ -100,6 +101,23 @@ func ClosureRejection(r Resource, d engineeringterminal.Rejection) (Violation, e
 		return Violation{}, ErrInvalid
 	}
 	return Violation{resource: r, category: PhaseClosure}, nil
+}
+
+// TerminalCorrection consumes owner-validated actor-neutral correction evidence.
+// It never treats raw Done drift as proof of a particular human's action.
+func TerminalCorrection(r Resource, e engineeringterminal.CorrectionEvidence) (Violation, error) {
+	if !valid(r) || r.Kind != "issue" || e.Validate(res(r.Identity, r.Kind)) != nil || e.Reported || e.Resolved {
+		return Violation{}, ErrInvalid
+	}
+	if e.Rejection.Reason == engineeringterminal.OpenChildren {
+		return ClosureRejection(r, e.Rejection)
+	}
+	switch e.Rejection.Reason {
+	case engineeringterminal.UnauthorizedClosure, engineeringterminal.UnauthorizedDone:
+	default:
+		return Violation{}, ErrInvalid
+	}
+	return Violation{resource: r, category: Terminal, detail: string(e.Rejection.Reason)}, nil
 }
 
 // DevelopmentCorrection accepts only an actual typed contradictory removal from
@@ -172,6 +190,8 @@ func validViolation(v Violation) bool {
 		return v.resource.Kind == "issue" && v.detail == "" && v.related == (github.Identity{})
 	case Development:
 		return v.resource.Kind == "pull_request" && v.detail == "" && github.ValidDevelopmentIdentity(v.related)
+	case Terminal:
+		return v.resource.Kind == "issue" && v.related == (github.Identity{}) && (v.detail == string(engineeringterminal.UnauthorizedClosure) || v.detail == string(engineeringterminal.UnauthorizedDone))
 	}
 	return false
 }

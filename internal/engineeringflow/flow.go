@@ -272,7 +272,7 @@ func (f *Flow) Process(ctx context.Context, e storage.Event) error {
 					return completionErr
 				}
 				if f.cfg.Terminal != nil {
-					if _, err := f.cfg.Terminal.Synchronize(ctx, result.Target); err != nil {
+					if _, err := f.cfg.Terminal.SynchronizeFrom(ctx, result.Target, e.Delivery.ID); err != nil {
 						return errors.Join(completionErr, err)
 					}
 				}
@@ -481,7 +481,7 @@ func (g reviewActivityFields) SetProjectOption(ctx context.Context, project, ite
 }
 func (f *Flow) reconcile(ctx context.Context, event storage.Event) error {
 	if f.cfg.Terminal != nil {
-		if _, err := f.cfg.Terminal.Synchronize(ctx, *event.Resource); err != nil {
+		if _, err := f.cfg.Terminal.SynchronizeFrom(ctx, *event.Resource, event.Delivery.ID); err != nil {
 			return err
 		}
 	}

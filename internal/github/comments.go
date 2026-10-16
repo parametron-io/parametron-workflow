@@ -3,6 +3,7 @@ package github
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"net/url"
 	"strconv"
 	"strings"
@@ -45,7 +46,23 @@ type CommentAuthorReader interface {
 	AuthenticatedCommentAuthor(context.Context) (Actor, error)
 }
 
+var ErrCommentCredential = errors.New("github: comment credential author is not independently verifiable")
+
+// CommentCredentialSource explicitly selects the supported identity contract.
+// Installation tokens do not support GET /user. A future credential provider
+// must bind independently verified App/installation/bot identity to the actual
+// writer token before installation author validation can be enabled. A supplied
+// expected login or bot-node lookup alone cannot establish that binding.
+type CommentCredentialSource interface{ CommentCredentialKind() string }
+
 func (t *Transport) AuthenticatedCommentAuthor(ctx context.Context) (Actor, error) {
+	if err := ctx.Err(); err != nil {
+		return Actor{}, err
+	}
+	credential, ok := t.tokens.(CommentCredentialSource)
+	if !ok || credential.CommentCredentialKind() != "user" {
+		return Actor{}, ErrCommentCredential
+	}
 	var u restUser
 	if err := t.developerRead(ctx, "/user", &u); err != nil {
 		return Actor{}, err
