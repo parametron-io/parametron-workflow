@@ -30,7 +30,7 @@ type MergeAuthority interface {
 type AuthorizationStore interface {
 	Event(context.Context, string) (storage.Event, error)
 	Provenance(context.Context, string, string) (storage.Provenance, error)
-	RecordForceClose(context.Context, storage.Provenance, storage.Provenance) error
+	RecordForceClose(context.Context, storage.Provenance, storage.Provenance, func([]storage.Provenance, func(string) (storage.Event, error)) error) error
 }
 
 const forceCommentNS = "force_close_comment_v1"
@@ -149,6 +149,11 @@ func (c *Controller) acceptedForce(ctx context.Context, f github.IssueClosure, d
 		if !candidate || !reflect.DeepEqual(current, original) {
 			return false, ErrAmbiguous
 		}
+		// Revalidate legacy and concurrent reservations before recognizing this
+		// exact acceptance. The immutable inserts are no-ops for a valid retry.
+		if err := c.recordForce(ctx, comment, row); err != nil {
+			return false, err
+		}
 		return true, ctx.Err()
 	}
 	if !candidate {
@@ -193,14 +198,136 @@ func (c *Controller) acceptedForce(ctx context.Context, f github.IssueClosure, d
 	}
 	comment := storage.Provenance{Namespace: forceCommentNS, Key: forceKey(f.Issue, current.Comment.ID), DeliveryID: delivery, Metadata: data, CreatedAt: at}
 	cycle := storage.Provenance{Namespace: forceCycleNS, Key: cycleKey, DeliveryID: delivery, Metadata: data, CreatedAt: at}
-	if err := c.cfg.Store.RecordForceClose(ctx, comment, cycle); err != nil {
-		if errors.Is(err, storage.ErrConflict) {
-			return false, ErrProvenance
-		}
+	if err := c.recordForce(ctx, comment, cycle); err != nil {
 		return false, err
 	}
 	return true, ctx.Err()
 }
+
+// Both representations are globally immutable GitHub comment identities. The
+// existing node/cycle keys remain unchanged for v1 compatibility. Database IDs
+// are compared as integers across all Issues/repositories, not as aliases for a
+// new node key. A historical pair's complete metadata must remain byte-identical.
+// No secondary index is needed: the serialized SQLite check also covers every
+// pre-fix acceptance and never backfills or rewrites historical provenance.
+func (c *Controller) recordForce(ctx context.Context, comment, cycle storage.Provenance) error {
+	err := c.cfg.Store.RecordForceClose(ctx, comment, cycle, func(history []storage.Provenance, event func(string) (storage.Event, error)) error {
+		return validateForceReservations(history, event, comment, cycle)
+	})
+	if err != nil {
+		if errors.Is(err, storage.ErrConflict) {
+			return ErrProvenance
+		}
+		return err
+	}
+	return ctx.Err()
+}
+
+func sameForceRow(a, b storage.Provenance) bool {
+	return a.Namespace == b.Namespace && a.Key == b.Key && a.DeliveryID == b.DeliveryID && a.CreatedAt.Equal(b.CreatedAt) && bytes.Equal(a.Metadata, b.Metadata)
+}
+
+func validateForceReservations(history []storage.Provenance, event func(string) (storage.Event, error), comment, cycle storage.Provenance) error {
+	comments, cycles := map[string]storage.Provenance{}, map[string]storage.Provenance{}
+	for _, row := range history {
+		switch row.Namespace {
+		case forceCommentNS:
+			if _, exists := comments[row.Key]; exists {
+				return ErrProvenance
+			}
+			comments[row.Key] = row
+		case forceCycleNS:
+			if _, exists := cycles[row.Key]; exists {
+				return ErrProvenance
+			}
+			cycles[row.Key] = row
+		default:
+			return ErrProvenance
+		}
+	}
+	// Validate the proposed pair by the same rules as history. Only an exact
+	// existing record can occupy either key; retries never replace metadata.
+	_, hasComment := comments[comment.Key]
+	_, hasCycle := cycles[cycle.Key]
+	if hasComment != hasCycle {
+		return ErrProvenance
+	}
+	if old, exists := comments[comment.Key]; exists && !sameForceRow(old, comment) {
+		return ErrProvenance
+	}
+	if old, exists := cycles[cycle.Key]; exists && !sameForceRow(old, cycle) {
+		return ErrProvenance
+	}
+	comments[comment.Key], cycles[cycle.Key] = comment, cycle
+	nodes, databases := map[string]string{}, map[int64]string{}
+	for key, row := range comments {
+		var old ForceAcceptance
+		if len(row.Metadata) > 1048576 || json.Unmarshal(row.Metadata, &old) != nil {
+			return ErrProvenance
+		}
+		canonical, err := json.Marshal(old)
+		digest, digestErr := hex.DecodeString(old.PrefixDigest)
+		// Validate immutable identity evidence, not a new closure policy decision.
+		if err != nil || !bytes.Equal(canonical, row.Metadata) || old.Version != 1 || old.Project == "" || digestErr != nil || len(digest) != sha256.Size {
+			return ErrProvenance
+		}
+		if !github.ValidDevelopmentIdentity(old.Issue) || old.Comment.DatabaseID <= 0 || old.Comment.Issue != old.Issue || old.Closed.Issue != old.Issue || old.Closed.Kind != "ClosedEvent" || old.Closed.Comment != nil || old.Closed.CloserID != "" || old.Closed.CloserKind != "" {
+			return ErrProvenance
+		}
+		if old.CreatedAt.IsZero() || old.Comment.CreatedAt.IsZero() || old.Comment.CreatedAt.Before(old.CreatedAt) || !old.Comment.CreatedAt.Equal(old.Comment.UpdatedAt) || old.Comment.LastEditedAt != nil || old.Comment.Editor != nil || old.Closed.CreatedAt.IsZero() || old.Closed.CreatedAt.Before(old.Comment.CreatedAt) {
+			return ErrProvenance
+		}
+		if old.Comment.Author == nil || old.Closed.Actor == nil || !github.SameCommentAuthor(*old.Comment.Author, *old.Closed.Actor) || !forceCommand(old.Comment.Body) || row.CreatedAt.IsZero() || row.CreatedAt.Before(old.Closed.CreatedAt) || row.DeliveryID == "" {
+			return ErrProvenance
+		}
+		origin, err := event(row.DeliveryID)
+		if errors.Is(err, storage.ErrNotFound) {
+			return ErrProvenance
+		}
+		if err != nil {
+			return err
+		}
+		if origin.Resource == nil || origin.Delivery.ID != row.DeliveryID || origin.Delivery.ReceivedAt.IsZero() || *origin.Resource != old.Origin || row.CreatedAt.Before(origin.Delivery.ReceivedAt) {
+			return ErrProvenance
+		}
+		// Only persisted identities are inspected; the historical timeline prefix
+		// is a digest, so it must never be reconstructed from invented events.
+		if !forceIdentityID(old.Comment.ID) || !forceIdentityID(old.Closed.ID) || !forceIdentityID(old.Closed.Cursor) || old.Comment.ID == old.Closed.ID || key != forceKey(old.Issue, old.Comment.ID) {
+			return ErrProvenance
+		}
+		if old.Boundary.ID != "" {
+			if !forceIdentityID(old.Boundary.ID) || !forceIdentityID(old.Boundary.Cursor) || old.Boundary.ID == old.Closed.ID || old.Boundary.ID == old.Comment.ID || old.Boundary.Cursor == old.Closed.Cursor || old.Boundary.Issue != old.Issue || old.Boundary.Kind != "ReopenedEvent" || old.Boundary.Comment != nil || old.Boundary.CloserID != "" || old.Boundary.CloserKind != "" || old.Boundary.Actor != nil && !github.ValidCommentAuthor(*old.Boundary.Actor) || old.Boundary.CreatedAt.IsZero() || old.Boundary.CreatedAt.Before(old.CreatedAt) || old.Boundary.CreatedAt.After(old.Comment.CreatedAt) {
+				return ErrProvenance
+			}
+		} else if !reflect.DeepEqual(old.Boundary, github.ClosureItem{}) {
+			return ErrProvenance
+		}
+		pairedKey := forceKey(old.Issue, old.Closed.ID)
+		paired, found := cycles[pairedKey]
+		expected := row
+		expected.Namespace, expected.Key = forceCycleNS, pairedKey
+		if !found || !sameForceRow(paired, expected) {
+			return ErrProvenance
+		}
+		delete(cycles, pairedKey)
+		if _, exists := nodes[old.Comment.ID]; exists {
+			return ErrProvenance
+		}
+		if _, exists := databases[old.Comment.DatabaseID]; exists {
+			return ErrProvenance
+		}
+		nodes[old.Comment.ID], databases[old.Comment.DatabaseID] = key, key
+	}
+	if len(cycles) != 0 {
+		return ErrProvenance
+	}
+	return nil
+}
+
+func forceIdentityID(id string) bool {
+	return id != "" && strings.TrimSpace(id) == id && !strings.ContainsAny(id, "\r\n\t \x00")
+}
+
 func (c *Controller) authorize(ctx context.Context, graph ec.Context, r storage.Resource, i github.Identity, delivery string, accept bool) (Decision, github.IssueClosure, error) {
 	decision, err := Evaluate(graph, r)
 	if err != nil {
