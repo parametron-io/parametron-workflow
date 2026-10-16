@@ -124,6 +124,9 @@ func TestIssueDrivenCompanionRebaseProductionWorker(t *testing.T) {
 	r.store.Close()
 	r = openRuntime(t, c)
 	f.children[0].State = "CLOSED"
+	if err := f.closureComment(f.children[0].Identity, "Force-Close: completed earlier work"); err != nil {
+		t.Fatal(err)
+	}
 	onboardingNotification(t, r, f, "compact", "issues")
 	step(t, r)
 	state(t, r, "compact", storage.Completed, 1)
@@ -302,6 +305,9 @@ func TestMultiPRCrossRepositoryRebaseProductionWorker(t *testing.T) {
 	r.store.Close()
 	r = openRuntime(t, c)
 	f.children[0].State = "CLOSED"
+	if err := f.closureComment(f.children[0].Identity, "Force-Close: completed earlier work"); err != nil {
+		t.Fatal(err)
+	}
 	onboardingNotification(t, r, f, "compact-both", "issues")
 	step(t, r)
 	state(t, r, "compact-both", storage.Completed, 1)

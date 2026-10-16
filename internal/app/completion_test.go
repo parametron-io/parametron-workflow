@@ -21,19 +21,18 @@ type completionRuntimeClient struct {
 func (f *completionRuntimeClient) NativeLifecycle(ctx context.Context, id github.Identity, k string) (github.NativeLifecycle, error) {
 	if n, ok := f.native[id.ID]; ok {
 		if n.Resource != id || n.Kind != k {
-			f.t.Fatal("native identity mismatch")
+			return github.NativeLifecycle{}, fmt.Errorf("native identity mismatch: %v/%s", id, k)
 		}
 		return n, ctx.Err()
 	}
 	if id == f.issue.Identity || id == f.pr.Identity {
 		return github.NativeLifecycle{Resource: id, Kind: k, State: "OPEN"}, ctx.Err()
 	}
-	f.t.Fatal("unrelated lifecycle", id)
-	return github.NativeLifecycle{}, nil
+	return github.NativeLifecycle{}, fmt.Errorf("unrelated lifecycle: %v", id)
 }
 func (f *completionRuntimeClient) CloseIssue(ctx context.Context, id github.Identity) (github.IssueStateReceipt, error) {
 	if id != f.issue.Identity {
-		f.t.Fatal("unrelated close", id)
+		return github.IssueStateReceipt{}, fmt.Errorf("unrelated close: %v", id)
 	}
 	f.closes++
 	f.issue.State = "CLOSED"
@@ -41,7 +40,7 @@ func (f *completionRuntimeClient) CloseIssue(ctx context.Context, id github.Iden
 }
 func (f *completionRuntimeClient) ReopenIssue(ctx context.Context, id github.Identity) (github.IssueStateReceipt, error) {
 	if id != f.issue.Identity {
-		f.t.Fatal("unrelated reopen", id)
+		return github.IssueStateReceipt{}, fmt.Errorf("unrelated reopen: %v", id)
 	}
 	f.reopens++
 	f.issue.State = "OPEN"
@@ -64,7 +63,7 @@ func (f *completionRuntimeClient) CurrentProjectItem(ctx context.Context, id str
 func (f *completionRuntimeClient) SetProjectOption(ctx context.Context, p, id, field, option string) error {
 	if id == "CHILDITEM" {
 		if p != "engineering" || field != "status" {
-			f.t.Fatal(p, id, field)
+			return fmt.Errorf("unrelated child option: %s/%s/%s", p, id, field)
 		}
 		item := f.items[f.children[0].ID]
 		item.Values[field] = github.FieldValue{Kind: config.SingleSelect, OptionID: option}
@@ -98,7 +97,7 @@ func runtimeOption(f *completionRuntimeClient, node string) string {
 
 func (f *completionRuntimeClient) ClearProjectNumber(ctx context.Context, project, id, field string) error {
 	if project != "engineering" || field != "roadmap_order" || id != "ISSUEITEM" && id != "CHILDITEM" && id != "PRITEM" {
-		f.t.Fatalf("unrelated roadmap clear: %s/%s/%s", project, id, field)
+		return fmt.Errorf("unrelated roadmap clear: %s/%s/%s", project, id, field)
 	}
 	node := f.issue.ID
 	if id == "PRITEM" {
@@ -246,6 +245,11 @@ func TestDirectPhaseMergeNeverClosesObjective(t *testing.T) {
 			}
 			f.children = []github.Issue{{Identity: github.Identity{ID: "CHILD", Repository: f.repo, Number: 48}, State: childState, Body: "Classification: false\nParent: #46", Type: &github.IssueType{ID: "type-Task", Name: "Task"}}}
 			f.items["CHILD"] = github.ProjectItem{ID: "CHILDITEM", ProjectID: "engineering", Content: &github.Content{ID: "CHILD", Kind: "Issue"}, Values: map[string]github.FieldValue{}}
+			if childClosed {
+				if err := f.closureComment(f.children[0].Identity, "Force-Close: completed Phase child"); err != nil {
+					t.Fatal(err)
+				}
+			}
 			*now = now.Add(time.Hour)
 			f.pr.State = "MERGED"
 			f.native[f.pr.ID] = github.NativeLifecycle{Resource: f.pr.Identity, Kind: "pull_request", State: "MERGED", Transitions: []github.NativeTransition{{ID: "PHASEMERGE", Kind: "MergedEvent", Resource: f.pr.Identity, CreatedAt: *now}}}

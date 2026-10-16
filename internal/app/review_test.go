@@ -31,14 +31,14 @@ type reviewRuntimeClient struct {
 
 func (f *reviewRuntimeClient) NativeLifecycle(ctx context.Context, id github.Identity, kind string) (github.NativeLifecycle, error) {
 	if id != f.pr.Identity || kind != "pull_request" || f.pr.State != "OPEN" {
-		f.t.Fatalf("unexpected native lifecycle read: %+v/%s", id, kind)
+		return github.NativeLifecycle{}, fmt.Errorf("unexpected native lifecycle read: %+v/%s", id, kind)
 	}
 	return github.NativeLifecycle{Resource: id, Kind: kind, State: f.pr.State}, ctx.Err()
 }
 
 func (f *reviewRuntimeClient) PullRequestReviewFacts(ctx context.Context, pr github.Identity) (github.ReviewFacts, error) {
 	if pr != f.pr.Identity {
-		f.t.Fatalf("wrong native facts identity %+v", pr)
+		return github.ReviewFacts{}, fmt.Errorf("wrong native facts identity %+v", pr)
 	}
 	if f.failure != nil {
 		return github.ReviewFacts{}, f.failure
@@ -54,7 +54,7 @@ func (f *reviewRuntimeClient) CurrentProjectItem(ctx context.Context, id string)
 }
 func (f *reviewRuntimeClient) SetProjectOption(ctx context.Context, p, id, field, option string) error {
 	if p != "engineering" || field != "status" || (id != "PRITEM" && id != "ISSUEITEM") {
-		f.t.Fatalf("unauthorized field target %s/%s/%s", p, id, field)
+		return fmt.Errorf("unauthorized field target %s/%s/%s", p, id, field)
 	}
 	if id == f.statusFailure && option == "in_progress" {
 		return &github.Error{Category: github.Transient}
@@ -71,7 +71,7 @@ func (f *reviewRuntimeClient) SetProjectOption(ctx context.Context, p, id, field
 }
 func (f *reviewRuntimeClient) ConvertPullRequestToDraft(ctx context.Context, id string) error {
 	if id != "PR47" {
-		f.t.Fatal(id)
+		return fmt.Errorf("unexpected Draft identity: %s", id)
 	}
 	f.drafts++
 	f.effects = append(f.effects, "draft:PR47")

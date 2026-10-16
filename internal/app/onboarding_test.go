@@ -27,6 +27,7 @@ type onboardingRuntimeClient struct {
 	user                                     github.Actor
 	issue                                    github.Issue
 	pr                                       github.PullRequest
+	reviewFacts                              github.ReviewFacts
 	items                                    map[string]github.ProjectItem
 	branch                                   *github.Branch
 	adds, statuses, drafts, creates, prReads int
@@ -152,7 +153,7 @@ func (f *onboardingRuntimeClient) SetProjectDate(context.Context, string, string
 }
 func (f *onboardingRuntimeClient) SetProjectNumber(ctx context.Context, p, id, field string, v float64) error {
 	if p != "engineering" || field != "roadmap_order" {
-		f.t.Fatal("foreign numeric write", p, field)
+		return fmt.Errorf("foreign numeric write: %s/%s", p, field)
 	}
 	for node, item := range f.items {
 		if item.ID == id {
@@ -205,11 +206,29 @@ func (f *onboardingRuntimeClient) ConvertPullRequestToDraft(ctx context.Context,
 	return ctx.Err()
 }
 func (f *onboardingRuntimeClient) CurrentProjectItem(ctx context.Context, id string) (github.CurrentProjectItem, error) {
+	if id == f.items[f.issue.ID].ID {
+		i := f.issue.Identity
+		return github.CurrentProjectItem{ID: id, ProjectID: "engineering", ContentKind: "Issue", Issue: &i}, ctx.Err()
+	}
 	if id != f.items[f.pr.ID].ID {
 		f.t.Error(id)
 		return github.CurrentProjectItem{}, errors.New("wrong Project item identity")
 	}
 	return github.CurrentProjectItem{ID: id, ProjectID: "engineering", ContentKind: "PullRequest"}, ctx.Err()
+}
+func (f *onboardingRuntimeClient) PullRequestReviewFacts(ctx context.Context, id github.Identity) (github.ReviewFacts, error) {
+	if id != f.pr.Identity {
+		return github.ReviewFacts{}, fmt.Errorf("unrelated review facts: %v", id)
+	}
+	facts := f.reviewFacts
+	facts.PR = id
+	return facts, ctx.Err()
+}
+func (f *onboardingRuntimeClient) NativeLifecycle(ctx context.Context, id github.Identity, kind string) (github.NativeLifecycle, error) {
+	if id != f.pr.Identity || kind != "pull_request" || f.pr.State != "OPEN" {
+		return github.NativeLifecycle{}, fmt.Errorf("unrelated native lifecycle: %v/%s", id, kind)
+	}
+	return github.NativeLifecycle{Resource: id, Kind: kind, State: f.pr.State}, ctx.Err()
 }
 func (f *onboardingRuntimeClient) CurrentPullRequestProjectItem(ctx context.Context, id string) (github.PullRequestProjectItem, error) {
 	if id != f.items[f.pr.ID].ID {
@@ -287,6 +306,7 @@ func TestAcceptedOnboardingComposedWorkerAndRestart(t *testing.T) {
 			}
 			r = openRuntime(t, c)
 			f.pr.Draft = false
+			f.reviewFacts.Transitions = []github.ReviewTransition{{ID: "READY", Kind: "ReadyForReviewEvent", PR: f.pr.Identity, Actor: &f.user, CreatedAt: p.CreatedAt.Add(time.Second)}}
 			item := f.items["PR47"]
 			item.Values["status"] = github.FieldValue{Kind: config.SingleSelect, OptionID: "in_review"}
 			f.items["PR47"] = item
