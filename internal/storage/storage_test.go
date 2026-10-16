@@ -50,7 +50,7 @@ func TestInitialization(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "events.sqlite")
 	s := openTest(t, path)
 	var version int
-	if err := s.db.QueryRow("PRAGMA user_version").Scan(&version); err != nil || version != 2 {
+	if err := s.db.QueryRow("PRAGMA user_version").Scan(&version); err != nil || version != 3 {
 		t.Fatalf("version %d: %v", version, err)
 	}
 	for pragma, want := range map[string]any{"foreign_keys": int64(1), "journal_mode": "wal", "synchronous": int64(2), "busy_timeout": int64(5000)} {

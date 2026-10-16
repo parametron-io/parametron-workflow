@@ -4,7 +4,9 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"path/filepath"
 	"testing"
+	"time"
 
 	"github.com/parametron-io/parametron-workflow/internal/config"
 	ec "github.com/parametron-io/parametron-workflow/internal/engineeringcontext"
@@ -27,6 +29,8 @@ type terminalFixture struct {
 	canonicalHook           func()
 	writeFailure            error
 	missing, mismatch       bool
+	store                   *storage.Store
+	mergeGrants             map[string]bool
 }
 
 func terminalSetup(t *testing.T, typ, state, directive string) *terminalFixture {
@@ -37,6 +41,13 @@ func terminalSetup(t *testing.T, typ, state, directive string) *terminalFixture 
 		f.project.StatusOptions[s] = string(s)
 	}
 	f.add(50, typ, state, directive)
+	f.mergeGrants = map[string]bool{}
+	var openErr error
+	f.store, openErr = storage.Open(context.Background(), filepath.Join(t.TempDir(), "terminal.sqlite"))
+	if openErr != nil {
+		t.Fatal(openErr)
+	}
+	t.Cleanup(func() { f.store.Close() })
 	f.statuses[50] = config.Done
 	d := config.ResolvedConfig{Organization: config.Organization{ID: "ORG", Login: f.repo.Owner}, Repositories: []config.Repository{f.repo}, IssueTypes: map[string]string{"Phase": "type-Phase", "Task": "type-Task", "Feature": "type-Feature", "Bug": "type-Bug"}}
 	var err error
@@ -49,13 +60,27 @@ func terminalSetup(t *testing.T, typ, state, directive string) *terminalFixture 
 }
 func (f *terminalFixture) rebuild() {
 	var err error
-	f.c, err = New(Config{Project: f.project, BugTracker: "BUG", Snapshots: f.resolver, Reader: f, Canonical: f, Issues: f, Items: f, Fields: f})
+	f.c, err = New(Config{Project: f.project, BugTracker: "BUG", Snapshots: f.resolver, Reader: f, Canonical: f, Issues: f, Items: f, Fields: f, Timeline: f, Store: f.store, Merges: terminalMergeFunc(func(ctx context.Context, r storage.Resource, facts github.IssueClosure) (bool, error) {
+		return f.mergeGrants[r.NodeID] && facts.Issue.ID == r.NodeID && facts.State == "CLOSED", ctx.Err()
+	})})
 	if err != nil {
 		f.t.Fatal(err)
 	}
 }
 func (f *terminalFixture) resource(n int64) storage.Resource {
 	return storage.Resource{Owner: f.repo.Owner, Repository: f.repo.Name, Kind: "issue", Number: n, NodeID: fmt.Sprintf("I%d", n)}
+}
+func (f *terminalFixture) IssueClosure(ctx context.Context, i github.Identity) (github.IssueClosure, error) {
+	current, ok := f.issues[int64(i.Number)]
+	if !ok || current.Identity != i {
+		return github.IssueClosure{}, github.ErrClosureIncomplete
+	}
+	at := time.Date(2026, 10, 10, 10, 0, 0, 0, time.UTC)
+	facts := github.IssueClosure{Issue: i, State: current.State, Order: github.ClosureCursorOrder, CreatedAt: at.Add(-time.Hour), UpdatedAt: at, Complete: true}
+	if current.State == "CLOSED" {
+		facts.Items = []github.ClosureItem{{Issue: i, ID: "CLOSE-" + i.ID, Kind: "ClosedEvent", Cursor: "CURSOR-" + i.ID, CreatedAt: at, Actor: &github.Actor{ID: "OPERATOR", Login: "operator", Type: "User"}}}
+	}
+	return facts, ctx.Err()
 }
 func (f *terminalFixture) add(n int64, typ, state, body string) {
 	f.issues[n] = github.Issue{Identity: github.Identity{ID: f.resource(n).NodeID, Repository: f.repo, Number: int(n)}, State: state, Body: "Classification: false\n" + body, Type: &github.IssueType{ID: "type-" + typ, Name: typ}}
@@ -147,7 +172,11 @@ func TestNativeOpenDoneNeverClosesIssue(t *testing.T) {
 				for attempt := 0; attempt < 3; attempt++ {
 					f.rebuild()
 					r, err := f.c.Synchronize(context.Background(), f.resource(50))
-					if err != nil || len(r) != 0 || f.issues[50].State != "OPEN" || f.closes != 0 || f.reopens != 0 || f.statuses[50] != config.Blocked {
+					wantRejections := 0
+					if attempt == 0 {
+						wantRejections = 1
+					}
+					if err != nil || len(r) != wantRejections || (len(r) > 0 && r[0].Reason != UnauthorizedDone) || f.issues[50].State != "OPEN" || f.closes != 0 || f.reopens != 0 || f.statuses[50] != config.Blocked {
 						t.Fatal(r, err, f.statuses, f.closes)
 					}
 				}
@@ -170,6 +199,8 @@ func TestTerminalConsistencyAndPhaseRejection(t *testing.T) {
 						s = "OPEN"
 					}
 					f.add(51, "Task", s, "Parent: #50")
+					// Closed child authority is independent of this Phase gate test.
+					f.mergeGrants[f.resource(51).NodeID] = !openChild
 				}
 				r, err := f.c.Synchronize(context.Background(), f.resource(50))
 				if err != nil {
@@ -178,6 +209,10 @@ func TestTerminalConsistencyAndPhaseRejection(t *testing.T) {
 				if typ == "Phase" && openChild {
 					if f.reopens != 1 || f.statuses[50] != config.Blocked || len(r) != 1 || r[0].Reason != OpenChildren {
 						t.Fatal(r, f.reopens, f.statuses)
+					}
+				} else if typ != "Phase" {
+					if f.reopens != 1 || f.statuses[50] != config.Blocked || len(r) != 1 || r[0].Reason != UnauthorizedClosure {
+						t.Fatal(r, f.statuses, f.reopens)
 					}
 				} else if f.reopens != 0 || f.statuses[50] != config.Done || f.issues[50].State != "CLOSED" {
 					t.Fatal(r, f.statuses)
@@ -244,5 +279,20 @@ func TestTerminalMembershipAndOrdinaryOwnership(t *testing.T) {
 				t.Fatal("unauthorized write", f.writes)
 			}
 		})
+	}
+}
+
+func TestPhaseExplicitEmptyCloseAndReopenedChild(t *testing.T) {
+	f := terminalSetup(t, "Phase", "CLOSED", "Set-Status: false")
+	f.statuses[50] = config.Ready
+	if rejected, err := f.c.Synchronize(context.Background(), f.resource(50)); err != nil || len(rejected) != 0 || f.statuses[50] != config.Done || f.reopens != 0 || f.closes != 0 {
+		t.Fatal("explicit empty Phase close rejected", rejected, err)
+	}
+	f.add(51, "Task", "OPEN", "Parent: #50")
+	if rejected, err := f.c.Synchronize(context.Background(), f.resource(51)); err != nil || len(rejected) != 1 || rejected[0].Reason != OpenChildren || f.issues[50].State != "OPEN" || f.statuses[50] != config.Blocked || f.reopens != 1 || f.closes != 0 {
+		t.Fatal("new open direct child did not reopen Phase", rejected, err)
+	}
+	if f.issues[51].State != "OPEN" {
+		t.Fatal("child was closed")
 	}
 }

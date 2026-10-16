@@ -18,7 +18,10 @@ func TestCompanionMigrationV1Upgrade(t *testing.T) {
 	if err := s.Transaction(testContext, func(tx *Tx) error { return func() error { _, err := tx.RecordProvenance(p); return err }() }); err != nil {
 		t.Fatal(err)
 	}
-	// Preserve the released v1 tables and data; remove only the appended v2 table.
+	// Preserve the released v1 tables and data; remove both later tables.
+	if _, err := s.db.Exec("DROP TABLE workflow_corrections"); err != nil {
+		t.Fatal(err)
+	}
 	if _, err := s.db.Exec("DROP TABLE pr_companion_fields"); err != nil {
 		t.Fatal(err)
 	}
@@ -30,7 +33,7 @@ func TestCompanionMigrationV1Upgrade(t *testing.T) {
 	for range 2 {
 		s = openTest(t, path)
 		var version int
-		if err := s.db.QueryRow("PRAGMA user_version").Scan(&version); err != nil || version != 2 {
+		if err := s.db.QueryRow("PRAGMA user_version").Scan(&version); err != nil || version != 3 {
 			t.Fatal(version, err)
 		}
 		if got := eventTest(t, s, "one"); !reflect.DeepEqual(before, got) {
@@ -147,5 +150,37 @@ func TestCompanionCASAndImmutableIdentity(t *testing.T) {
 	rows, err := s.CompanionFields(testContext, "ENG", "NUM")
 	if err != nil || len(rows) != 1 || rows[0].Revision != 2 || string(rows[0].Metadata) != "opaque" {
 		t.Fatal(rows, err)
+	}
+}
+
+func TestCorrectionMigrationV2UpgradePreservesCompanion(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "v2.sqlite")
+	s := openTest(t, path)
+	row := CompanionField{Key: "PR", Item: "ITEM", Project: "ENG", Field: "NUM", Revision: 1, Metadata: []byte("synthetic")}
+	if err := s.SaveCompanionField(testContext, 0, row); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.db.Exec("DROP TABLE workflow_corrections"); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.db.Exec("PRAGMA user_version=2"); err != nil {
+		t.Fatal(err)
+	}
+	s.Close()
+	for range 2 {
+		s = openTest(t, path)
+		var version int
+		if err := s.db.QueryRow("PRAGMA user_version").Scan(&version); err != nil || version != 3 {
+			t.Fatal(version, err)
+		}
+		got, err := s.CompanionFields(testContext, "ENG", "NUM")
+		if err != nil || len(got) != 1 || !reflect.DeepEqual(got[0], row) {
+			t.Fatal("v2 companion changed", got, err)
+		}
+		var count int
+		if err := s.db.QueryRow("SELECT count(*) FROM workflow_corrections").Scan(&count); err != nil || count != 0 {
+			t.Fatal(count, err)
+		}
+		s.Close()
 	}
 }

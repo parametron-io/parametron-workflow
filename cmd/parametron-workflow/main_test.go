@@ -10,6 +10,7 @@ import (
 	"testing"
 
 	"github.com/parametron-io/parametron-workflow/internal/config"
+	"github.com/parametron-io/parametron-workflow/internal/github"
 )
 
 func commandFixture(t *testing.T) ([]string, string, string, string) {
@@ -45,7 +46,7 @@ func commandFixture(t *testing.T) ([]string, string, string, string) {
 			t.Fatal(err)
 		}
 	}
-	return []string{"--config", configPath, "--data-dir", filepath.Join(dir, "data"), "--github-token-file", tokenPath, "--webhook-secret-file", secretPath}, configPath, tokenPath, secretPath
+	return []string{"--config", configPath, "--data-dir", filepath.Join(dir, "data"), "--github-token-file", tokenPath, "--webhook-secret-file", secretPath, "--github-credential-type", "user", "--feedback-author-id", "SYNTHETIC_USER", "--feedback-author-login", "test-controller", "--feedback-author-type", "User"}, configPath, tokenPath, secretPath
 }
 func TestLoad(t *testing.T) {
 	args, _, tokenPath, _ := commandFixture(t)
@@ -150,5 +151,65 @@ func TestSecretFileLineEndings(t *testing.T) {
 		if _, err := readSecret(path); err == nil {
 			t.Fatal("malformed credential accepted")
 		}
+	}
+}
+
+func installationArgs(t *testing.T) []string {
+	t.Helper()
+	args, _, _, _ := commandFixture(t)
+	var filtered []string
+	for n := 0; n < len(args); n += 2 {
+		switch args[n] {
+		case "--github-token-file", "--github-credential-type", "--feedback-author-login", "--feedback-author-type":
+			continue
+		}
+		filtered = append(filtered, args[n:n+2]...)
+	}
+	return append(filtered, "--github-credential-type", "installation", "--feedback-author-login", "synthetic-controller[bot]", "--feedback-author-type", "Bot", "--github-app-id", "101", "--github-app-client-id", "synthetic-client", "--github-app-slug", "synthetic-controller", "--github-installation-id", "202", "--github-installation-account-id", "303", "--github-installation-account-node-id", "SYNTHETIC_ORG", "--github-installation-account-type", "Organization", "--github-app-private-key-file", filepath.Join(t.TempDir(), "absent-key.pem"))
+}
+func TestLoadInstallationBindingsWithoutCredentialAccess(t *testing.T) {
+	args := installationArgs(t)
+	cfg, err := load(args, &bytes.Buffer{})
+	if err != nil || cfg.Client == nil || cfg.FeedbackActor.Type != "Bot" {
+		t.Fatal("structurally valid installation configuration rejected", err)
+	}
+	// Configuration is not authentication: the absent key must fail before any
+	// network access when the shared writer identity is actually requested.
+	if _, err := cfg.Client.(interface {
+		AuthenticatedCommentAuthor(context.Context) (github.Actor, error)
+	}).AuthenticatedCommentAuthor(context.Background()); err == nil {
+		t.Fatal("missing key established trusted author")
+	}
+}
+func TestLoadCredentialModesRejectMixedAndIncompleteBindings(t *testing.T) {
+	for _, flag := range []string{"--github-app-id", "--github-app-client-id", "--github-app-slug", "--github-installation-id", "--github-installation-account-id", "--github-installation-account-node-id", "--github-installation-account-type", "--github-app-private-key-file"} {
+		t.Run("user/"+flag, func(t *testing.T) {
+			args, _, _, _ := commandFixture(t)
+			value := "unexpected"
+			if strings.HasSuffix(flag, "-id") && flag != "--github-app-client-id" && flag != "--github-installation-account-node-id" {
+				value = "1"
+			}
+			if _, err := load(append(args, flag, value), &bytes.Buffer{}); err == nil {
+				t.Fatal("mixed user/App configuration accepted")
+			}
+		})
+	}
+	for _, flag := range []string{"--github-app-id", "--github-app-client-id", "--github-app-slug", "--github-installation-id", "--github-installation-account-id", "--github-installation-account-node-id", "--github-installation-account-type", "--github-app-private-key-file", "--feedback-author-id", "--feedback-author-login", "--feedback-author-type"} {
+		t.Run("installation/"+flag, func(t *testing.T) {
+			args := installationArgs(t)
+			var filtered []string
+			for n := 0; n < len(args); n += 2 {
+				if args[n] != flag {
+					filtered = append(filtered, args[n:n+2]...)
+				}
+			}
+			if _, err := load(filtered, &bytes.Buffer{}); err == nil {
+				t.Fatal("missing explicit identity accepted")
+			}
+		})
+	}
+	args := installationArgs(t)
+	if _, err := load(append(args, "--github-token-file", "opaque-token"), &bytes.Buffer{}); err == nil {
+		t.Fatal("opaque installation token file accepted")
 	}
 }
