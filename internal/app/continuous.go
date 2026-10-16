@@ -45,13 +45,25 @@ func (c *engineeringContinuous) Converge(ctx context.Context, event storage.Even
 	if current.Completeness != prdiscovery.Complete || current.Freshness != prdiscovery.StableReads {
 		return prdiscovery.ErrIncomplete
 	}
+	trigger := *event.Resource
+	if trigger.Kind == "issue" {
+		snapshot, err := c.snapshots.ResolveSnapshot(ctx)
+		if err != nil {
+			return err
+		}
+		graph, err := continuousIssueContext(snapshot, trigger)
+		if err != nil {
+			return err
+		}
+		trigger = graph.Root
+	}
 	var failures []error
 	// Terminal repair must remain reachable even when an earlier lifecycle route
 	// returned before its ordinary Target synchronization. This invokes the same
 	// owner, never replays onboarding/rework, and refreshes discovery afterward.
 	root := storage.Resource{}
 	if event.Resource.Kind == "issue" {
-		root = *event.Resource
+		root = trigger
 	}
 	if event.Resource.Kind == "pull_request" {
 		for _, entry := range current.Entries {
@@ -77,7 +89,7 @@ func (c *engineeringContinuous) Converge(ctx context.Context, event storage.Even
 	}
 	targets := map[storage.Resource]bool{}
 	if event.Resource.Kind == "issue" {
-		targets[*event.Resource] = true
+		targets[trigger] = true
 	}
 	for _, entry := range current.Entries {
 		if entry.Resource == *event.Resource && entry.Target != nil {
@@ -104,7 +116,7 @@ func (c *engineeringContinuous) Converge(ctx context.Context, event storage.Even
 		if err != nil {
 			return err
 		}
-		graph, err := snapshot.CanonicalContext()
+		graph, err := continuousIssueContext(snapshot, trigger)
 		if err != nil {
 			return err
 		}
@@ -182,6 +194,9 @@ func (c *engineeringContinuous) Converge(ctx context.Context, event storage.Even
 			return continuousFailures(append(failures, err))
 		}
 		graph, err := snapshot.CanonicalContext()
+		if event.Resource.Kind == "issue" {
+			graph, err = continuousIssueContext(snapshot, trigger)
+		}
 		if err != nil {
 			return continuousFailures(append(failures, err))
 		}
@@ -196,7 +211,7 @@ func (c *engineeringContinuous) Converge(ctx context.Context, event storage.Even
 				failures = append(failures, err)
 				continue
 			}
-			if correction == nil && node.Resource != *event.Resource && !targets[node.Resource] {
+			if correction == nil && node.Resource != trigger && !targets[node.Resource] {
 				continue
 			}
 			var repository github.Repository
@@ -218,6 +233,26 @@ func (c *engineeringContinuous) Converge(ctx context.Context, event storage.Even
 		}
 	}
 	return continuousFailures(failures)
+}
+
+// Resolve only an Issue locator against a complete current snapshot. Snapshot
+// projection retains the whole graph for fan-out; it does not grant any effect.
+// A supplied node identity must agree, including on later freshness barriers.
+func continuousIssueContext(snapshot ec.Snapshot, locator storage.Resource) (ec.Context, error) {
+	graph, err := snapshot.Context(locator)
+	if err != nil {
+		return graph, err
+	}
+	expected := locator
+	expected.Owner, expected.Repository = strings.ToLower(locator.Owner), strings.ToLower(locator.Repository)
+	if expected.NodeID != "" && expected.NodeID != graph.Root.NodeID {
+		return ec.Context{}, ec.ErrChanged
+	}
+	expected.NodeID = graph.Root.NodeID
+	if expected != graph.Root || graph.Root.NodeID == "" {
+		return ec.Context{}, ec.ErrChanged
+	}
+	return graph, nil
 }
 
 func continuousFailures(failures []error) error {

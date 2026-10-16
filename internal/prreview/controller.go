@@ -601,9 +601,12 @@ func (c *Controller) convergePreReview(ctx context.Context, r storage.Resource) 
 		}
 		return nil
 	}
-	if d.Outcome != prbinding.Accepted {
+	if d.Outcome != prbinding.Accepted || d.Reason != "" || !c.validBinding(d.Evidence) || (r.NodeID != "" && r.NodeID != d.Evidence.PR.ID) || key(r) != key(resource(d.Evidence.PR, "pull_request")) {
 		return ErrInvalid
 	}
+	// The notification is only a locator. Exact-identity consumers use the PR
+	// independently verified by the accepted binding, never a payload node ID.
+	r = resource(d.Evidence.PR, "pull_request")
 	completed, err := c.cfg.Onboarding.Completed(ctx, r)
 	if err != nil {
 		return err
@@ -621,7 +624,7 @@ func (c *Controller) convergePreReview(ctx context.Context, r storage.Resource) 
 	if observed.PullRequest.State == "CLOSED" || observed.PullRequest.State == "MERGED" {
 		return nil
 	}
-	a, err := c.fresh(ctx, r, nil)
+	a, err := c.fresh(ctx, r, &d.Evidence)
 	if err != nil {
 		return err
 	}
