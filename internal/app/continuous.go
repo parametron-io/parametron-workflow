@@ -46,6 +46,18 @@ func (c *engineeringContinuous) Converge(ctx context.Context, event storage.Even
 		return prdiscovery.ErrIncomplete
 	}
 	trigger := *event.Resource
+	if trigger.Kind == "pull_request" {
+		canonical, found, err := continuousPRTrigger(ctx, current, trigger)
+		if err != nil {
+			return err
+		}
+		if !found {
+			// A complete current list need not contain an old notification's PR.
+			// Absence selects no consumer and grants no historical authority.
+			return ctx.Err()
+		}
+		trigger = canonical
+	}
 	if trigger.Kind == "issue" {
 		snapshot, err := c.snapshots.ResolveSnapshot(ctx)
 		if err != nil {
@@ -67,7 +79,7 @@ func (c *engineeringContinuous) Converge(ctx context.Context, event storage.Even
 	}
 	if event.Resource.Kind == "pull_request" {
 		for _, entry := range current.Entries {
-			if entry.Resource == *event.Resource && entry.Target != nil && entry.Target.Issue != nil && entry.Target.Issue.Type != nil && entry.Target.Issue.Type.Name != "Bug" {
+			if entry.Resource == trigger && entry.Target != nil && entry.Target.Issue != nil && entry.Target.Issue.Type != nil && entry.Target.Issue.Type.Name != "Bug" {
 				root = entry.Target.Resource
 			}
 		}
@@ -86,13 +98,22 @@ func (c *engineeringContinuous) Converge(ctx context.Context, event storage.Even
 		if err != nil {
 			return err
 		}
+		if trigger.Kind == "pull_request" {
+			canonical, found, err := continuousPRTrigger(ctx, current, trigger)
+			if err != nil {
+				return err
+			}
+			if !found || canonical != trigger {
+				return prdiscovery.ErrChanged
+			}
+		}
 	}
 	targets := map[storage.Resource]bool{}
 	if event.Resource.Kind == "issue" {
 		targets[trigger] = true
 	}
 	for _, entry := range current.Entries {
-		if entry.Resource == *event.Resource && entry.Target != nil {
+		if entry.Resource == trigger && entry.Target != nil {
 			targets[entry.Target.Resource] = true
 		}
 	}
@@ -104,7 +125,7 @@ func (c *engineeringContinuous) Converge(ctx context.Context, event storage.Even
 		// Historical numeric ownership supplies only a former consumer identity
 		// for feedback withdrawal, never fresh binding or lifecycle authority.
 		for _, owned := range input.Owned {
-			if owned.PR.ID == event.Resource.NodeID {
+			if feedback.Resource(owned.PR, "pull_request") == trigger {
 				targets[feedback.Resource(owned.Target, "issue")] = true
 			}
 		}
@@ -141,7 +162,7 @@ func (c *engineeringContinuous) Converge(ctx context.Context, event storage.Even
 		}
 	}
 	for _, entry := range current.Entries {
-		applicable := entry.Resource == *event.Resource || entry.Target != nil && targets[entry.Target.Resource]
+		applicable := entry.Resource == trigger || entry.Target != nil && targets[entry.Target.Resource]
 		if !applicable {
 			continue
 		}
@@ -233,6 +254,54 @@ func (c *engineeringContinuous) Converge(ctx context.Context, event storage.Even
 		}
 	}
 	return continuousFailures(failures)
+}
+
+// Complete discovery supplies resource-selection identity, including for
+// rejected bindings. Each selected owner must still verify effect authority.
+// Initial absence is not applicable; callers rechecking an established trigger
+// must treat absence as changed evidence instead.
+func continuousPRTrigger(ctx context.Context, current prdiscovery.Result, locator storage.Resource) (storage.Resource, bool, error) {
+	if err := ctx.Err(); err != nil {
+		return storage.Resource{}, false, err
+	}
+	if current.Completeness != prdiscovery.Complete || current.Freshness != prdiscovery.StableReads {
+		return storage.Resource{}, false, prdiscovery.ErrIncomplete
+	}
+	if locator.Kind != "pull_request" || locator.Number <= 0 {
+		return storage.Resource{}, false, prdiscovery.ErrInvalid
+	}
+	locator.Owner, locator.Repository = strings.ToLower(locator.Owner), strings.ToLower(locator.Repository)
+	configured := false
+	for _, repo := range current.Repositories {
+		if strings.EqualFold(repo.Owner, locator.Owner) && strings.EqualFold(repo.Name, locator.Repository) {
+			configured = true
+		}
+	}
+	if !configured {
+		return storage.Resource{}, false, prdiscovery.ErrInvalid
+	}
+	wanted := locator
+	wanted.NodeID = ""
+	var canonical storage.Resource
+	found := false
+	for _, entry := range current.Entries {
+		key := entry.Resource
+		key.NodeID = ""
+		if key != wanted {
+			if locator.NodeID != "" && entry.Resource.NodeID == locator.NodeID {
+				return storage.Resource{}, false, prdiscovery.ErrChanged
+			}
+			continue
+		}
+		if found || entry.Resource.NodeID == "" {
+			return storage.Resource{}, false, prdiscovery.ErrInvalid
+		}
+		if locator.NodeID != "" && locator.NodeID != entry.Resource.NodeID {
+			return storage.Resource{}, false, prdiscovery.ErrChanged
+		}
+		canonical, found = entry.Resource, true
+	}
+	return canonical, found, ctx.Err()
 }
 
 // Resolve only an Issue locator against a complete current snapshot. Snapshot
