@@ -3,10 +3,10 @@
 Issue #51 implements standalone deterministic `internal/prdevelopment` policy and
 controller plus separate GitHub transport capabilities. Implementation commit
 `4fba77a8e7b4c29d4aebe18b060d2f93c1b242e2` and independent test/fix commit
-`22779b380b8a0e3a7c7af2f104ed1f7d5c18e0db` establish this boundary. Production-wide
-invocation, automatic reconciliation on every supported webhook and complete
-Phase #5 global orchestration remain deferred. No dedicated production worker
-classification is composed for this controller.
+`22779b380b8a0e3a7c7af2f104ed1f7d5c18e0db` establish that historical standalone
+boundary. Issue #53 now composes this owner into supported current Engineering
+PR and Issue notification routes; see [current integration](#current-production-integration).
+This does not claim support for every GitHub event.
 
 ## Authority and pure policy
 
@@ -129,11 +129,38 @@ Reopened PRs require fresh current binding and lifecycle prerequisites. An OPEN 
 with CLOSED Target is rejected; an old native link cannot grant fresh authority.
 
 No Parent, dependency, Blocks/Blocked-By, SubIssues or Refs reconciliation is added.
-PR companion numeric orchestration remains separate and deferred. No new review,
-rework, merge, abandonment, Status, Draft or native Issue completion effect or
-policy is introduced. Future production composition must preserve these ownership
-boundaries; see [architecture](../system-overview.md#18-pull-request-binding-and-onboarding)
+PR companion numeric orchestration is implemented by its separate owner. This
+Development controller introduces no review, rework, merge, abandonment, Status,
+Draft or native Issue completion policy. Production composition preserves these
+ownership boundaries; see [architecture](../system-overview.md#18-pull-request-binding-and-onboarding)
 and [execution](execution.md#standalone-development-relationship-reconciliation).
+
+## Current production integration
+
+`app.composeEngineering` supplies the real binding/onboarding owners, shared reader,
+Development transport and Store to this controller. `engineeringContinuous.Converge`
+selects applicable canonical PRs from complete current discovery on supported PR
+notifications and relevant Issue graph fan-out. It invokes Development only for
+accepted, completed-onboarding OPEN PRs with OPEN Targets; the controller still
+independently revalidates binding, exact membership and complete current links.
+Native links, labels, matching branch names and notification bodies grant no
+binding authority. Neither routing nor historical numeric ownership supplies it.
+
+Owned contradictory manual removals select durable `development_v1` correction
+evidence. Current relevance is revalidated before the feedback assembler reports
+or resolves it. After successful managed-comment reconciliation, production routing
+asks the Development owner to acknowledge reporting. Partial removal/addition or lost-response retry starts
+from current facts, without replaying lifecycle effects. Closed history remains
+read-only. Application error classification and process-local lane sequencing are
+covered by [execution](execution.md#continuous-engineering-pr-reconciliation).
+
+The protected `TestPRNotificationConvergesDevelopmentFromFreshIdentity` in
+[production notification tests](../internal/app/development_notification_test.go)
+checks initial projection and PR-only drift repair without repeated onboarding.
+[Routing tests](../internal/app/continuous_routing_test.go) cover changed discovery,
+rejected binding, former Target feedback withdrawal and Bug isolation. Independent
+controller/transport tests below retain their narrower guarantees. Live provider
+compatibility and installation permissions remain pending external verification.
 
 ## Committed verification and audit evidence
 

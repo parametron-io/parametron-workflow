@@ -1,9 +1,11 @@
 # Managed rejection feedback
 
 Issue #52 implements and independently tests a standalone consumer in
-`internal/workflowfeedback` and narrow GitHub comment transport. Production-wide
-feedback routing and automatic emission are not integrated. `app.Run`, the CLI,
-and the worker do not construct or invoke this consumer.
+`internal/workflowfeedback` and narrow GitHub comment transport. That standalone
+milestone remains distinct from Issue #53's current production composition:
+`internal/engineeringfeedback` assembles supported typed current evidence and the
+app/worker invokes the existing consumer. The consumer owns comment reconciliation,
+not lifecycle authorization.
 
 ## Status and ownership
 
@@ -26,6 +28,7 @@ the exact resource; adapter validation is not a substitute for that provenance.
 | --- | --- |
 | `BindingRejection` | A rejected `prbinding.Decision` with empty accepted Evidence, for a PR. Target reasons cover invalid/missing directives, outside-deployment, unsupported and ineligible Targets. Branch reasons cover missing/invalid provenance, missing head and head mismatch. Developer reasons cover invalid identity, inactive membership, insufficient permission and assignee mismatch. Templates explain the rejected binding and required Target/branch/author correction. Accepted binding is invalid input. Changed state, unresolved Target and missing PR return `ErrStale`; unknown reasons return `ErrInvalid`. |
 | `CapacityRejection` | Complete current `prcompanion.Input` must evaluate to `ErrCapacity`; that error alone is insufficient. The exact PR must be OPEN and accepted, and its validated Target must have 10..10000 eligible OPEN companions. A different Target's capacity failure cannot authorize feedback. The message asks for nine or fewer eligible companions. |
+| `TerminalCorrection` | Validated `engineeringterminal.CorrectionEvidence` for exact current unauthorized native closure, open-child Phase closure or native-open Project Done correction. Current producer relevance and durable correction state are required; no human-action attribution is guessed. |
 | `ClosureRejection` | An explicit `engineeringterminal.Rejection` for the exact Issue with `OpenChildren`. The explanation asks for required direct children to be closed before another Phase closure attempt. Ordinary observed Done or CLOSED state supplies no such authority. |
 | `DevelopmentCorrection` | The exact PR and a removal action actually returned by `prdevelopment.Evaluate` on validated current input. Accepted binding, onboarding and complete relationship evidence remain producer requirements. Contradictory manual removals explain the accepted Target; ordinary canonical missing-link additions remain silent. The message describes selection for correction, not proof that a removal succeeded. |
 | `LifecycleRejection` | Issue-only `ManualRejection` with `ActiveBlocker`, `InactiveParent` or `MissingExecutionAuthorization`. Templates describe the rejected manual advancement/execution and the prerequisite to satisfy. This is a bounded integration contract; the explicit lifecycle producer is not implemented. |
@@ -214,15 +217,40 @@ nix develop --command go build ./cmd/parametron-workflow
 
 These are local checks, not authenticated live tests.
 
-## Deferred integration
+## Production integration and remaining limits
 
-Phase #5 composition must supply complete current rejection authority, bind
-verified controller author identity and invoke this standalone consumer from
-appropriate production routing. It must preserve lifecycle, binding, capacity
-and Development ownership and retry feedback without replaying unrelated
-lifecycle mutations. Global routing, automatic emission for supported webhook
-events and the explicit invalid-manual-lifecycle producer remain deferred,
-alongside broader Phase #5 orchestration. Existing Engineering reconciliation
-and Phase closure corrections remain independently operational without comment
-emission. Live API/permission verification, distributed coordination and Enterprise
-comment origins remain outside the implemented guarantees.
+`app.composeEngineering` constructs `engineeringfeedback.Refresh`, trusted author
+verification and `workflowfeedback.Controller` using narrow capabilities on the
+shared client. Supported current production producers are PR binding rejection,
+companion capacity rejection, Development correction and Engineering terminal
+correction (including Phase open-child rejection). The assembler independently
+refreshes complete applicable evidence; incomplete/changed facts are errors, not
+proof that warnings resolved. It skips unsupported Bug Tracker Targets.
+
+Terminal and Development owners persist selected correction evidence and validate
+current relevance across partial effects, restart and lost comment responses.
+After successful managed-comment reconciliation they acknowledge reporting.
+Later applicable notifications withdraw resolved constraints in the same exact
+owned comment. Historical companion ownership can select a former Target for
+feedback withdrawal; it cannot authorize new lifecycle or relationship mutations.
+Equivalent content is a no-op. Missing-link additions, normal success and numeric
+housekeeping remain quiet. Feedback failure neither grants closure nor reverses a
+validated correction.
+
+Trusted author evidence is checked against the actual shared credential, with
+App-owned installation tokens and explicit user credentials supported by
+[the credential boundary](github-integration.md#authentication-and-github-app-direction).
+Offline identity/receipt tests do not prove real installation authorship. Live
+JWT acceptance, installation permissions/grants, REST/GraphQL Bot compatibility,
+managed-comment receipts and closure-timeline compatibility remain pending.
+
+The broad explicit nonterminal `ManualRejection` producer remains unimplemented;
+its existing adapter/templates are not production intent evidence. Bug PR lifecycle
+is deferred beyond #6. Distributed coordination and Enterprise comment origins
+remain outside the guarantees.
+
+Independent composed evidence includes [terminal feedback recovery](../internal/app/terminal_feedback_test.go),
+[capacity feedback](../internal/app/capacity_feedback_test.go),
+[canonical routing](../internal/app/continuous_routing_test.go) and
+[Issue feedback relevance](../internal/app/current_snapshot_test.go). These extend,
+without rewriting, the historical standalone verification above.

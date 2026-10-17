@@ -23,35 +23,33 @@ owns pre-development decisions, [ordering](docs/engineering-ordering.md) owns
 roadmap topology and numbers, and [execution](docs/execution.md) describes branch
 and activity provenance plus production reconciliation.
 
-Accepted Engineering PR onboarding is implemented through read-only #46 binding
-and `internal/pronboarding`: managed membership, owned initial Status, one-shot
-Draft normalization, and durable completion. #48's pure
-[PR companion ordering](docs/pr-companion-ordering.md) is implemented and
-independently tested. Production companion composition, numeric-field convergence,
-ownership-provenance acquisition and orchestration remain deferred.
-`internal/prreview` implements deterministic review/rework after accepted binding
-and completed onboarding, without a semantic Runner. Issue #50 implements
-independently verified accepted PR merge/abandonment,
-native Issue close/reopen synchronization and the direct-child Phase closure gate.
-Native Issue Close is manual completion authority; Project Done projects valid
-terminal state and never authorizes closure. Durable merge-close attempts and
-validated receipts protect later native reopen. Production Engineering integration
-and local policy, transport, persistence/restart and worker tests cover these
-boundaries; see [terminal execution](docs/execution.md#accepted-pr-completion-and-terminal-synchronization).
-Issue #51 implements independently tested [standalone Development reconciliation](docs/pr-development.md)
-from fresh accepted binding, validated onboarding and current managed membership.
-Issue #52 implements independently tested standalone managed rejection feedback;
-see [managed feedback](docs/managed-feedback.md). Production feedback routing,
-automatic emission and explicit manual lifecycle producer integration remain deferred.
-Production-wide Development routing, other relationship projection,
-and full Phase #5 continuous/global orchestration,
-nested-child lifecycle, Bug Tracker scoring/admission, branch deletion/revocation,
-native Project position reconciliation, heavy agents, automatic merge, and
-distributed coordination are deferred. Declarative graph facts are current;
-Parent/dependency/SubIssues projection remains a future contract.
-Assignee initialization is suppressed while reliable assignability evidence is
-unavailable. Future sections below specify contracts rather than implemented
-Phase #4 behavior.
+Issue #53 now composes #46 binding, #47 durable onboarding, #48 pure companion
+planning through a separate numeric reconciler, #49 review/rework, revised #50
+terminal authorization, #51 Development projection and #52 supported typed
+feedback. Complete current PR discovery is separate from the Issue-only Snapshot;
+canonical consumer selection never grants mutation authority. Each owner validates
+fresh current evidence. See [continuous execution](docs/execution.md#continuous-engineering-pr-reconciliation).
+
+Stage 5A code/offline-test closure is PASS at
+`6f750a5797fa94bb399f234af7f89524c01c5720`, including production closure-timeline
+HTTP/GraphQL tests, full fresh-Nix tests/build/vet, repeated regressions and race
+checks. Stage 5B documentation synchronization is in progress. Live App/provider
+proof, final PR integration/review and final Issue #53 closure remain pending;
+parent #5 closure is not decided. Offline verification is not deployment proof.
+
+Task/Feature closure requires applicable verified implementation-PR merge or exact
+single-use Force-Close correlation. Phase requires explicit normal close with all
+current direct children CLOSED. Project Done is never independent closure authority.
+See Sections 24–25 for exact gates and correction behavior.
+
+Production supports typed binding/capacity rejection and Development/terminal
+correction feedback; broad nonterminal manual-intent production remains deferred.
+Bug Tracker PR lifecycle/providers are deferred beyond #6. Unrelated
+Parent/dependency/SubIssues projection, other companion categories, nested lifecycle,
+Bug scoring/admission, branch deletion/revocation, heavy agents, automatic merge,
+native Project positioning and distributed coordination remain deferred.
+Assignee initialization remains suppressed while reliable assignability evidence
+is unavailable. Later sections distinguish implemented contracts from future scope.
 
 The **Bug Tracker** reuses the controller architecture and shared lifecycle
 primitives defined here, but applies a separate Project-specific policy for
@@ -753,7 +751,7 @@ membership for PR and Target. Native links, labels, Project positions and branch
 names alone cannot select or replace the Target. Repository-qualified identities
 are preserved. Manual links are correctable only with unambiguous owned evidence;
 keyword links are never removed and conflicting keyword evidence fails closed.
-See [Development relationships](docs/pr-development.md); production routing remains deferred.
+See [Development relationships](docs/pr-development.md#current-production-integration) for supported production routing and independent authorization.
 
 ### 11.5 Security Alert
 
@@ -1124,10 +1122,10 @@ parent Phase roadmap anchor described earlier.
 
 Read-only binding validation is owned by `internal/prbinding` and consumed by
 production Engineering PR routing through `internal/pronboarding`. Accepted
-onboarding, review/rework and #48 pure companion ordering are implemented;
-production companion integration and relationships remain deferred. #50 separately
-implements accepted completion and terminal synchronization (Sections 22–27).
-Production does not yet write PR companion numbers.
+onboarding, review/rework, companion numeric reconciliation, Development projection
+and supported feedback are production-composed by #53. Pure policy still performs
+no writes; each effect owner separately validates authority. Revised #50 owns
+completion/terminal consistency (Sections 22–27).
 
 A Pull Request does not become valid workflow implementation work merely by
 being opened or manually moved on the Project board.
@@ -1210,9 +1208,9 @@ Durable evidence is historical fact, never a permanent authorization grant.
 Standalone `internal/prdevelopment` now projects accepted `Target` authority and
 repairs contradictory manual Development links after fresh binding, validated
 onboarding and current membership checks. It adds no onboarding or lifecycle
-effects. Production-wide invocation, semantic PR labeling and production PR
-companion numeric convergence remain deferred. Pure #48 allocation is implemented
-separately (Section 19). See [Development relationships](docs/pr-development.md),
+effects. Issue #53 invokes it on supported current PR/Issue routes and separately
+converges companion numbers through #48 policy (Section 19). Semantic provider
+activation remains separately configured. See [Development relationships](docs/pr-development.md),
 [PR binding](docs/pr-binding.md),
 [execution](docs/execution.md#accepted-pr-onboarding), and
 [persistence](docs/persistence.md#accepted-pr-onboarding-provenance).
@@ -1296,10 +1294,11 @@ gives no clear and contradictory evidence fails safely. Clear means desired unse
 of the owned Engineering Roadmap Order field, not an immediate mutation.
 
 The pure package performs no reads, writes, storage, or lifecycle transitions and
-cannot authenticate ownership provenance itself. Production composition, live PR
-numeric-field writes/clears, provenance acquisition, drift repair, retries and
-webhook/cross-resource orchestration remain deferred. These computed numbers are
-not automatically displayed in the live Engineering Project. Exact interface,
+cannot authenticate ownership provenance itself. Issue #53 separately composes
+`prcompanionreconcile` with complete current discovery and durable exact field
+ownership to perform authorized number writes/clears, drift repair, Issue-side
+rebasing and fresh retry. Capacity overflow produces no partial companion writes
+and can yield managed feedback. Actual deployed permissions remain unverified. Exact interface,
 validation, determinism and clearing rules are in
 [PR companion ordering](docs/pr-companion-ordering.md).
 
@@ -1524,8 +1523,9 @@ Phase objective completed
 Completing all child Issues makes a Phase eligible for closure. It does not
 close the Phase automatically.
 
-The normal Phase closure remains an explicit maintainer action, including the
-existing close-with-comment practice.
+Normal Phase closure remains an explicit native Close by an actor permitted by
+GitHub. No Force-Close is needed when all current direct children are CLOSED;
+zero children are valid. Force-Close has no bypass authority with an OPEN child.
 
 Workflow closure eligibility does not replace the existing Verification
 Standard. Implementation, required tests, deterministic expectations,
@@ -1540,10 +1540,11 @@ neither their completion nor a direct Phase PR merge initiates Phase closure.
 
 A natively CLOSED Phase with an authoritative OPEN direct child is reopened,
 then returned directly to freshly recomputed canonical nonterminal Status.
-The typed rejection reason is `open_direct_children`, consumable by the standalone
-[managed feedback adapter](docs/managed-feedback.md). Production Phase closure
-does not invoke that consumer or emit managed comments. Incomplete
-or invalid graph/identity evidence fails closed.
+The typed `open_direct_children` rejection feeds current durable correction
+evidence and production [managed feedback](docs/managed-feedback.md). Reopening a
+child can force an already-closed Phase to reopen; historical events and provenance
+remain intact. There is no cascading child closure, automatic child-completion
+comment or synthetic completion. Incomplete/invalid graph or identity fails closed.
 
 An OPEN Phase with Project Done is corrected to canonical nonterminal Status
 regardless of child completion eligibility. Project Done never requests Close.
@@ -1583,8 +1584,11 @@ Therefore:
 
 ```text
 Set-Status: false
-+ Issue closed
++ independently authorized Issue closure
 → Status = Done
+
+unauthorized Task/Feature closure or Phase closure with an OPEN child
+→ native reopen + freshly computed canonical open Status
 ```
 
 and:
@@ -1613,9 +1617,34 @@ child of inactive Phase
 → Backlog
 ```
 
-Repository-native Issue Close is authoritative for manual completion. A validated
-accepted PR merge supplies the separate narrow Task/Feature closure authority
-in Section 22. Project Done never supplies native closure authority:
+The accepted [Stage 4 decision](https://github.com/parametron-io/parametron-workflow/issues/53#issuecomment-6220783946)
+revises Engineering terminal authorization. Native CLOSED and Project Done are
+observations. Task/Feature closure is accepted only with applicable verified #50
+implementation-PR merge/Target-close authority OR a verified single-use
+`Force-Close: <nonempty reason>` correlation for the exact current native closure.
+Ordinary native Close, ordinary Close with comment, maintainer identity and
+keyword-only `Closes #N` do not independently authorize terminal acceptance.
+A blocker, inactive parent or not-yet-started execution does not by itself defeat
+an otherwise verified individual Task/Feature Force-Close exception.
+
+Force-Close is supplied as a newly created comment immediately preceding its
+matching ClosedEvent in a complete, stable, unfiltered Issue timeline cursor
+sequence, from the same stable GitHub actor. Current exact body, editing state,
+comment node/database identity, close identity and reopen-cycle boundary must
+validate. Same-second timestamps are permitted when cursor ordering establishes
+chronology; timestamps alone do not prove pairing. No unrelated event may be
+filtered out to create false adjacency. Edited, deleted, incomplete, ambiguous or
+reused evidence grants no new permission. Durable identity/cycle reservations
+survive restart; a later closure after reopen requires a new qualifying comment
+and close. A comment alone never initiates automatic closure. See
+[terminal execution](docs/execution.md#accepted-pr-completion-and-terminal-synchronization)
+and [durable acceptance](docs/persistence.md#force-close-acceptance-and-identity-reservations).
+
+Verified merge authority is checked independently before Force-Close and retains
+its receipt/reopen protections. Phase follows Section 24's explicit normal-close
+and direct-child gate instead. Unauthorized native terminal state and native-open
+Done drift demand fresh canonical correction; feedback uses typed owner evidence,
+not guessed human-action attribution. Project Done never supplies closure authority:
 
 ```text
 valid native Issue CLOSED → Project Done
@@ -1761,8 +1790,8 @@ Standalone #51 Development reconciliation uses its own process-local lane and
 two fresh authority/state barriers before each effect, then reassesses from new
 observations. Contradictory manual removals precede a missing canonical add.
 Partial failures return to the caller; retry skips effects already converged.
-This is bounded recovery, not an atomic snapshot or distributed lock. No production
-event routing or dedicated worker error mapping is composed for this controller.
+This is bounded recovery, not an atomic snapshot or distributed lock. Supported production routes and dedicated bounded
+worker error mappings are composed in #53; every effect retains owner validation.
 See [execution](docs/execution.md#standalone-development-relationship-reconciliation).
 
 ---
@@ -1823,8 +1852,8 @@ the standalone controller can remove proven contradictory manual drift and resto
 the declared Target projection only while current accepted binding, validated
 onboarding, exact managed membership and unambiguous endpoint evidence authorize
 it. Keyword-derived references cannot be removed; conflicting evidence fails
-closed. Production does not yet invoke this correction automatically on every
-manual change.
+closed. Supported PR/Issue notifications invoke current reconciliation; there is
+no claim of support for every manual action or webhook type.
 
 The same principle applies to other controller-owned relationships.
 
@@ -1853,8 +1882,8 @@ Typical human-owned surfaces include:
 
 Routine successful reconciliation and Roadmap Order housekeeping remain quiet.
 Issue #52 implements the standalone consumer described in the
-[managed feedback contract](docs/managed-feedback.md); production-wide routing
-and automatic emission remain deferred.
+[managed feedback contract](docs/managed-feedback.md). Issue #53 composes its
+existing consumer with `engineeringfeedback` current typed producer assembly.
 
 When a human action is rejected because it violates workflow policy, the
 controller should explain:
@@ -1874,8 +1903,9 @@ Examples include:
 - manually altered Development relationship
 
 These examples require current typed rejection authority from the owning policy
-packages. PR binding, validated companion capacity input, explicit Phase closure
-rejections and validated contradictory Development removals have adapters.
+packages. Production supports PR binding/capacity rejection and verified
+Development/Engineering terminal corrections, including open-child Phase rejection.
+Durable correction relevance supports restart, lost-response retry and resolution.
 Ordinary canonical Development additions remain silent. Manual lifecycle reasons
 have a bounded input contract, but the explicit human-intent producer remains
 unimplemented. Status drift, webhook payloads, historical decisions and comment
@@ -1899,8 +1929,10 @@ without replaying lifecycle mutations. Serialization is local to one controller
 instance, with no atomic policy/comment snapshot or distributed exactly-once
 guarantee. Feedback failure grants no authorization and does not reverse
 legitimate reconciliation. Policy ownership stays with the original producers;
-production Phase closure can return feedback-ready evidence without emitting a
-comment. These adapters do not imply that every producer is production-wired.
+production terminal corrections can emit managed explanations from verified
+current owner evidence. Broad nonterminal manual-intent production remains
+unimplemented; template availability is not producer authority. Actual App author
+receipts remain pending live proof.
 
 Routine housekeeping corrections such as normal item reordering need not
 produce user-facing comments.
@@ -1926,7 +1958,7 @@ The controller should own:
 
 - item added to Project → canonical ingress / Backlog initialization
 - sub-issue added → correct Project membership
-- item closed → Done synchronization
+- independently authorized native closure → Done synchronization; unauthorized closure → repair
 - accepted verified Task/Feature PR merge → authorized native Target Close
 - native-open Issue with Project Done → canonical nonterminal Status; preserve OPEN
 - item reopened → canonical open-state recomputation
@@ -1954,8 +1986,14 @@ GitHub mutations itself.
 
 A prompt instruction is not a security boundary.
 
-For production, GitHub authentication should use a GitHub App with narrowly
-scoped repository and organization Project permissions.
+Production CLI defaults to implemented App-owned installation-token minting with
+explicit identity bindings, RSA JWT signing, grant/permission checks and verified
+REST/GraphQL Bot identity. Explicit user credentials remain an alternate mode.
+No production `gh` dependency exists. See [runtime flags](docs/runtime.md#command-and-deployment)
+and the [credential contract](docs/github-integration.md#authentication-and-github-app-direction).
+Independent offline tests do not prove real JWT acceptance, installation grants,
+permissions, Bot/comment receipts or deployed closure-timeline compatibility;
+separately authorized live proof remains required before operational closure.
 
 A prototype may use the authenticated `gh` CLI, but production transport should
 remain replaceable behind an internal GitHub client boundary.
@@ -1998,10 +2036,10 @@ and lifecycle model defined here.
 
 ## 34. End-to-End Example
 
-The flow below combines implemented branch/activity, PR onboarding and review/rework
-and accepted completion/terminal synchronization with standalone Development
-projection and planned production companion numeric convergence. Development is
-not yet production-routed; planned steps are marked:
+The flow below combines implemented Engineering branch/activity, PR onboarding,
+review/rework, accepted completion/terminal synchronization, Development projection
+and companion numeric convergence. These production owners are independently
+verified offline; live installation/provider proof remains pending:
 
 ```text
 Phase #45 unblocked
@@ -2023,8 +2061,8 @@ Target: #48
 → PR added to Project
 → PR normalized to Draft once
 → durable onboarding completion recorded
-→ Development relationship projected (standalone capability; production routing deferred)
-→ PR Roadmap Order converges after Target within +1..+9 companions (planned production integration)
+→ Development relationship projected after fresh owner validation
+→ PR Roadmap Order converges within Target +1..+9 from complete current planning
 
 PR #80 Draft → Ready for review
 → PR #80 In Review

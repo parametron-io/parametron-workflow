@@ -15,19 +15,17 @@ Deterministic onboarding and review/rework work without a semantic Runner.
 current PR/Target/Project and native review evidence to authorize durable review
 cycles and one-shot rework Draft effects. See
 [review execution](execution.md#accepted-pr-review-and-rework).
-Standalone [Development reconciliation](pr-development.md) is implemented and
-independently tested. Production-wide Development routing, other relationship
-projection, production companion integration and numeric convergence,
-production feedback routing and full Phase #5 continuous/global orchestration remain deferred.
-Standalone [managed feedback](managed-feedback.md) policy, renderer, controller and
-comment transport are implemented and independently tested. `app.Run`, the CLI
-and worker do not construct or invoke the feedback controller or automatically
-emit its comments. Explicit manual lifecycle producer integration remains deferred.
-Accepted completion and terminal synchronization are implemented separately below.
-
-[#48 pure PR companion ordering](pr-companion-ordering.md) is implemented and
-independently tested, but is not composed into this production path. Persisted
-field-ownership provenance acquisition and companion orchestration remain deferred.
+Issue #53 production composition additionally includes separate bounded PR discovery,
+[companion numeric reconciliation](pr-companion-ordering.md#production-reconciliation),
+[Development reconciliation](pr-development.md#current-production-integration),
+[terminal consistency](#accepted-completion-and-native-terminal-consistency) and
+[supported managed feedback](managed-feedback.md#production-integration-and-remaining-limits).
+The Issue Snapshot remains Issue-only. PR discovery supplies canonical current
+consumer identities, not authorization. Each lifecycle/relationship/number/comment
+owner retains fresh effect-specific checks and the shared Store's durable evidence.
+App-owned installation credentials and trusted comment-author checks are implemented;
+[offline verification and live limits](github-integration.md#issue-53-offline-verification-and-live-proof-gate)
+remain distinct. No LLM is required for deterministic Engineering behavior.
 
 Embedded callers opt in through `app.Config.Engineering`; its zero value retains
 the Phase 2 foundation path, where normalized PolicyInput reaches FoundationSink.
@@ -52,38 +50,84 @@ completion, and restart behavior.
 
 ## Command and deployment
 
+The CLI defaults to `--github-credential-type installation`. These commands are
+illustrative only: replace placeholders with independently verified deployment
+bindings. Do not run them as an offline verification step.
+
+App-owned installation mode:
+
 ```sh
 ./parametron-workflow \
-  --config /etc/parametron-workflow/bindings.json \
-  --data-dir /var/lib/parametron-workflow \
-  --github-token-file /run/secrets/github-token \
-  --webhook-secret-file /run/secrets/github-webhook
+  --config '<bindings-json-path>' \
+  --data-dir '<data-directory>' \
+  --github-credential-type installation \
+  --github-app-id '<numeric-app-id>' \
+  --github-app-client-id '<app-client-id>' \
+  --github-app-slug '<app-slug>' \
+  --github-installation-id '<numeric-installation-id>' \
+  --github-installation-account-id '<numeric-account-id>' \
+  --github-installation-account-node-id '<account-node-id>' \
+  --github-installation-account-type Organization \
+  --github-app-private-key-file '<rsa-private-key-pem-path>' \
+  --feedback-author-id '<verified-bot-node-id>' \
+  --feedback-author-login '<app-slug>[bot]' \
+  --feedback-author-type Bot \
+  --webhook-secret-file '<webhook-secret-file>'
+```
+
+The installation account login comes from `SourceConfig.Organization`, not a new
+flag. Account type accepts `Organization` or `User`, and all account evidence must
+match the installation. The configured Bot login must be exactly the App slug plus
+`[bot]`; its stable node identity must be independently verified.
+
+Explicit user credential mode:
+
+```sh
+./parametron-workflow \
+  --config '<bindings-json-path>' \
+  --data-dir '<data-directory>' \
+  --github-credential-type user \
+  --github-token-file '<user-token-file>' \
+  --feedback-author-id '<verified-user-node-id>' \
+  --feedback-author-login '<verified-user-login>' \
+  --feedback-author-type User \
+  --webhook-secret-file '<webhook-secret-file>'
 ```
 
 | Flag | Default / requirement |
 | --- | --- |
-| `--config` | Required strict SourceConfig JSON file; see [configuration.md](configuration.md) |
+| `--config` | Required strict SourceConfig JSON file; see [configuration](configuration.md) |
 | `--data-dir` | Required directory; database filename is `workflow.sqlite` |
-| `--github-token-file` | Required file; validated at startup and reread on every transport request |
+| `--github-credential-type` | `installation`; only `installation` and `user` are accepted |
+| `--github-app-id`, `--github-installation-id`, `--github-installation-account-id` | Required positive numeric bindings in installation mode |
+| `--github-app-client-id`, `--github-app-slug` | Required exact App bindings in installation mode |
+| `--github-installation-account-node-id`, `--github-installation-account-type` | Required exact account bindings in installation mode |
+| `--github-app-private-key-file` | Required RSA PEM path in installation mode; read on mint/refresh |
+| `--github-token-file` | Required only in user mode; validated at startup and reread per transport request |
+| `--feedback-author-id`, `--feedback-author-login`, `--feedback-author-type` | Required trusted stable author identity in both modes; type `User` or `Bot` (installation requires `Bot`) |
 | `--webhook-secret-file` | Required file; loaded once, rotation requires restart |
 | `--listen` | `127.0.0.1:8080` |
-| `--worker-concurrency` | `1`, must be positive; concurrent unrelated resource lanes |
+| `--worker-concurrency` | `1`, must be positive |
 | `--worker-poll-interval` | `1s`, must be at least one second |
 | `--retry-delay` | `30s`, must be positive |
 
-Secret files may end in one LF or CRLF. Empty values, embedded newlines, NUL,
-and surrounding whitespace fail. Errors identify the setting/file without
-printing contents. Credentials and operational settings never enter SourceConfig
-or ResolvedConfig. No environment-variable fallback or `gh` runtime dependency
-exists. Flag parsing and files belong to the command; lower-level packages do
-not read arguments or environment variables.
+User mode rejects all App/installation settings. Installation mode rejects a
+`--github-token-file`; externally minted installation token files cannot establish
+the supported App credential provenance. Missing/invalid required bindings fail
+explicitly. Feedback author identity is checked against the shared credential
+before Engineering serves HTTP and again during comment reconciliation.
 
-The command's file-backed `github.TokenSource` is a deployment adapter. Tokens
-may be replaced atomically between requests. It does not assume personal-token
-semantics. A future GitHub App installation-token provider can replace it without
-changing configuration, observation, worker, webhook, or policy boundaries.
-JWT signing and installation-token minting remain deferred. The transport uses
-`https://api.github.com/graphql`, a 30s HTTP timeout, and no hidden retries.
+User-token and webhook-secret files may end in one LF or CRLF. Empty values,
+embedded newlines, NUL and surrounding whitespace fail. The App key reader accepts
+bounded PKCS#1/PKCS#8 RSA PEM with at least 2048 bits; it does not apply the
+single-line token parser to PEM. Credentials remain outside SourceConfig and
+ResolvedConfig and are never passed to semantic models. No environment-variable
+fallback or runtime `gh` dependency exists. The command owns argument/file setup;
+`github.AppCredentials` owns key loading, JWT signing and token minting/refresh.
+
+The transport uses `https://api.github.com/graphql`, a 30s HTTP timeout and no
+hidden retries. See [credential verification](github-integration.md#authentication-and-github-app-direction)
+for the supported chain and its pending live proof.
 
 ## Startup and storage
 
@@ -94,8 +138,9 @@ Engineering composition when enabled, worker/ingress, and finally binds HTTP.
 Engineering requires IssueLister, Branches, CommitComparison, LifecycleFields,
 NumericFields, ProjectItemReader, DeveloperReads, DraftConverter,
 PullRequestProjectItemReader, ReviewFactsReader (part of Client),
-NativeLifecycleReader, IssueStates, and the narrow
-`pronboarding.Projects` method set
+NativeLifecycleReader, IssueStates, IssueClosureReader, PullRequestLister,
+DevelopmentReader, DevelopmentWriter, CommentReader, CommentWriter,
+CommentAuthorReader, and the narrow `pronboarding.Projects` method set
 (`AddProjectItem`, `SetProjectOption`) on the shared client; missing narrow capabilities
 fail composition before HTTP serving. The same client performs discovery and
 all current Issue/PR/Project reads. Missing, ambiguous, or incompatible schema
@@ -196,7 +241,9 @@ Resolve(root) relevance boundary. Every configured repository's OPEN/CLOSED Issu
 must have Type authority. Complete Context → #36 BuildRoadmapOrder → #35 Evaluate
 → #36 Evaluate produces current policy and numbers; fresh Project comparisons
 converge only owned drift. Completed activity supplies the OPEN In Progress overlay
-and current direct-child Phase progression. Closed resources have no Status writes.
+and current direct-child Phase progression. Ordinary pre-development convergence
+excludes CLOSED resources; the separate terminal owner projects authorized CLOSED
+state to Done.
 Numeric assignments/clears are independent of Set-Position and Status.
 
 After successful field convergence, another complete Snapshot and FULL pure
@@ -238,14 +285,13 @@ Status writes, but cannot replay a Draft attempt without its durable receipt;
 unresolved ambiguity requires manual investigation. The Engineering lane is
 process-local, with no distributed serialization or GitHub/SQLite atomicity.
 
-Standalone [Development reconciliation](pr-development.md) is implemented and
-independently tested. Production-wide Development routing, other relationship
-projection, production companion integration and numeric convergence,
-full Phase #5 continuous/global orchestration, Bug Tracker scoring/admission, nested lifecycle,
-branch deletion/revocation, native Project positioning, heavy agents, automatic
-merge, production feedback routing/manual lifecycle producer integration,
-feedback decision-record persistence, App token minting, and
-distributed coordination remain deferred.
+Current Engineering PR integration is implemented and independently verified
+offline. Bug Tracker PR lifecycle/provider work remains deferred beyond #6,
+along with scoring/admission, nested lifecycle, other companion classes,
+unrelated relationship projection, branch deletion/revocation, native Project
+positioning, heavy agents, automatic merge and distributed coordination. Broad
+nonterminal manual-intent feedback production remains deferred. Live installation
+and provider verification remains pending, not a missing offline implementation.
 
 ## Standalone first activity (#38)
 
@@ -289,12 +335,18 @@ never closes the Phase. Native Issue terminal consistency runs before ordinary
 convergence, with fresh barriers after native mutation and existing #35/#36
 recomputation for dependency/roadmap effects.
 
-Native Issue Close is manual completion authority. Project Done never initiates
-Close. Valid CLOSED Issues project Done; OPEN/Done contradictions receive fresh
-canonical nonterminal Status, even with Set-Status disabled. Ordinary lifecycle
-writes remain ownership-gated. Explicit Phase native Close requires all
-authoritative direct children CLOSED; an invalid close is reopened with a typed
-feedback-ready rejection, without comment emission. Configured semantic processing
+Task/Feature CLOSED state is accepted only with applicable verified merge authority
+or exact single-use Force-Close correlation. Ordinary native Close, ordinary
+close-with-comment, keyword closure and Project Done independently grant none.
+The terminal owner repairs unauthorized closure and Done drift from fresh evidence,
+even with `Set-Status: false`; normal lifecycle writes retain ownership gates.
+Explicit normal Phase close requires all current direct children CLOSED, including
+zero children; Force-Close cannot bypass an OPEN child. There is no auto/cascade
+close, and a child reopen can require Phase reopen and canonical Status repair.
+Current typed correction evidence feeds the managed comment owner, including
+restart/lost-response recovery and resolution. See the exact
+[terminal authority contract](../system-overview.md#25-close-done-and-reopen-synchronization).
+Configured semantic processing
 for supported Issue notifications remains available after terminal correction;
 terminal routing does not silently disable it. This adds no production provider.
 
@@ -308,5 +360,7 @@ failures retain retry handling and cancellation releases claims without resolvin
 ambiguous attempts. See [execution](execution.md#accepted-pr-completion-and-terminal-synchronization)
 for exact error mappings and committed policy, transport, SQLite/restart and
 production-worker coverage. Local tests do not establish live GitHub permissions.
-Full Phase #5 continuous/global orchestration and the other deferred capabilities
-listed above remain future work.
+Stage 5A closed the Engineering code/offline-test implementation at
+`6f750a5797fa94bb399f234af7f89524c01c5720` with PASS. Documentation synchronization
+(Stage 5B) is in progress. Live proof, final PR integration/review and the final
+Issue #53 decision remain pending; parent #5 requires a separate final review.

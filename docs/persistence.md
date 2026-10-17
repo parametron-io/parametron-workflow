@@ -16,7 +16,9 @@ provides those as documented in [runtime.md](runtime.md).
 Callers own `Close()` and must keep transaction callbacks short.
 
 `PRAGMA user_version` is the schema version. Version 0 is accepted only when no
-application schema objects exist. Ordered, private migrations create version 1;
+application schema objects exist. Ordered private migrations currently reach version 3:
+version 1 established delivery/execution/provenance storage, version 2 adds
+`pr_companion_fields`, and version 3 adds `workflow_corrections`;
 DDL and version changes share one transaction. Failure rolls both back. Existing
 current schemas are verified against the known schema definitions; missing,
 changed, or additional application objects fail with `ErrSchema`. Future versions
@@ -151,9 +153,11 @@ the original creation time; conflicting delivery association or metadata returns
 processing metadata and resource binding changes.
 
 This surface records generic one-shot facts only. Branch creation and first
-activity and accepted PR onboarding use the protocols described here. Standalone
-[managed feedback](managed-feedback.md) is implemented without durable feedback
-storage or a new SQLite schema; feedback decision-record persistence remains deferred.
+activity and accepted PR onboarding use the protocols described here. At #52
+standalone completion the [managed comment consumer](managed-feedback.md) added
+no SQLite schema. Issue #53 separately persists producer-owned correction relevance
+and companion ownership as described [below](#companion-ownership-and-workflow-corrections);
+the comment consumer still recovers its exact comment from current GitHub state.
 Issue #27 uses this unchanged surface for namespace `semantic.classification`
 and format-1 bounded, canonical initial-classification completion records;
 decoding, gating, and authorization stay in `internal/semanticflow`. See
@@ -417,3 +421,65 @@ and cancellation can leave durable attempts without completion. Exactly-once
 external mutation execution is not guaranteed. Existing worker recovery releases
 claims; it does not erase or resolve these facts. See [terminal execution](execution.md#accepted-pr-completion-and-terminal-synchronization)
 for retry classifications and local regression coverage.
+
+## Companion ownership and workflow corrections
+
+Schema version 2 adds `pr_companion_fields`. `storage.CompanionFields` and
+`SaveCompanionField` expose exact identity-bound records with revision-based
+compare-and-swap. The companion owner validates canonical metadata, immutable
+PR/Project/item/field identity, original delivery, acquisition and write evidence.
+An observed number is not ownership proof. Initial uncertain acquisition cannot
+adopt a matching value; verified ownership supports fresh drift/set/clear recovery.
+The primary Issue reconciler's ordinary convergence still adds no batch provenance.
+
+Schema version 3 adds `workflow_corrections`, keyed by exact owner/resource identity
+with bounded metadata and revisions. Existing owner keys are `development_v1` and
+`phase_closure_v1`; the latter carries Engineering terminal corrections for
+Task/Feature as well as Phase. Terminal/Development owners validate selected
+correction, exact graph/native/item or binding/relationship evidence, current
+relevance, reporting and resolution. Historical selection is not mutation authority.
+This preserves an applicable explanation after partial mutation or lost comment
+response without retaining resolved warnings indefinitely. The feedback assembler
+reads typed owner evidence and acknowledges successful managed-comment reporting;
+it never interprets opaque storage metadata as a new lifecycle grant.
+
+See [schema and migrations](../internal/storage/schema.go),
+[migration/CAS tests](../internal/storage/companion_test.go),
+[companion ownership](../internal/prcompanionreconcile/ownership_test.go) and
+[production correction recovery](../internal/app/terminal_feedback_test.go).
+SQLite commits do not make external Project/number/relationship/comment writes
+atomic; retries refetch current state and revalidate the owner contract.
+
+## Force-Close acceptance and identity reservations
+
+`engineeringterminal` owns `ForceAcceptance` interpretation. It stores paired
+immutable `force_close_comment_v1` and `force_close_cycle_v1` provenance records
+through `Store.RecordForceClose`, reusing existing provenance storage. Keys bind
+repository ID, Issue node ID and the respective comment/ClosedEvent ID. Metadata
+binds exact Issue identity, current comment node AND positive database identity,
+body/editing/author evidence, matched close, reopen-cycle boundary, timeline-prefix
+digest, Project, Issue creation time and the actual durable trigger origin.
+The provenance row retains the originating delivery and acceptance time.
+
+A newly created valid command must immediately precede its exact close from the
+same stable actor in a complete cursor-ordered current cycle. Before acceptance,
+the terminal owner refetches the complete timeline and requires unchanged evidence.
+Accepted retry revalidates current evidence against the immutable pair; changed or
+deleted accepted evidence fails closed, never granting a replacement permission.
+A new close after reopen requires a new qualifying comment/close pair. Earlier
+history remains stored and may not authorize another cycle.
+
+`RecordForceClose` checks all historical node/database identity reservations,
+including legacy records, and inserts both paired facts inside one immediate
+SQLite transaction. Canonical metadata, origin, chronology and pair consistency
+are owner-validated; conflicting, corrupt or reused identities cannot be accepted
+under another Issue/repository/node/cycle. There is no secondary-index assumption,
+historical rewrite or GitHub mutation inside that transaction. Storage enforces
+atomic recording/conflict checks; it does not decide terminal authorization.
+
+Independent [acceptance tests](../internal/engineeringterminal/authorization_test.go)
+and [reservation tests](../internal/engineeringterminal/reservations_test.go) cover
+restart, distinct cycles, changed evidence, node/database reuse, legacy/corrupt
+history, concurrent conflicts, persistence failure and cancellation. Verified
+implementation-PR merge authority remains separate and is checked before
+Force-Close; its attempt/receipt protocol above is unchanged.

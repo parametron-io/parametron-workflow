@@ -12,7 +12,8 @@ reservation. [#46 PR binding](pr-binding.md) owns current accepted PR/Target
 authorization. #48 consumes those results and owns only pure companion assignment
 and desired clearing. [#47 onboarding](execution.md#accepted-pr-onboarding)
 retains its separate initial membership, Status, Draft, and provenance authority.
-Production integration and GitHub mutation belong to later work.
+Issue #53 composes a separate production reconciler; this pure package still
+performs no GitHub mutation. See [production reconciliation](#production-reconciliation).
 
 ## Inputs and outputs
 
@@ -156,19 +157,39 @@ reopening, cross-repository/multiple Targets, malformed identities, primary
 contradictions, zero-plan failures, and input immutability. Twenty-five equivalent
 shuffled fixtures produce byte-identical JSON plans.
 
-## Remaining integration
+## Production reconciliation
 
-Pure plan output is available for later production reconciliation. Issue #48 does
-not introduce production composition, live PR numeric-field writes/clears,
-persisted ownership-provenance acquisition, fresh field convergence/drift repair,
-retry or cross-resource sequencing, or webhook-driven companion orchestration.
-The Engineering Project does not automatically display these newly computed PR
-numbers today. Shared review/rework and #50 completion/terminal synchronization
-are implemented separately from companion allocation. Standalone
-[Development reconciliation](pr-development.md) is also implemented and independently
-tested. Standalone [managed feedback](managed-feedback.md) is implemented separately;
-production feedback routing and explicit manual lifecycle producer integration,
-Development production routing, other relationship projection and Bug Tracker
-changes remain deferred. See [runtime](runtime.md),
-[execution](execution.md), and
-[architectural lifecycle contracts](../system-overview.md#19-pull-request-roadmap-order-companions).
+Issue #48 established the pure policy above without adding a writer. Issue #53
+now composes `internal/prcompanionreconcile` in the existing Engineering lane.
+It obtains complete stable `prdiscovery` evidence and the current Issue Snapshot,
+consumes EXACT #36 primary output and #48 `Evaluate` output, and validates the
+complete effect union before companion number writes. Discovery does not insert
+PRs into Issue topology or authorize lifecycle effects.
+
+Current accepted OPEN bindings with assigned Targets receive deterministic dense
+slots within `N+1..N+9`, including multiple PRs and cross-repository identities.
+Onboarding history is not a numeric eligibility filter. Missing current membership
+or incomplete/ambiguous enumeration fails closed rather than excluding a candidate.
+Ten eligible PRs for one Target return capacity rejection without partial companion
+writes; supported typed capacity evidence reaches one managed explanation per
+applicable PR. Primary Issue Roadmap Order remains independently owned.
+
+Durable acquisition binds exact PR/Project/item/NUMBER-field identity and validated
+origin evidence. Observed matching numbers alone cannot establish ownership.
+Verified owned fields converge missing/incorrect values and clear to unset only
+when current policy proves ineligibility; unrelated/unproven fields are not cleared.
+An uncertain first acquisition remains indeterminate across restart. Later owned
+partial writes retry from fresh observations and recompute the current plan.
+
+Issue-side compaction, close/reopen and reparenting can rebase every affected PR;
+freed slots compact without replaying Draft/onboarding. Fresh barriers surround
+individual writes; no GitHub/SQLite transaction or distributed lock is claimed.
+Bug Tracker receives no Engineering numeric writes. Other companion categories,
+shared occupancy arbitration and nested lifecycle remain deferred.
+
+Independent evidence includes [reconciler tests](../internal/prcompanionreconcile/reconcile_test.go),
+[ownership/restart tests](../internal/prcompanionreconcile/ownership_test.go),
+[production rebasing tests](../internal/app/companion_test.go) and
+[capacity feedback](../internal/app/capacity_feedback_test.go). These are offline
+checks, not proof of deployed Project permissions. See [execution](execution.md#continuous-engineering-pr-reconciliation)
+and [persistence](persistence.md#companion-ownership-and-workflow-corrections).

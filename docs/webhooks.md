@@ -168,8 +168,17 @@ notifications retain their existing non-applicable behavior.
 A Project-item notification supplies only a candidate, never authorization for
 onboarding or membership repair. Every consequential action requires fresh #46
 accepted binding and exact current PR/Target/Project validation. Initial Status and
-Draft effects are one-shot; membership is separately reconcilable. This does not
-introduce all-event PR reconciliation or deleted-item notification support.
+Draft effects are one-shot; membership is separately reconcilable. Issue #53 also
+routes applicable current terminal PR state through completion before onboarding
+or review, and runs continuous companion/Development/owned Status/feedback
+convergence on supported paths. Complete current PR discovery resolves canonical
+identity; refreshed discovery after terminal correction rejects changed/disappeared
+previously selected identities. Relevant Issue graph notifications can fan out to
+current PR consumers. Every owner independently validates authority; payload state
+remains notification evidence only. Historical companion ownership selects former
+feedback consumers without granting lifecycle authority. This is bounded routing,
+not support for every webhook/action or deleted-item notifications. See
+[continuous execution](execution.md#continuous-engineering-pr-reconciliation).
 See [execution](execution.md#accepted-pr-onboarding).
 
 ## Native review notifications
