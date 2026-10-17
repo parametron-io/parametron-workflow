@@ -1767,11 +1767,17 @@ fresh PhaseOrder; the branch package independently reevaluates exact eligibility
 
 Canonical configured development push notifications and bounded Engineering
 Project-item notifications are production-routed. Supported Project actions are
-created, edited, reordered, archived, and restored. Current item/content/Issue
-identity is refetched; payload Status/Roadmap fields never enter authority.
-Unsupported deleted actions, unrelated Projects, PR/DraftIssue/no content, and
-unavailable items become non-applicable as defined by routing. Ordinary/unrelated
-pushes are non-applicable; malformed canonical development candidates fail closed.
+created, edited, reordered, archived, and restored. Current content may resolve to
+an Issue or, when onboarding is composed, a PullRequest. The PR-specific reader
+verifies exact current item/Project identity and PullRequest content before current
+primary reads validate resource kind, PR and configured repository identity.
+Payloads supply locators only; Status/Roadmap values never enter authority, and
+routing grants no mutation authority. Unsupported deleted actions, unrelated
+Projects, DraftIssue/no content, and unavailable items remain non-applicable;
+malformed or contradictory supported identities fail closed. See
+[webhook routing](docs/webhooks.md#production-engineering-notification-routing).
+Ordinary/unrelated pushes are non-applicable; malformed canonical development
+candidates fail closed.
 Payload before/after SHAs are not activity authority. Worker.ErrNotApplicable
 settles Completed without fake binding, Processor call, or failure category and
 continues later eligible work in the same Step, preserving cancellation/recovery.
