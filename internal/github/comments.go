@@ -81,7 +81,15 @@ func ValidCommentAuthor(a Actor) bool {
 	return validLogin(login) && validIDs(a.ID) && (a.Type == "User" || a.Type == "Bot") && (a.Type == "Bot" || login == a.Login)
 }
 func SameCommentAuthor(a, b Actor) bool {
-	return ValidCommentAuthor(a) && ValidCommentAuthor(b) && a.ID == b.ID && a.Type == b.Type && strings.EqualFold(a.Login, b.Login)
+	if !ValidCommentAuthor(a) || !ValidCommentAuthor(b) || a.ID != b.ID || a.Type != b.Type {
+		return false
+	}
+	if strings.EqualFold(a.Login, b.Login) {
+		return true
+	}
+	// Verified Bots have REST <slug>[bot] and GraphQL <slug> logins.
+	// This exact representation relationship does not authenticate actors.
+	return a.Type == "Bot" && (a.Login == b.Login+"[bot]" || b.Login == a.Login+"[bot]")
 }
 
 const commentSelection = `__typename id body url databaseId author{__typename login ... on User{id} ... on Bot{id}}`

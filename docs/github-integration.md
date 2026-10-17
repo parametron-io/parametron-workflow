@@ -63,6 +63,16 @@ and matching `issuecomment-<databaseId>` fragment. Enterprise origins are not
 configurable. Transport validates this evidence; the controller separately
 verifies the expected author and canonical marker. A marker alone grants no ownership.
 
+The verified App Bot author uses REST `<slug>[bot]`, while GraphQL IssueComment
+authors may use bare `<slug>`. `SameCommentAuthor` requires valid actors, an exact
+stable Node ID and exact actor type. It preserves case-insensitive same-form login
+comparison and, only for Bots, accepts the exact symmetric `<slug>[bot]`/`<slug>`
+relationship without case folding across forms. Provider author data is preserved.
+This comparison does not authenticate unrelated or unverified Bots: the App
+credential provider independently verifies the exact configured trusted author,
+and workflow policy separately authorizes mutations. This applies to Issue and PR
+conversation comments, not review-comment authorization.
+
 Enumeration preflights native identity before and after pagination, validates
 exact parent/type on every page, stable totals, complete final counts and unique
 node/database identities. Pages are bounded to 100 and totals to 100000; missing,
@@ -612,11 +622,14 @@ passed. Instrumented GitHub tests reported 100.0% statement coverage for both
 `Transport.closureRead` and `Transport.IssueClosure`; behavior assertions, rather
 than coverage alone, establish the offline acquisition boundary.
 
-Synthetic HTTP/GraphQL and credential tests do not establish deployed GitHub
-schema/field availability, complete timeline/cursor provider behavior, real JWT
-acceptance, installation identity/permissions/repository grants, REST/GraphQL Bot
-compatibility or a real managed-comment authorship receipt. These require separately
-authorized live proof before final operational Issue #53 closure. Documentation
-synchronization and final PR integration remain pending; parent #5 closure is not
-decided. The accepted [Stage 4 proof gate](https://github.com/parametron-io/parametron-workflow/issues/53#issuecomment-6220783946)
+Synthetic HTTP/GraphQL and credential tests alone do not establish deployed GitHub
+compatibility. Maintainer-supplied live evidence confirms real App credentials,
+IssueClosure acquisition, comment creation, mutation receipt and exact readback.
+The live ownership comparison rejected matching Bot Node IDs because REST returned
+`<slug>[bot]` and GraphQL returned `<slug>`; the narrow comparison correction is
+covered locally. Corrected ownership still requires a separately authorized,
+read-only recheck of the existing comment before final operational Issue #53 closure;
+no new comment is needed. Stage 5B documentation synchronization is complete;
+final PR integration remains pending, and parent #5 closure is not decided.
+The accepted [Stage 4 proof gate](https://github.com/parametron-io/parametron-workflow/issues/53#issuecomment-6220783946)
 is not waived by offline PASS.
