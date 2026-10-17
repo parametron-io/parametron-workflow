@@ -837,12 +837,13 @@ GitHub/SQLite transaction or exactly-once external mutation guarantee.
 ## Issue #53 independent offline verification
 
 Stage 5A PASS freezes the accepted Engineering implementation/offline tests at
-`6f750a5797fa94bb399f234af7f89524c01c5720`. All 19 revised criteria were reconciled:
-17 verified, one externally gated installation/provider criterion and one
-Stage 5B documentation criterion. No known material offline code/test gap remains.
-Documentation synchronization is in progress; final documentation review, live
-proof, PR integration and the final Issue #53 decision remain pending. Parent #5
-requires a separate final review.
+`6f750a5797fa94bb399f234af7f89524c01c5720`. At that milestone, all 19 revised
+criteria were reconciled: 17 verified, one externally gated installation/provider
+criterion and one Stage 5B documentation criterion. No known material offline code/test gap remains.
+Stage 5B documentation synchronization subsequently completed in `4fe582a` and
+`bbd661b`; the final post-audit status corrections are a separate documentation
+step. Final documentation review, PR integration/review and Issue #53 closure
+remain pending. Parent #5 remains open and requires its own closure decision.
 
 | Boundary | Independent committed evidence |
 | --- | --- |
@@ -859,6 +860,44 @@ The Stage 5A re-audit independently executed fresh-Nix build, full
 `go test -count=1 -timeout=180s ./...`, vet, three repetitions of closure transport
 and Force-Close acceptance/reservation tests, five repetitions of the three
 protected identity regressions, and race groups covering GitHub/terminal/storage
-and app/review/Development. All passed. This evidence is offline; the
-[live proof gate](github-integration.md#issue-53-offline-verification-and-live-proof-gate)
-remains open, including actual closure timeline fields/cursor behavior.
+and app/review/Development. All passed. This historical evidence is offline.
+
+The accepted final independent Stage 5 audit at
+`81dcf97f215c7ac5995540255755b89987188e85` returned **PASS WITH NOTES**. It assessed
+all 19 Issue #53 verification/exit criteria: 18 PASS and one requiring final
+current-status documentation synchronization, addressed by these post-audit
+corrections. No material source or test defect was reported. The audit executed
+the following fresh-Nix commands, all with exit code zero; this documentation-only
+task did not rerun them:
+
+```sh
+nix develop --command go test -count=1 -timeout=300s ./...
+nix develop --command go test -count=3 -timeout=300s \
+  ./internal/app \
+  ./internal/engineeringflow \
+  ./internal/engineeringterminal \
+  ./internal/prdiscovery \
+  ./internal/prcompanionreconcile \
+  ./internal/prdevelopment \
+  ./internal/prreview \
+  ./internal/workflowfeedback
+nix develop --command go build ./...
+nix develop --command go vet ./...
+nix develop --command go test -race -count=1 -timeout=300s \
+  ./internal/app \
+  ./internal/worker \
+  ./internal/storage \
+  ./internal/github \
+  ./internal/engineeringterminal \
+  ./internal/prcompanionreconcile \
+  ./internal/workflowfeedback
+```
+
+Separate maintainer-supplied production Go checks passed real App credential and
+Bot identity verification, tested IssueClosure acquisition/correlation, and
+isolated comment creation, receipt, exact readback and complete enumeration.
+The corrected REST/GraphQL Bot ownership recheck also passed read-only. These are
+selected real provider proofs, distinct from synthetic tests and from deployed
+workflow authorization. A full deployed Engineering controller rehearsal, real
+managed-feedback policy reconciliation and other operation-specific live
+permissions/capabilities remain unproven. See the [provider evidence and remaining limits](github-integration.md#issue-53-offline-verification-and-live-proof-gate).

@@ -204,9 +204,11 @@ The authenticated App slug selects `/users/<slug>[bot]` as a lookup key, never a
 identity proof alone. REST Bot login must exactly equal `<slug>[bot]`; the observed
 GraphQL `Bot` login must exactly equal the bare authenticated App slug. Both API
 representations are verified against that App and the configured trusted REST-style
-author, and their stable node and database identities must agree. Live GitHub App
-verification remains incomplete until the outstanding provider and managed-comment
-gates are exercised. The installation
+author, and their stable node and database identities must agree. Separate
+maintainer-supplied live checks passed App JWT authentication, installation-token
+acquisition, configured repository scope, Bot identity and isolated comment
+receipt/readback/ownership. These do not establish all operation-specific live
+permissions or deployed managed-feedback reconciliation. The installation
 is rechecked after minting and identity observations. The same provider instance
 serves transport requests and comment-author checks. Comment reconciliation
 rechecks Bot identity; the installation account is never substituted for its Bot.
@@ -622,14 +624,42 @@ passed. Instrumented GitHub tests reported 100.0% statement coverage for both
 `Transport.closureRead` and `Transport.IssueClosure`; behavior assertions, rather
 than coverage alone, establish the offline acquisition boundary.
 
-Synthetic HTTP/GraphQL and credential tests alone do not establish deployed GitHub
-compatibility. Maintainer-supplied live evidence confirms real App credentials,
-IssueClosure acquisition, comment creation, mutation receipt and exact readback.
-The live ownership comparison rejected matching Bot Node IDs because REST returned
-`<slug>[bot]` and GraphQL returned `<slug>`; the narrow comparison correction is
-covered locally. Corrected ownership still requires a separately authorized,
-read-only recheck of the existing comment before final operational Issue #53 closure;
-no new comment is needed. Stage 5B documentation synchronization is complete;
-final PR integration remains pending, and parent #5 closure is not decided.
-The accepted [Stage 4 proof gate](https://github.com/parametron-io/parametron-workflow/issues/53#issuecomment-6220783946)
-is not waived by offline PASS.
+Stage 5B documentation synchronization completed in `4fe582a` and `bbd661b`.
+Subsequent compatibility corrections in `d6afb98` and `81dcf97` retain the exact
+authenticated App and stable Bot identity. The final independent Stage 5 audit at
+`81dcf97f215c7ac5995540255755b89987188e85` returned **PASS WITH NOTES**: 18 of 19
+criteria passed, with final current-status documentation synchronization identified
+as the remaining criterion addressed by these post-audit corrections.
+Its five required fresh-Nix verification commands all returned zero; see the
+[audit record](execution.md#issue-53-independent-offline-verification). These
+offline results do not establish deployed GitHub behavior.
+
+Separate maintainer-supplied live checks used production Go methods:
+
+- `AppCredentials.Token` and `AuthenticatedCommentAuthor` passed real App JWT
+  authentication, installation-token acquisition, configured repository scope and
+  verified Bot identity. This does not verify every composed operation's permission.
+- `Transport.IssueClosure` read `prm-workflow/workflow_repo_1#1` as CLOSED and
+  complete in `github_issue_timeline_cursor_sequence_v1` order: seven items,
+  three comments, two ClosedEvents and one ReopenedEvent. Final comment/closure
+  correlation passed; a later unrelated CrossReferencedEvent retained its cursor
+  position. This proves the tested acquisition, not deployed terminal reconciliation.
+- Production comment transport created [one isolated test comment](https://github.com/prm-workflow/workflow_repo_1/issues/2#issuecomment-6231984178),
+  validated its mutation receipt, read that exact comment and completely enumerated
+  the list, confirming exactly one comment. It had no managed-feedback marker.
+- The initial ownership comparison exposed REST `parametron-workflow-dev[bot]`
+  versus GraphQL `parametron-workflow-dev`, both with Node ID `BOT_kgDOFHwEQA`.
+  After `81dcf97`, the strictly read-only production Go recheck of that existing
+  comment passed authenticated Bot identity, exact readback,
+  `SameCommentAuthor: true`, REST/GraphQL ownership and exactly-one-comment
+  verification. The recheck is complete; it performed no comment mutation.
+
+These supplied real provider proofs are distinct from synthetic tests. They
+establish neither lifecycle authorization from an observed comment nor deployed
+managed-feedback policy reconciliation, Project mutation or a full PR lifecycle
+rehearsal. Full deployed Engineering controller behavior and other operation-specific
+live permissions/capabilities remain unproven. The accepted [Stage 4 proof gate](https://github.com/parametron-io/parametron-workflow/issues/53#issuecomment-6220783946)
+is supported by the selected real provider checks above, not waived by offline PASS.
+Final post-audit documentation review and PR integration/review remain pending;
+Issue #53 has not been merged or closed. Parent #5 remains open and requires its
+own closure decision.

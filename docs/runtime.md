@@ -127,7 +127,8 @@ fallback or runtime `gh` dependency exists. The command owns argument/file setup
 
 The transport uses `https://api.github.com/graphql`, a 30s HTTP timeout and no
 hidden retries. See [credential verification](github-integration.md#authentication-and-github-app-direction)
-for the supported chain and its pending live proof.
+for the supported chain, completed selected live provider checks and remaining
+deployment-proof limits.
 
 ## Startup and storage
 
@@ -290,8 +291,11 @@ offline. Bug Tracker PR lifecycle/provider work remains deferred beyond #6,
 along with scoring/admission, nested lifecycle, other companion classes,
 unrelated relationship projection, branch deletion/revocation, native Project
 positioning, heavy agents, automatic merge and distributed coordination. Broad
-nonterminal manual-intent feedback production remains deferred. Live installation
-and provider verification remains pending, not a missing offline implementation.
+nonterminal manual-intent feedback production remains deferred. Separate
+maintainer-supplied App credential, timeline and isolated comment provider checks
+passed. Full deployed controller rehearsal and operation-specific live Project,
+Development and other permissions/capabilities remain unproven; these selected
+checks do not establish deployed workflow reconciliation.
 
 ## Standalone first activity (#38)
 
@@ -362,5 +366,9 @@ for exact error mappings and committed policy, transport, SQLite/restart and
 production-worker coverage. Local tests do not establish live GitHub permissions.
 Stage 5A closed the Engineering code/offline-test implementation at
 `6f750a5797fa94bb399f234af7f89524c01c5720` with PASS. Documentation synchronization
-(Stage 5B) is in progress. Live proof, final PR integration/review and the final
-Issue #53 decision remain pending; parent #5 requires a separate final review.
+(Stage 5B) subsequently completed. The final independent Stage 5 audit at
+`81dcf97` returned PASS WITH NOTES, identifying the final current-status
+documentation corrections addressed here. Selected real provider checks passed
+separately; full deployed controller behavior remains unproven. Final documentation review, PR
+integration/review and Issue #53 closure remain pending; parent #5 remains open
+and requires its own closure decision. See [verification evidence](execution.md#issue-53-independent-offline-verification).

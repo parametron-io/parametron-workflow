@@ -85,14 +85,23 @@ Stage 5A code/test closure is **PASS** at
 offline tests are complete, including production closure-timeline transport tests.
 Fresh-Nix build, full tests, vet, repeated regressions and race checks passed with
 no known material offline implementation defect. Stage 5B documentation
-synchronization is in progress; independent documentation review, separately
-authorized live verification, final PR integration and Issue #53 closure remain
-pending. Parent #5 closure is not decided. This does not claim merge or deployment.
+synchronization completed in `4fe582a` and `bbd661b`. The final independent Stage 5
+integration audit at `81dcf97` returned **PASS WITH NOTES**: 18 of 19 criteria
+passed; it identified final current-status documentation synchronization as the
+remaining criterion addressed by these post-audit corrections.
+Final documentation review, PR integration/review and Issue #53 closure remain
+pending. Issue #53 has not been merged or closed; parent #5 remains open and
+requires its own closure decision.
 
 [GitHub App credentials](docs/github-integration.md#authentication-and-github-app-direction)
-are implemented and independently verified offline. Real JWT acceptance,
-installation/grants/permissions, REST/GraphQL Bot compatibility, managed-comment
-authorship receipts and deployed closure-timeline compatibility remain unverified.
+are implemented and independently verified offline. Separate maintainer-supplied
+production Go checks passed real App JWT authentication, installation-token
+acquisition, configured repository scope and Bot identity; tested IssueClosure
+acquisition; and isolated comment creation, receipt, exact readback, complete
+enumeration and corrected REST/GraphQL Bot ownership. The ownership recheck was
+read-only. These selected provider proofs do not establish every operation's live
+permissions, deployed managed-feedback reconciliation or a full Engineering
+controller end-to-end rehearsal. See the [evidence and remaining limits](docs/github-integration.md#issue-53-offline-verification-and-live-proof-gate).
 
 Bug Tracker PR lifecycle/provider work is deferred beyond #6; Bug ordering remains
 separate Priority Score policy. Broad nonterminal manual-intent feedback production,

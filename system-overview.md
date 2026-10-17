@@ -33,9 +33,13 @@ fresh current evidence. See [continuous execution](docs/execution.md#continuous-
 Stage 5A code/offline-test closure is PASS at
 `6f750a5797fa94bb399f234af7f89524c01c5720`, including production closure-timeline
 HTTP/GraphQL tests, full fresh-Nix tests/build/vet, repeated regressions and race
-checks. Stage 5B documentation synchronization is in progress. Live App/provider
-proof, final PR integration/review and final Issue #53 closure remain pending;
-parent #5 closure is not decided. Offline verification is not deployment proof.
+checks. Stage 5B documentation synchronization subsequently completed. The final
+independent Stage 5 audit at `81dcf97` returned PASS WITH NOTES, identifying the
+final current-status documentation corrections addressed here. Separate
+maintainer-supplied App, timeline and comment provider checks passed; full deployed controller rehearsal
+and operation-specific live permissions remain unproven. Final documentation
+review, PR integration/review and Issue #53 closure remain pending; parent #5
+remains open and requires its own closure decision. See the [provider evidence](docs/github-integration.md#issue-53-offline-verification-and-live-proof-gate).
 
 Task/Feature closure requires applicable verified implementation-PR merge or exact
 single-use Force-Close correlation. Phase requires explicit normal close with all
@@ -1937,8 +1941,11 @@ guarantee. Feedback failure grants no authorization and does not reverse
 legitimate reconciliation. Policy ownership stays with the original producers;
 production terminal corrections can emit managed explanations from verified
 current owner evidence. Broad nonterminal manual-intent production remains
-unimplemented; template availability is not producer authority. Actual App author
-receipts remain pending live proof.
+unimplemented; template availability is not producer authority. Separate live
+provider checks passed isolated comment creation, receipt/readback and verified
+REST/GraphQL Bot ownership, including a completed read-only ownership recheck.
+The test comment had no managed-feedback marker; deployed managed-feedback policy
+reconciliation remains unproven.
 
 Routine housekeeping corrections such as normal item reordering need not
 produce user-facing comments.
@@ -1997,9 +2004,10 @@ explicit identity bindings, RSA JWT signing, grant/permission checks and verifie
 REST/GraphQL Bot identity. Explicit user credentials remain an alternate mode.
 No production `gh` dependency exists. See [runtime flags](docs/runtime.md#command-and-deployment)
 and the [credential contract](docs/github-integration.md#authentication-and-github-app-direction).
-Independent offline tests do not prove real JWT acceptance, installation grants,
-permissions, Bot/comment receipts or deployed closure-timeline compatibility;
-separately authorized live proof remains required before operational closure.
+Independent offline tests remain distinct from the maintainer-supplied real App
+JWT, installation-token, configured repository scope, Bot identity, IssueClosure
+and isolated comment provider checks, which passed. These selected proofs do not
+establish every operation's live permissions or full deployed controller behavior.
 
 A prototype may use the authenticated `gh` CLI, but production transport should
 remain replaceable behind an internal GitHub client boundary.
@@ -2045,7 +2053,8 @@ and lifecycle model defined here.
 The flow below combines implemented Engineering branch/activity, PR onboarding,
 review/rework, accepted completion/terminal synchronization, Development projection
 and companion numeric convergence. These production owners are independently
-verified offline; live installation/provider proof remains pending:
+verified offline. Separate selected live provider checks passed, but this complete
+Engineering controller sequence has not been rehearsed in deployment:
 
 ```text
 Phase #45 unblocked

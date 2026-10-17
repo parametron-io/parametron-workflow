@@ -240,9 +240,16 @@ validated correction.
 Trusted author evidence is checked against the actual shared credential, with
 App-owned installation tokens and explicit user credentials supported by
 [the credential boundary](github-integration.md#authentication-and-github-app-direction).
-Offline identity/receipt tests do not prove real installation authorship. Live
-JWT acceptance, installation permissions/grants, REST/GraphQL Bot compatibility,
-managed-comment receipts and closure-timeline compatibility remain pending.
+Offline identity/receipt tests remain distinct from separate maintainer-supplied
+production Go checks. Those live checks passed App JWT authentication,
+installation-token acquisition, configured repository scope and Bot identity;
+tested IssueClosure acquisition/correlation; and isolated comment creation,
+mutation receipt, exact readback and complete enumeration. The corrected
+REST/GraphQL Bot ownership recheck passed read-only on the same existing comment.
+That provider test comment had no managed-feedback marker and was not a canonical
+managed-feedback comment. These checks do not establish deployed managed-feedback
+policy reconciliation, every operation's live permissions or a full controller
+rehearsal. See the [provider evidence and remaining limits](github-integration.md#issue-53-offline-verification-and-live-proof-gate).
 
 The broad explicit nonterminal `ManualRejection` producer remains unimplemented;
 its existing adapter/templates are not production intent evidence. Bug PR lifecycle
