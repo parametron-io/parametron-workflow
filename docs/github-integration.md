@@ -191,8 +191,12 @@ Additional permissions required by composed Project, branch and membership
 operations must still be supplied and verified at deployment.
 
 The authenticated App slug selects `/users/<slug>[bot]` as a lookup key, never as
-identity proof alone. REST node/database identity, independent GraphQL `Bot`
-identity and the exact configured expected author must agree. The installation
+identity proof alone. REST Bot login must exactly equal `<slug>[bot]`; the observed
+GraphQL `Bot` login must exactly equal the bare authenticated App slug. Both API
+representations are verified against that App and the configured trusted REST-style
+author, and their stable node and database identities must agree. Live GitHub App
+verification remains incomplete until the outstanding provider and managed-comment
+gates are exercised. The installation
 is rechecked after minting and identity observations. The same provider instance
 serves transport requests and comment-author checks. Comment reconciliation
 rechecks Bot identity; the installation account is never substituted for its Bot.

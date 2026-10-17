@@ -305,6 +305,8 @@ func (s *AppCredentials) verifyRepositories(ctx context.Context, t *Transport) e
 // Bot at /users/<authenticated-app-slug>[bot]. The slug is only a lookup key:
 // JWT-verified App + App-owned token minting + REST Bot node/database identity +
 // independent GraphQL Bot identity + exact expected actor establish the chain.
+// REST uses <slug>[bot]; the observed GraphQL Bot login is the bare App slug.
+// Both exact forms are bound to the authenticated App, without normalization.
 // App node IDs are never substituted for Bot node IDs.
 // https://github.com/actions/create-github-app-token#configure-git-cli-for-an-apps-bot-user
 func (s *AppCredentials) verifyBot(ctx context.Context, t *Transport) error {
@@ -326,7 +328,7 @@ func (s *AppCredentials) verifyBot(ctx context.Context, t *Transport) error {
 	if err := t.query(ctx, `query($id:ID!){node(id:$id){__typename ... on Bot{id login databaseId}}}`, map[string]any{"id": actor.ID}, &data); err != nil {
 		return err
 	}
-	if data.Node == nil || data.Node.Type != "Bot" || data.Node.ID != actor.ID || data.Node.Login != actor.Login || data.Node.DatabaseID != user.ID {
+	if data.Node == nil || data.Node.Type != "Bot" || data.Node.ID != actor.ID || data.Node.Login != s.cfg.Slug || data.Node.DatabaseID != user.ID {
 		return failure(Unauthorized)
 	}
 	return ctx.Err()

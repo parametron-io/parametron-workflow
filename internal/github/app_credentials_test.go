@@ -152,7 +152,7 @@ func newAppFixture(t *testing.T) (*appFixture, *AppCredentials) {
 		minted:       map[string]any{"token": "synthetic-installation-token", "expires_at": time.Now().Add(time.Hour).UTC().Format(time.RFC3339), "repository_selection": "selected", "permissions": permissions},
 		repositories: map[string]any{"total_count": 1, "repositories": []any{map[string]any{"id": 404, "node_id": "SYNTHETIC_REPO", "name": "repo", "owner": owner}}},
 		bot:          map[string]any{"id": 505, "node_id": cfg.Author.ID, "login": cfg.Author.Login, "type": "Bot"},
-		graph:        map[string]any{"data": map[string]any{"node": map[string]any{"__typename": "Bot", "id": cfg.Author.ID, "login": cfg.Author.Login, "databaseId": 505}}}}
+		graph:        map[string]any{"data": map[string]any{"node": map[string]any{"__typename": "Bot", "id": cfg.Author.ID, "login": cfg.Slug, "databaseId": 505}}}}
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		f.mu.Lock()
 		defer f.mu.Unlock()
@@ -433,6 +433,72 @@ func TestAppTransportAuthenticationFailureNeverReplaysMutation(t *testing.T) {
 			}
 			if mutations != 1 {
 				t.Fatal("uncertain mutation replayed", mutations)
+			}
+		})
+	}
+}
+
+// Challenge each identity invariant through minting and cached-author rechecks.
+func TestAppBotIdentityRejectsUnverifiedResponses(t *testing.T) {
+	for _, tc := range []struct {
+		name   string
+		change func(*appFixture, map[string]any)
+		want   Category
+	}{
+		{"rest-login", func(f *appFixture, n map[string]any) { f.bot["login"] = "other[bot]" }, Unauthorized},
+		{"rest-node", func(f *appFixture, n map[string]any) { f.bot["node_id"] = "OTHER_BOT" }, Unauthorized},
+		{"rest-empty-node", func(f *appFixture, n map[string]any) { f.bot["node_id"] = "" }, Unauthorized},
+		{"rest-database", func(f *appFixture, n map[string]any) { f.bot["id"] = 999 }, Unauthorized},
+		{"rest-missing-database", func(f *appFixture, n map[string]any) { delete(f.bot, "id") }, Unauthorized},
+		{"rest-type", func(f *appFixture, n map[string]any) { f.bot["type"] = "User" }, Unauthorized},
+		{"graphql-login", func(f *appFixture, n map[string]any) { n["login"] = "other" }, Unauthorized},
+		{"graphql-rest-style-login", func(f *appFixture, n map[string]any) { n["login"] = f.cfg.Author.Login }, Unauthorized},
+		{"graphql-case-folded-login", func(f *appFixture, n map[string]any) { n["login"] = strings.ToUpper(f.cfg.Slug) }, Unauthorized},
+		{"graphql-empty-login", func(f *appFixture, n map[string]any) { n["login"] = "" }, Unauthorized},
+		{"graphql-node", func(f *appFixture, n map[string]any) { n["id"] = "OTHER_BOT" }, Unauthorized},
+		{"graphql-database", func(f *appFixture, n map[string]any) { n["databaseId"] = 999 }, Unauthorized},
+		{"graphql-type", func(f *appFixture, n map[string]any) { n["__typename"] = "User" }, Unauthorized},
+		{"graphql-missing-node", func(f *appFixture, n map[string]any) { f.graph["data"].(map[string]any)["node"] = nil }, Unauthorized},
+		{"graphql-errors-with-valid-data", func(f *appFixture, n map[string]any) { f.graph["errors"] = []any{map[string]any{"type": "FORBIDDEN"}} }, Forbidden},
+		{"graphql-malformed-database", func(f *appFixture, n map[string]any) { n["databaseId"] = "invalid" }, Malformed},
+		{"graphql-malformed-node", func(f *appFixture, n map[string]any) { f.graph["data"].(map[string]any)["node"] = []any{} }, Malformed},
+		{"lookalike-stable-identities", func(f *appFixture, n map[string]any) {
+			f.bot["node_id"], f.bot["id"] = "LOOKALIKE_BOT", 999
+			n["id"], n["databaseId"] = "LOOKALIKE_BOT", 999
+		}, Unauthorized},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			for _, phase := range []string{"mint", "author-recheck"} {
+				t.Run(phase, func(t *testing.T) {
+					f, s := newAppFixture(t)
+					ctx := context.Background()
+					if phase == "author-recheck" {
+						if token, err := s.Token(ctx); err != nil || token == "" {
+							t.Fatal("initial verified mint failed", err)
+						}
+					}
+					tc.change(f, f.graph["data"].(map[string]any)["node"].(map[string]any))
+					if phase == "mint" {
+						token, err := s.Token(ctx)
+						category(t, err, tc.want)
+						if token != "" {
+							t.Fatal("unverified token returned")
+						}
+					} else {
+						transport, err := NewTransport(s.transport.endpoint, s.transport.http, s)
+						if err != nil {
+							t.Fatal(err)
+						}
+						author, err := transport.AuthenticatedCommentAuthor(ctx)
+						category(t, err, tc.want)
+						if author != (Actor{}) {
+							t.Fatal("unverified author returned")
+						}
+					}
+					if s.token != "" {
+						t.Fatal("identity failure retained credential")
+					}
+				})
 			}
 		})
 	}
