@@ -395,3 +395,70 @@ func TestCommentAuthorStableIdentity(t *testing.T) {
 		}
 	}
 }
+
+func TestCommentBotAuthorRepresentations(t *testing.T) {
+	bot := func(id, login string) Actor { return Actor{ID: id, Login: login, Type: "Bot"} }
+	rest := bot("SYNTHETIC_BOT", "synthetic-controller[bot]")
+	graph := bot(rest.ID, "synthetic-controller")
+	for _, tc := range []struct {
+		name string
+		a, b Actor
+		want bool
+	}{
+		{"cross form", rest, graph, true},
+		{"REST form", rest, rest, true},
+		{"GraphQL form", graph, graph, true},
+		{"REST case", rest, bot(rest.ID, "SYNTHETIC-CONTROLLER[bot]"), true},
+		{"GraphQL case", graph, bot(rest.ID, "SYNTHETIC-CONTROLLER"), true},
+		{"User case", Actor{ID: "USER", Login: "developer", Type: "User"}, Actor{ID: "USER", Login: "DEVELOPER", Type: "User"}, true},
+		{"REST different node", rest, bot("OTHER", rest.Login), false},
+		{"GraphQL different node", graph, bot("OTHER", graph.Login), false},
+		{"cross form different node", rest, bot("OTHER", graph.Login), false},
+		{"node case", rest, bot("synthetic_bot", graph.Login), false},
+		{"User impersonation", rest, Actor{ID: rest.ID, Login: graph.Login, Type: "User"}, false},
+		{"User bot suffix", graph, Actor{ID: graph.ID, Login: rest.Login, Type: "User"}, false},
+		{"Users cross form", Actor{ID: "USER", Login: "developer", Type: "User"}, Actor{ID: "USER", Login: "developer[bot]", Type: "User"}, false},
+		{"unrelated", rest, bot(rest.ID, "unrelated"), false},
+		{"lookalike", rest, bot(rest.ID, "synthetic-contro11er"), false},
+		{"missing node", rest, bot("", graph.Login), false},
+		{"malformed node", rest, bot("bad node", graph.Login), false},
+		{"both malformed nodes", bot("bad node", rest.Login), bot("bad node", graph.Login), false},
+		{"empty login", rest, bot(rest.ID, ""), false},
+		{"invalid type", rest, Actor{ID: rest.ID, Login: graph.Login, Type: "Organization"}, false},
+		{"arbitrary suffix", graph, bot(rest.ID, graph.Login+"[app]"), false},
+		{"partial suffix", graph, bot(rest.ID, graph.Login+"[bot"), false},
+		{"malformed suffix", graph, bot(rest.ID, graph.Login+"bot]"), false},
+		{"additional suffix", rest, bot(rest.ID, rest.Login+"[bot]"), false},
+		{"trailing suffix", graph, bot(rest.ID, rest.Login+"-extra"), false},
+		{"cross form case", rest, bot(rest.ID, "SYNTHETIC-CONTROLLER"), false},
+		{"suffix case", graph, bot(rest.ID, graph.Login+"[BOT]"), false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			if SameCommentAuthor(tc.a, tc.b) != tc.want || SameCommentAuthor(tc.b, tc.a) != tc.want {
+				t.Fatalf("symmetric ownership comparison: %+v %+v want %t", tc.a, tc.b, tc.want)
+			}
+		})
+	}
+}
+
+func TestCommentGraphQLBotReadbackPreservesAuthor(t *testing.T) {
+	for _, kind := range []string{"issue", "pull_request"} {
+		t.Run(kind, func(t *testing.T) {
+			graph := Actor{ID: "SYNTHETIC_BOT_NODE", Login: "synthetic-controller", Type: "Bot"}
+			verified := graph
+			verified.Login += "[bot]"
+			transport := mutationAdapter(t, func(q request) any {
+				if strings.Contains(q.Query, "repository(owner:") {
+					return map[string]any{"repository": map[string]any{"result": nativeJSON("I", "OPEN")}}
+				}
+				raw := commentJSON(kind, "C", 1, "body")
+				raw["author"] = map[string]any{"__typename": graph.Type, "id": graph.ID, "login": graph.Login}
+				return map[string]any{"node": raw}
+			})
+			comment, err := transport.IssueComment(context.Background(), commentResource(kind), "C")
+			if err != nil || comment.Author != graph || !SameCommentAuthor(verified, comment.Author) {
+				t.Fatal("provider author changed or verified ownership rejected", comment, err)
+			}
+		})
+	}
+}

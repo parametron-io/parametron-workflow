@@ -21,19 +21,18 @@ type completionRuntimeClient struct {
 func (f *completionRuntimeClient) NativeLifecycle(ctx context.Context, id github.Identity, k string) (github.NativeLifecycle, error) {
 	if n, ok := f.native[id.ID]; ok {
 		if n.Resource != id || n.Kind != k {
-			f.t.Fatal("native identity mismatch")
+			return github.NativeLifecycle{}, fmt.Errorf("native identity mismatch: %v/%s", id, k)
 		}
 		return n, ctx.Err()
 	}
 	if id == f.issue.Identity || id == f.pr.Identity {
 		return github.NativeLifecycle{Resource: id, Kind: k, State: "OPEN"}, ctx.Err()
 	}
-	f.t.Fatal("unrelated lifecycle", id)
-	return github.NativeLifecycle{}, nil
+	return github.NativeLifecycle{}, fmt.Errorf("unrelated lifecycle: %v", id)
 }
 func (f *completionRuntimeClient) CloseIssue(ctx context.Context, id github.Identity) (github.IssueStateReceipt, error) {
 	if id != f.issue.Identity {
-		f.t.Fatal("unrelated close", id)
+		return github.IssueStateReceipt{}, fmt.Errorf("unrelated close: %v", id)
 	}
 	f.closes++
 	f.issue.State = "CLOSED"
@@ -41,7 +40,7 @@ func (f *completionRuntimeClient) CloseIssue(ctx context.Context, id github.Iden
 }
 func (f *completionRuntimeClient) ReopenIssue(ctx context.Context, id github.Identity) (github.IssueStateReceipt, error) {
 	if id != f.issue.Identity {
-		f.t.Fatal("unrelated reopen", id)
+		return github.IssueStateReceipt{}, fmt.Errorf("unrelated reopen: %v", id)
 	}
 	f.reopens++
 	f.issue.State = "OPEN"
@@ -64,7 +63,7 @@ func (f *completionRuntimeClient) CurrentProjectItem(ctx context.Context, id str
 func (f *completionRuntimeClient) SetProjectOption(ctx context.Context, p, id, field, option string) error {
 	if id == "CHILDITEM" {
 		if p != "engineering" || field != "status" {
-			f.t.Fatal(p, id, field)
+			return fmt.Errorf("unrelated child option: %s/%s/%s", p, id, field)
 		}
 		item := f.items[f.children[0].ID]
 		item.Values[field] = github.FieldValue{Kind: config.SingleSelect, OptionID: option}
@@ -77,6 +76,7 @@ func completionRuntimeFixture(t *testing.T) (Config, *completionRuntimeClient, *
 	c, base := onboardingRuntimeFixture(t)
 	now := time.Date(2026, 10, 13, 10, 0, 0, 0, time.UTC)
 	c.Clock = func() time.Time { return now }
+	base.runtimeSurfaces.clock = c.Clock
 	c.Runner = nil
 	f := &completionRuntimeClient{reviewRuntimeClient: &reviewRuntimeClient{onboardingRuntimeClient: base, now: &now, facts: github.ReviewFacts{PR: base.pr.Identity}}, native: map[string]github.NativeLifecycle{}}
 	original := base.IssueFunc
@@ -96,10 +96,13 @@ func runtimeOption(f *completionRuntimeClient, node string) string {
 }
 
 func (f *completionRuntimeClient) ClearProjectNumber(ctx context.Context, project, id, field string) error {
-	if project != "engineering" || field != "roadmap_order" || id != "ISSUEITEM" && id != "CHILDITEM" {
-		f.t.Fatalf("unrelated roadmap clear: %s/%s/%s", project, id, field)
+	if project != "engineering" || field != "roadmap_order" || id != "ISSUEITEM" && id != "CHILDITEM" && id != "PRITEM" {
+		return fmt.Errorf("unrelated roadmap clear: %s/%s/%s", project, id, field)
 	}
 	node := f.issue.ID
+	if id == "PRITEM" {
+		node = f.pr.ID
+	}
 	if id == "CHILDITEM" {
 		node = f.children[0].ID
 	}
@@ -114,10 +117,10 @@ func TestCompletionProductionWorkerRestartAndReopen(t *testing.T) {
 		t.Run(fmt.Sprintf("merged_%v", merged), func(t *testing.T) {
 			c, f, now := completionRuntimeFixture(t)
 			r := openRuntime(t, c)
-			onboardingNotification(t, r, "branch", "issues")
+			onboardingNotification(t, r, f, "branch", "issues")
 			step(t, r)
 			state(t, r, "branch", storage.Completed, 1)
-			onboardingNotification(t, r, "onboard", "pull_request")
+			onboardingNotification(t, r, f, "onboard", "pull_request")
 			step(t, r)
 			state(t, r, "onboard", storage.Completed, 1)
 			f.children = []github.Issue{{Identity: github.Identity{ID: "CHILD", Repository: f.repo, Number: 48}, State: "OPEN", Body: "Classification: false\nBlocked-By: #46", Type: &github.IssueType{ID: "type-Task", Name: "Task"}}}
@@ -129,7 +132,7 @@ func TestCompletionProductionWorkerRestartAndReopen(t *testing.T) {
 			}
 			f.pr.State = stateName
 			f.native[f.pr.ID] = github.NativeLifecycle{Resource: f.pr.Identity, Kind: "pull_request", State: stateName, Transitions: []github.NativeTransition{{ID: "END", Kind: kind, Resource: f.pr.Identity, CreatedAt: *now}}}
-			onboardingNotification(t, r, "terminal", "pull_request")
+			onboardingNotification(t, r, f, "terminal", "pull_request")
 			step(t, r)
 			state(t, r, "terminal", storage.Completed, 1)
 			if runtimeOption(f, f.pr.ID) != "done" {
@@ -154,7 +157,7 @@ func TestCompletionProductionWorkerRestartAndReopen(t *testing.T) {
 				*now = now.Add(time.Hour)
 				f.native[f.issue.ID] = github.NativeLifecycle{Resource: f.issue.Identity, Kind: "issue", State: "OPEN", Transitions: []github.NativeTransition{{ID: "TARGETCLOSE", Kind: "ClosedEvent", Resource: f.issue.Identity, CreatedAt: now.Add(-time.Minute)}, {ID: "TARGETREOPEN", Kind: "ReopenedEvent", Resource: f.issue.Identity, CreatedAt: *now}}}
 			}
-			onboardingNotification(t, r, "delayed-terminal", "pull_request")
+			onboardingNotification(t, r, f, "delayed-terminal", "pull_request")
 			step(t, r)
 			state(t, r, "delayed-terminal", storage.Completed, 1)
 			if f.issue.State != "OPEN" || f.closes != map[bool]int{true: 1, false: 0}[merged] || runtimeOption(f, f.issue.ID) == "done" {
@@ -175,7 +178,7 @@ func TestManualDoneDriftProductionWorker(t *testing.T) {
 			r := openRuntime(t, c)
 			for _, id := range []string{"manual-done", "delayed-after-reopen", "duplicate-drift"} {
 				if id == "manual-done" {
-					onboardingNotification(t, r, id, "issues")
+					onboardingNotification(t, r, f, id, "issues")
 				} else {
 					_, err := r.store.InsertDelivery(context.Background(), storage.Delivery{ID: id, EventName: "projects_v2_item", Payload: []byte(`{"action":"edited","projects_v2_item":{"node_id":"ISSUEITEM","project_node_id":"engineering"}}`), ReceivedAt: time.Unix(1700000000, 0)})
 					if err != nil {
@@ -209,13 +212,13 @@ func TestInvalidPhaseCloseProductionWorker(t *testing.T) {
 	item.Values["status"] = github.FieldValue{Kind: config.SingleSelect, OptionID: "done"}
 	f.items[f.issue.ID] = item
 	r := openRuntime(t, c)
-	onboardingNotification(t, r, "invalid-phase-close", "issues")
+	onboardingNotification(t, r, f, "invalid-phase-close", "issues")
 	step(t, r)
 	state(t, r, "invalid-phase-close", storage.Completed, 1)
 	if f.issue.State != "OPEN" || f.reopens != 1 || f.closes != 0 || runtimeOption(f, f.issue.ID) == "done" {
 		t.Fatal(f.issue.State, f.reopens, f.items)
 	}
-	onboardingNotification(t, r, "duplicate-phase-close", "issues")
+	onboardingNotification(t, r, f, "duplicate-phase-close", "issues")
 	step(t, r)
 	state(t, r, "duplicate-phase-close", storage.Completed, 1)
 	if f.reopens != 1 {
@@ -230,10 +233,10 @@ func TestDirectPhaseMergeNeverClosesObjective(t *testing.T) {
 			f.issue.Type = &github.IssueType{ID: "type-Phase", Name: "Phase"}
 			f.issue.Body += "\nCreate-Branch: true"
 			r := openRuntime(t, c)
-			onboardingNotification(t, r, "phase-branch", "issues")
+			onboardingNotification(t, r, f, "phase-branch", "issues")
 			step(t, r)
 			state(t, r, "phase-branch", storage.Completed, 1)
-			onboardingNotification(t, r, "phase-onboard", "pull_request")
+			onboardingNotification(t, r, f, "phase-onboard", "pull_request")
 			step(t, r)
 			state(t, r, "phase-onboard", storage.Completed, 1)
 			childState := "OPEN"
@@ -242,10 +245,15 @@ func TestDirectPhaseMergeNeverClosesObjective(t *testing.T) {
 			}
 			f.children = []github.Issue{{Identity: github.Identity{ID: "CHILD", Repository: f.repo, Number: 48}, State: childState, Body: "Classification: false\nParent: #46", Type: &github.IssueType{ID: "type-Task", Name: "Task"}}}
 			f.items["CHILD"] = github.ProjectItem{ID: "CHILDITEM", ProjectID: "engineering", Content: &github.Content{ID: "CHILD", Kind: "Issue"}, Values: map[string]github.FieldValue{}}
+			if childClosed {
+				if err := f.closureComment(f.children[0].Identity, "Force-Close: completed Phase child"); err != nil {
+					t.Fatal(err)
+				}
+			}
 			*now = now.Add(time.Hour)
 			f.pr.State = "MERGED"
 			f.native[f.pr.ID] = github.NativeLifecycle{Resource: f.pr.Identity, Kind: "pull_request", State: "MERGED", Transitions: []github.NativeTransition{{ID: "PHASEMERGE", Kind: "MergedEvent", Resource: f.pr.Identity, CreatedAt: *now}}}
-			onboardingNotification(t, r, "phase-merge", "pull_request")
+			onboardingNotification(t, r, f, "phase-merge", "pull_request")
 			step(t, r)
 			state(t, r, "phase-merge", storage.Completed, 1)
 			if f.closes != 0 || f.issue.State != "OPEN" || runtimeOption(f, f.issue.ID) == "done" || runtimeOption(f, f.pr.ID) != "done" {

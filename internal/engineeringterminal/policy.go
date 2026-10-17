@@ -14,7 +14,11 @@ var ErrInvalid = errors.New("engineering terminal: invalid graph or state")
 
 type Reason string
 
-const OpenChildren Reason = "open_direct_children"
+const (
+	OpenChildren        Reason = "open_direct_children"
+	UnauthorizedClosure Reason = "unauthorized_native_closure"
+	UnauthorizedDone    Reason = "unauthorized_project_done"
+)
 
 type Rejection struct {
 	Resource storage.Resource
@@ -61,6 +65,9 @@ func Evaluate(graph ec.Context, target storage.Resource) (Decision, error) {
 		if open {
 			return Decision{Reopen: true, Rejection: &Rejection{Resource: target, Reason: OpenChildren}}, nil
 		}
+		return Decision{Status: config.Done}, nil
 	}
-	return Decision{Status: config.Done}, nil
+	// CLOSED is an observation. The controller may replace this denial only
+	// after independent #50 merge or single-use Force-Close authorization.
+	return Decision{Reopen: true, Rejection: &Rejection{Resource: target, Reason: UnauthorizedClosure}}, nil
 }

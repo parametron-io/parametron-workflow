@@ -280,7 +280,9 @@ drift, with changed topology taking precedence over an old plan.
 #36 retains pure ownership of topology, hierarchy, capacity, compaction,
 Assignments and Clear; it adds no writer, persistence or runtime assembly itself.
 The administrator's view sort is configured outside the controller. #48's pure
-PR companion allocation is implemented and independently tested; production PR
-companion composition and numeric convergence, other companion categories, shared
-occupancy arbitration, and nested lifecycle remain deferred. See
+PR companion allocation is implemented and independently tested. Issue #53
+composes the separate `prcompanionreconcile` owner to consume exact #36/#48 output
+and converge PR numbers after Issue-side rebasing, without taking over primary
+Issue assignments. Other companion categories, shared occupancy arbitration and
+nested lifecycle remain deferred. See
 [PR companion ordering](pr-companion-ordering.md) for its separate contract.

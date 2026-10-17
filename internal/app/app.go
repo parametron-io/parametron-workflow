@@ -18,6 +18,7 @@ import (
 	ea "github.com/parametron-io/parametron-workflow/internal/engineeringactivity"
 	eb "github.com/parametron-io/parametron-workflow/internal/engineeringbranch"
 	ec "github.com/parametron-io/parametron-workflow/internal/engineeringcontext"
+	feedback "github.com/parametron-io/parametron-workflow/internal/engineeringfeedback"
 	ef "github.com/parametron-io/parametron-workflow/internal/engineeringflow"
 	eo "github.com/parametron-io/parametron-workflow/internal/engineeringorder"
 	ep "github.com/parametron-io/parametron-workflow/internal/engineeringpolicy"
@@ -26,7 +27,11 @@ import (
 	"github.com/parametron-io/parametron-workflow/internal/github"
 	"github.com/parametron-io/parametron-workflow/internal/observe"
 	"github.com/parametron-io/parametron-workflow/internal/prbinding"
+	pc "github.com/parametron-io/parametron-workflow/internal/prcompanion"
+	pcr "github.com/parametron-io/parametron-workflow/internal/prcompanionreconcile"
 	"github.com/parametron-io/parametron-workflow/internal/prcompletion"
+	"github.com/parametron-io/parametron-workflow/internal/prdevelopment"
+	"github.com/parametron-io/parametron-workflow/internal/prdiscovery"
 	po "github.com/parametron-io/parametron-workflow/internal/pronboarding"
 	"github.com/parametron-io/parametron-workflow/internal/prreview"
 	"github.com/parametron-io/parametron-workflow/internal/semantic"
@@ -35,6 +40,7 @@ import (
 	"github.com/parametron-io/parametron-workflow/internal/storage"
 	"github.com/parametron-io/parametron-workflow/internal/webhook"
 	"github.com/parametron-io/parametron-workflow/internal/worker"
+	"github.com/parametron-io/parametron-workflow/internal/workflowfeedback"
 )
 
 const DatabaseName = "workflow.sqlite"
@@ -45,7 +51,10 @@ const ShutdownTimeout = 10 * time.Second
 // shared by discovery and observation. Consumer defaults to FoundationSink.
 type Config struct {
 	// Engineering enables Phase-4 composition; zero retains the foundation path.
-	Engineering   bool
+	Engineering bool
+	// FeedbackActor is an explicit deployment trust binding. Engineering startup
+	// verifies it against the shared authenticated comment writer before serving.
+	FeedbackActor github.Actor
 	Source        config.SourceConfig
 	Client        github.Client
 	DataDir       string
@@ -85,6 +94,45 @@ func classify(err error) worker.Classification {
 		category  string
 		retryable bool
 	}{
+		{github.ErrCommentCredential, "feedback_credential_unverifiable", false},
+		{workflowfeedback.ErrOwnership, "feedback_ownership", false},
+		{workflowfeedback.ErrInvalid, "feedback_invalid", false},
+		{workflowfeedback.ErrAmbiguous, "feedback_ambiguous", false},
+		{workflowfeedback.ErrStale, "feedback_stale", true},
+		{workflowfeedback.ErrChanged, "feedback_changed", true},
+		{feedback.ErrUnsupportedBugTarget, "unsupported_bug_pr_target", false},
+		{et.ErrAuthority, "terminal_authority_unavailable", false},
+		{et.ErrProvenance, "force_close_provenance", false},
+		{et.ErrAmbiguous, "force_close_ambiguous", false},
+		{github.ErrClosureChanged, "issue_closure_changed", true},
+		{github.ErrClosureIncomplete, "issue_closure_incomplete", true},
+		{github.ErrClosureLimit, "issue_closure_limit", false},
+		{feedback.ErrIncomplete, "feedback_incomplete", true},
+		{prdevelopment.ErrCorrection, "pr_development_correction", false},
+		{et.ErrCorrection, "phase_closure_correction", false},
+		{prdevelopment.ErrInvalid, "pr_development_invalid", false},
+		{prdevelopment.ErrAmbiguous, "pr_development_ambiguous", false},
+		{prdevelopment.ErrRejected, "pr_development_rejected", false},
+		{prdevelopment.ErrChanged, "pr_development_changed", true},
+		{prdevelopment.ErrIncomplete, "pr_development_incomplete", true},
+		{pcr.ErrOwnership, "pr_companion_ownership", false},
+		{pcr.ErrAmbiguous, "pr_companion_ambiguous", false},
+		{pcr.ErrStorage, "pr_companion_storage", false},
+		{pcr.ErrInvalid, "pr_companion_invalid", false},
+		{pcr.ErrProject, "pr_companion_project", false},
+		{pc.ErrCapacity, "pr_companion_capacity", false},
+		{pc.ErrInvalid, "pr_companion_policy_invalid", false},
+		{pc.ErrBinding, "pr_companion_binding", false},
+		{pc.ErrOwnership, "pr_companion_ownership", false},
+		{pc.ErrPrimary, "pr_companion_primary", false},
+		{pc.ErrTarget, "pr_companion_target", true},
+		{pcr.ErrChanged, "pr_companion_changed", true},
+		{pcr.ErrIncomplete, "pr_companion_incomplete", true},
+		{github.ErrRequestLimit, "pr_companion_budget", true},
+		{prdiscovery.ErrInvalid, "pr_discovery_invalid", false},
+		{prdiscovery.ErrLimit, "pr_discovery_limit", false},
+		{prdiscovery.ErrChanged, "pr_discovery_changed", true},
+		{prdiscovery.ErrIncomplete, "pr_discovery_incomplete", true},
 		{github.ErrNativeLifecycleChanged, "native_lifecycle_changed", true},
 		{prcompletion.ErrChanged, "pr_completion_changed", true},
 		{prcompletion.ErrInvalid, "pr_completion_invalid", false},
@@ -297,7 +345,7 @@ func compose(ctx context.Context, c Config) (_ *runtime, result error) {
 	var resourceResolver worker.ResourceResolver = resolver
 	var eventProcessor worker.Processor = processor
 	if c.Engineering {
-		flow, err := composeEngineering(c, *prepared.Deployment, store, resolver, processor)
+		flow, err := composeEngineering(ctx, c, *prepared.Deployment, store, resolver, processor)
 		if err != nil {
 			return nil, err
 		}

@@ -51,7 +51,8 @@ Issue #52 adds separate `github.CommentReader` (`IssueComments`, `IssueComment`)
 and `github.CommentWriter` (`CreateIssueComment`, `UpdateIssueComment`)
 interfaces. These remain separate from `Client` and `Mutator`, and support only
 Issue-comment conversation surfaces, including PR conversation comments, never
-review comments. Production routing does not yet invoke the feedback consumer.
+review comments. Issue #53 production routing invokes the existing feedback
+consumer with current typed Engineering producer evidence and verified author identity.
 See [managed feedback](managed-feedback.md) for ownership and reconciliation.
 
 Transport requires exact repository/resource node and numeric identity, resource
@@ -61,6 +62,16 @@ no userinfo/query, the exact `/owner/repo/issues/N` or `/owner/repo/pull/N` path
 and matching `issuecomment-<databaseId>` fragment. Enterprise origins are not
 configurable. Transport validates this evidence; the controller separately
 verifies the expected author and canonical marker. A marker alone grants no ownership.
+
+The verified App Bot author uses REST `<slug>[bot]`, while GraphQL IssueComment
+authors may use bare `<slug>`. `SameCommentAuthor` requires valid actors, an exact
+stable Node ID and exact actor type. It preserves case-insensitive same-form login
+comparison and, only for Bots, accepts the exact symmetric `<slug>[bot]`/`<slug>`
+relationship without case folding across forms. Provider author data is preserved.
+This comparison does not authenticate unrelated or unverified Bots: the App
+credential provider independently verifies the exact configured trusted author,
+and workflow policy separately authorizes mutations. This applies to Issue and PR
+conversation comments, not review-comment authorization.
 
 Enumeration preflights native identity before and after pagination, validates
 exact parent/type on every page, stable totals, complete final counts and unique
@@ -172,11 +183,46 @@ injected. The transport calls it per request, so providers may refresh tokens
 between pages. No client method reads environment variables or credential files.
 Neither source/resolved configuration nor returned models contain credentials.
 
-Production should use a GitHub App installation-token provider. Such a provider
-owns App identity/private-key access, JWT signing, installation-token minting,
-and in-memory expiry/refresh. Its returned installation token fits `TokenSource`
-without changes to reads or workflow code. Concrete minting is deferred; this
-issue neither persists credentials nor implements speculative token management.
+`github.AppCredentials` implements App-owned installation-token minting and the
+shared comment-author verification boundary. The CLI defaults to this mode;
+[runtime](runtime.md#command-and-deployment) lists exact explicit bindings and the
+separate user credential mode. Opaque externally minted installation tokens do
+not establish supported author provenance, and installation tokens never use
+`GET /user`. No runtime `gh` dependency exists.
+
+The provider accepts bounded PKCS#1/PKCS#8 RSA PEM (at least 2048 bits), signs RS256
+JWTs with the configured client ID as issuer, backdates `iat` by 60 seconds and
+expires after nine minutes. Minting verifies `/app`, the exact installation and
+account bindings, unsuspended state, and required Issues/Pull Requests write plus
+Metadata read permissions. It requests tokens restricted to configured repositories,
+checks inherited permission equality and selected repository scope, and completely
+enumerates the token's repository grants (at most 500 configured repositories).
+Additional permissions required by composed Project, branch and membership
+operations must still be supplied and verified at deployment.
+
+The authenticated App slug selects `/users/<slug>[bot]` as a lookup key, never as
+identity proof alone. REST Bot login must exactly equal `<slug>[bot]`; the observed
+GraphQL `Bot` login must exactly equal the bare authenticated App slug. Both API
+representations are verified against that App and the configured trusted REST-style
+author, and their stable node and database identities must agree. Separate
+maintainer-supplied live checks passed App JWT authentication, installation-token
+acquisition, configured repository scope, Bot identity and isolated comment
+receipt/readback/ownership. These do not establish all operation-specific live
+permissions or deployed managed-feedback reconciliation. The installation
+is rechecked after minting and identity observations. The same provider instance
+serves transport requests and comment-author checks. Comment reconciliation
+rechecks Bot identity; the installation account is never substituted for its Bot.
+
+Tokens are cached only in memory and refreshed with a two-minute expiry margin;
+a failed refresh clears the old token. Context-aware serialization prevents
+concurrent refresh races. Typed provider failures/cancellation propagate without
+secret diagnostics or blind mutation retries. Authentication failures can invalidate
+the cached token; an uncertain mutation is not replayed inside the transport.
+[App credential tests](../internal/github/app_credentials_test.go) and
+[pagination/cancellation tests](../internal/github/app_pagination_test.go) verify
+this chain offline using synthetic keys and local responses. They do not prove
+live JWT acceptance, permissions, grants, Bot compatibility or comment receipts.
+
 Semantic/model components receive normalized planning inputs and never receive
 the client transport, token provider, or GitHub credentials.
 
@@ -234,10 +280,10 @@ are integrated through `internal/app`, along with explicit Phase #3 directives,
 semantic acceptance, and authorized metadata/routing reconciliation. Engineering
 lifecycle/reconciliation, branches and first activity are now production-composed;
 accepted PR onboarding and deterministic review/rework are production-composed.
-Standalone [Development reconciliation](pr-development.md) and its separate
-transport capabilities are implemented and independently tested. Production-wide
-Development routing, other relationships and broader continuous/global PR
-orchestration remain deferred.
+Issue #53 also composes current PR discovery, companion numeric reconciliation,
+Development projection and supported typed managed feedback. Their owners retain
+independent current authority checks; unrelated relationship projection remains
+deferred. See [execution](execution.md#continuous-engineering-pr-reconciliation).
 Separate native lifecycle capabilities are implemented as described below.
 Client itself stays read-only: composition requires
 separate narrow capabilities and deterministic Go authorization.
@@ -392,8 +438,8 @@ existing capabilities; missing interfaces fail construction. Deployment needs th
 existing developer authorization reads, current PR/Project reads, Project write
 access for membership/owned Status, and Pull Requests write access for Draft
 conversion. Exact credential grants must be verified at deployment; local transport
-tests do not establish live installation permissions. No GitHub App
-installation-token minting or live permission rehearsal is claimed. The CLI
+tests do not establish live installation permissions. App-owned token minting is
+implemented as described above; live permission rehearsal remains pending. The CLI
 activates no production model provider, and deterministic onboarding needs no Runner.
 
 ## Native PR review facts
@@ -512,6 +558,108 @@ in-flight operations; no hidden retry is performed. Local
 [HTTP/GraphQL tests](../internal/github/development_test.go) verify filters,
 pagination, endpoint/lifecycle preflight, exact mutation inputs and receipts,
 malformed/error handling and cancellation. Authenticated live API compatibility
-and GitHub App permission rehearsal remain unverified. No speculative installation
-permission configuration or production-wide relationship orchestration is added.
+and GitHub App permission rehearsal remain unverified. Issue #53 composes this
+Development owner on supported routes; it adds no unrelated relationship policy.
 See [the dedicated contract](pr-development.md) for authorization and exclusions.
+
+## Current PR discovery capability
+
+`github.PullRequestLister.ListPullRequests` enumerates configured repositories'
+OPEN/CLOSED/MERGED PRs through the bounded paginated repository connection. It is
+separate from the Issue-only Snapshot and the read-only `Client` surface.
+`internal/prdiscovery` materializes exact current PR, declared Target, binding and
+onboarding evidence in two complete passes, then repeats enumeration as a final
+membership/lifecycle barrier. Bounds are 64 repositories, 4096 PRs, 50000 shared
+requests and 64 MiB of aggregate evidence per discovery invocation. Incomplete,
+changed, oversized or contradictory input returns no partial discovery result.
+Stable reads select consumers but provide neither atomic snapshots nor authority.
+See [discovery tests](../internal/prdiscovery/discovery_test.go) and
+[enumeration transport tests](../internal/github/pull_requests_test.go).
+
+## Issue closure timeline acquisition
+
+`github.IssueClosureReader` exposes `Transport.IssueClosure(ctx, identity)`.
+Each private `closureRead` validates exact native Issue/repository identity and
+state, traverses the unfiltered GraphQL `timelineItems(first:100, after:cursor)`
+connection, and validates total count, Issue creation time, timeline `updatedAt`,
+start/end/edge cursors and exact decoded identities across pages. The normalized
+result preserves server cursor sequence, not timestamp/ID sorting. Observable
+opaque nodes retain their positions; invalid or missing node identity fails closed.
+An unrelated event is never filtered away to manufacture command/close adjacency.
+
+Comments retain current body, node/database identity, author/editor, creation/update
+and editing timestamps and exact parent Issue. Closed/Reopened events retain their
+Issue, actor, event identity and position; supported PullRequest/Commit closer
+references remain distinct from ordinary manual closure. Nullable actors are not
+inferred: later authorization may require evidence that a syntactically valid
+observation lacks. Same-second events retain exact cursor chronology.
+
+Each acquisition is bounded to `MaxClosureItems` (4096), 64 pages and
+`MaxClosureEvidenceBytes` (16 MiB), with 100 edges per page. `IssueClosure` applies
+a shared 140-request ceiling (also consuming any enclosing request budget),
+requires final native identity/state agreement, performs TWO complete acquisitions,
+and requires equal normalized results. These checks establish stable observations,
+not a transactional GitHub snapshot or a GitHub UI transaction identifier.
+
+Incomplete evidence uses `ErrClosureIncomplete`, changed evidence
+`ErrClosureChanged`, and closure-specific page/evidence limits `ErrClosureLimit`.
+Some invalid counts fail completeness checks; shared budget exhaustion remains
+`ErrRequestLimit`. Typed transport errors and cancellation retain their existing
+taxonomy. The public reader returns no authoritative partial result on failure.
+Transport normalizes evidence only; `engineeringterminal` separately decides
+merge/Force-Close authority and direct-child Phase eligibility.
+
+The eleven committed `TestIssueClosureTransport*` tests in
+[issue_closure_test.go](../internal/github/issue_closure_test.go) exercise the real
+HTTP/GraphQL path: complete single/multi-page reads, same-second cross-page adjacency,
+opaque nodes, cycles, editing/actor/closer decoding, inconsistent pages, differing
+complete reads, cancellation, provider errors and observation limits.
+
+## Issue #53 offline verification and live proof gate
+
+Stage 5A independently verified Engineering code and tests at
+`6f750a5797fa94bb399f234af7f89524c01c5720` with PASS. Fresh-Nix build/full suite/vet,
+repeated closure/Force-Close/identity regressions and both required race groups
+passed. Instrumented GitHub tests reported 100.0% statement coverage for both
+`Transport.closureRead` and `Transport.IssueClosure`; behavior assertions, rather
+than coverage alone, establish the offline acquisition boundary.
+
+Stage 5B documentation synchronization completed in `4fe582a` and `bbd661b`.
+Subsequent compatibility corrections in `d6afb98` and `81dcf97` retain the exact
+authenticated App and stable Bot identity. The final independent Stage 5 audit at
+`81dcf97f215c7ac5995540255755b89987188e85` returned **PASS WITH NOTES**: 18 of 19
+criteria passed, with final current-status documentation synchronization identified
+as the remaining criterion addressed by these post-audit corrections.
+Its five required fresh-Nix verification commands all returned zero; see the
+[audit record](execution.md#issue-53-independent-offline-verification). These
+offline results do not establish deployed GitHub behavior.
+
+Separate maintainer-supplied live checks used production Go methods:
+
+- `AppCredentials.Token` and `AuthenticatedCommentAuthor` passed real App JWT
+  authentication, installation-token acquisition, configured repository scope and
+  verified Bot identity. This does not verify every composed operation's permission.
+- `Transport.IssueClosure` read `prm-workflow/workflow_repo_1#1` as CLOSED and
+  complete in `github_issue_timeline_cursor_sequence_v1` order: seven items,
+  three comments, two ClosedEvents and one ReopenedEvent. Final comment/closure
+  correlation passed; a later unrelated CrossReferencedEvent retained its cursor
+  position. This proves the tested acquisition, not deployed terminal reconciliation.
+- Production comment transport created [one isolated test comment](https://github.com/prm-workflow/workflow_repo_1/issues/2#issuecomment-6231984178),
+  validated its mutation receipt, read that exact comment and completely enumerated
+  the list, confirming exactly one comment. It had no managed-feedback marker.
+- The initial ownership comparison exposed REST `parametron-workflow-dev[bot]`
+  versus GraphQL `parametron-workflow-dev`, both with Node ID `BOT_kgDOFHwEQA`.
+  After `81dcf97`, the strictly read-only production Go recheck of that existing
+  comment passed authenticated Bot identity, exact readback,
+  `SameCommentAuthor: true`, REST/GraphQL ownership and exactly-one-comment
+  verification. The recheck is complete; it performed no comment mutation.
+
+These supplied real provider proofs are distinct from synthetic tests. They
+establish neither lifecycle authorization from an observed comment nor deployed
+managed-feedback policy reconciliation, Project mutation or a full PR lifecycle
+rehearsal. Full deployed Engineering controller behavior and other operation-specific
+live permissions/capabilities remain unproven. The accepted [Stage 4 proof gate](https://github.com/parametron-io/parametron-workflow/issues/53#issuecomment-6220783946)
+is supported by the selected real provider checks above, not waived by offline PASS.
+Final post-audit documentation review and PR integration/review remain pending;
+Issue #53 has not been merged or closed. Parent #5 remains open and requires its
+own closure decision.

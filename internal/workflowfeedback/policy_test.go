@@ -337,7 +337,7 @@ func TestCapacityIndependentTargetsAndRepositories(t *testing.T) {
 	}
 	for _, index := range []int{0, 10} {
 		p := in.PullRequests[index]
-		v, e := CapacityRejection(Resource{p.Identity, "pull_request"}, in)
+		v, e := CapacityRejection(Resource{Identity: p.Identity, Kind: "pull_request"}, in)
 		if e != nil || v.detail != "10" || v.related != p.Binding.Evidence.Target {
 			t.Fatal(v, e)
 		}
@@ -345,7 +345,7 @@ func TestCapacityIndependentTargetsAndRepositories(t *testing.T) {
 	// An independent non-full Target cannot borrow the other Target's failure.
 	in.PullRequests = in.PullRequests[:11]
 	p := in.PullRequests[10]
-	if _, e := CapacityRejection(Resource{p.Identity, "pull_request"}, in); !errors.Is(e, ErrInvalid) {
+	if _, e := CapacityRejection(Resource{Identity: p.Identity, Kind: "pull_request"}, in); !errors.Is(e, ErrInvalid) {
 		t.Fatal(e)
 	}
 }

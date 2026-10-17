@@ -31,14 +31,14 @@ type reviewRuntimeClient struct {
 
 func (f *reviewRuntimeClient) NativeLifecycle(ctx context.Context, id github.Identity, kind string) (github.NativeLifecycle, error) {
 	if id != f.pr.Identity || kind != "pull_request" || f.pr.State != "OPEN" {
-		f.t.Fatalf("unexpected native lifecycle read: %+v/%s", id, kind)
+		return github.NativeLifecycle{}, fmt.Errorf("unexpected native lifecycle read: %+v/%s", id, kind)
 	}
 	return github.NativeLifecycle{Resource: id, Kind: kind, State: f.pr.State}, ctx.Err()
 }
 
 func (f *reviewRuntimeClient) PullRequestReviewFacts(ctx context.Context, pr github.Identity) (github.ReviewFacts, error) {
 	if pr != f.pr.Identity {
-		f.t.Fatalf("wrong native facts identity %+v", pr)
+		return github.ReviewFacts{}, fmt.Errorf("wrong native facts identity %+v", pr)
 	}
 	if f.failure != nil {
 		return github.ReviewFacts{}, f.failure
@@ -54,7 +54,7 @@ func (f *reviewRuntimeClient) CurrentProjectItem(ctx context.Context, id string)
 }
 func (f *reviewRuntimeClient) SetProjectOption(ctx context.Context, p, id, field, option string) error {
 	if p != "engineering" || field != "status" || (id != "PRITEM" && id != "ISSUEITEM") {
-		f.t.Fatalf("unauthorized field target %s/%s/%s", p, id, field)
+		return fmt.Errorf("unauthorized field target %s/%s/%s", p, id, field)
 	}
 	if id == f.statusFailure && option == "in_progress" {
 		return &github.Error{Category: github.Transient}
@@ -71,7 +71,7 @@ func (f *reviewRuntimeClient) SetProjectOption(ctx context.Context, p, id, field
 }
 func (f *reviewRuntimeClient) ConvertPullRequestToDraft(ctx context.Context, id string) error {
 	if id != "PR47" {
-		f.t.Fatal(id)
+		return fmt.Errorf("unexpected Draft identity: %s", id)
 	}
 	f.drafts++
 	f.effects = append(f.effects, "draft:PR47")
@@ -108,10 +108,10 @@ func TestSignedReviewLifecycleProductionWorkerAndRestart(t *testing.T) {
 	f := &reviewRuntimeClient{onboardingRuntimeClient: base, now: &now, facts: github.ReviewFacts{PR: base.pr.Identity}}
 	c.Client = f
 	r := openRuntime(t, c)
-	onboardingNotification(t, r, "branch", "issues")
+	onboardingNotification(t, r, f, "branch", "issues")
 	step(t, r)
 	state(t, r, "branch", storage.Completed, 1)
-	onboardingNotification(t, r, "onboard", "pull_request")
+	onboardingNotification(t, r, f, "onboard", "pull_request")
 	step(t, r)
 	state(t, r, "onboard", storage.Completed, 1)
 	if f.drafts != 1 || f.adds != 1 {
@@ -222,9 +222,9 @@ func TestWorkerNewReadyProgressesPastOlderPartialRework(t *testing.T) {
 	f := &reviewRuntimeClient{onboardingRuntimeClient: base, now: &now, facts: github.ReviewFacts{PR: base.pr.Identity}}
 	c.Client = f
 	r := openRuntime(t, c)
-	onboardingNotification(t, r, "branch", "issues")
+	onboardingNotification(t, r, f, "branch", "issues")
 	step(t, r)
-	onboardingNotification(t, r, "onboard", "pull_request")
+	onboardingNotification(t, r, f, "onboard", "pull_request")
 	step(t, r)
 	state(t, r, "onboard", storage.Completed, 1)
 	repository := map[string]any{"owner": map[string]any{"login": f.repo.Owner}, "name": f.repo.Name}

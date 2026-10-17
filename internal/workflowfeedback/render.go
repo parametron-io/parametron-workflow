@@ -45,6 +45,12 @@ func Render(c Current) (Content, error) {
 			text = "Phase closure was rejected or reverted because direct child Issues remain open. Close all required direct child Issues before attempting Phase closure again."
 		case Development:
 			text = "A contradictory manual Development relationship was selected for correction. Development must follow the validated Target binding to " + reference(v) + ". Use that accepted `Target:` binding instead of manually assigning a contradictory Development relationship."
+		case Terminal:
+			if v.detail == "unauthorized_native_closure" {
+				text = "Native Issue closure was rejected or reversed because applicable terminal authorization was missing. Task/Feature closure requires a verified accepted implementation-PR merge or a newly created `Force-Close: <nonempty reason>` comment immediately followed by the same actor's native close in the current cycle. A Phase requires explicit native closure with every direct child closed; implementation-PR closure cannot complete the Phase."
+			} else {
+				text = "Project Done was selected for correction because the Issue is natively open. Done is a projection of authorized terminal state and cannot authorize completion. Complete the applicable native closure contract; the controller restores the current canonical open Status."
+			}
 		}
 		if text == "" {
 			return Content{}, ErrInvalid

@@ -41,6 +41,25 @@ var migrations = [][]string{{
  created_at TEXT NOT NULL,
  PRIMARY KEY(namespace, stable_key)
  )`,
+}, {
+	`CREATE TABLE pr_companion_fields (
+ stable_key TEXT NOT NULL CHECK(length(stable_key) > 0),
+ item_id TEXT NOT NULL CHECK(length(item_id) > 0),
+ project_id TEXT NOT NULL CHECK(length(project_id) > 0),
+ field_id TEXT NOT NULL CHECK(length(field_id) > 0),
+ revision INTEGER NOT NULL CHECK(revision > 0),
+ metadata BLOB NOT NULL CHECK(length(metadata) > 0),
+ PRIMARY KEY(stable_key, project_id, field_id),
+ UNIQUE(item_id, field_id)
+ )`,
+}, {
+	`CREATE TABLE workflow_corrections (
+ owner TEXT NOT NULL CHECK(owner IN ('development_v1','phase_closure_v1')),
+ resource_id TEXT NOT NULL CHECK(length(resource_id) > 0),
+ revision INTEGER NOT NULL CHECK(revision > 0),
+ metadata BLOB NOT NULL CHECK(length(metadata) > 0 AND length(metadata) <= 1048576),
+ PRIMARY KEY(owner, resource_id)
+ )`,
 }}
 
 func initialize(ctx context.Context, db *sql.DB) error {

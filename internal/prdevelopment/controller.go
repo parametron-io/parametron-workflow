@@ -31,6 +31,7 @@ type Config struct {
 	Reader        Reader
 	Relationships github.DevelopmentReader
 	Writer        github.DevelopmentWriter
+	Corrections   CorrectionStore
 }
 type Controller struct {
 	cfg  Config
@@ -49,6 +50,9 @@ func absent(v any) bool {
 	return false
 }
 func New(c Config) (*Controller, error) {
+	if c.Corrections != nil && absent(c.Corrections) {
+		return nil, ErrInvalid
+	}
 	for _, v := range []any{c.Binding, c.Onboarding, c.Reader, c.Relationships, c.Writer} {
 		if absent(v) {
 			return nil, ErrInvalid
@@ -86,6 +90,12 @@ func (c *Controller) fresh(ctx context.Context, r storage.Resource) (Input, erro
 		return in, err
 	}
 	if d.Outcome == prbinding.Rejected {
+		if d.Reason == prbinding.Changed || d.Reason == prbinding.MissingPR {
+			return in, ErrChanged
+		}
+		if d.Reason == prbinding.UnresolvedTarget {
+			return in, ErrIncomplete
+		}
 		return in, ErrRejected
 	}
 	b := d.Evidence
@@ -212,6 +222,20 @@ func (c *Controller) Reconcile(ctx context.Context, r storage.Resource) error {
 			return err
 		}
 		a := actions[0]
+		if !a.Add && c.cfg.Corrections != nil {
+			if err := c.selectCorrection(ctx, next, a); err != nil {
+				return err
+			}
+			// Persisted explanation evidence grants no relationship authority.
+			// Recheck the complete input after the local commit as well.
+			barrier, err := c.fresh(ctx, r)
+			if err != nil {
+				return err
+			}
+			if !reflect.DeepEqual(next, barrier) {
+				return ErrChanged
+			}
+		}
 		if a.Add {
 			err = c.cfg.Writer.AddDevelopmentReference(ctx, next.Binding.Evidence.PR, a.Target)
 		} else {
@@ -219,6 +243,11 @@ func (c *Controller) Reconcile(ctx context.Context, r storage.Resource) error {
 		}
 		if err != nil {
 			return err
+		}
+		if !a.Add && c.cfg.Corrections != nil {
+			if err := c.appliedCorrection(ctx, r, a); err != nil {
+				return err
+			}
 		}
 		previous = &a
 	}

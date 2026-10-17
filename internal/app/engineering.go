@@ -1,6 +1,8 @@
 package app
 
 import (
+	"context"
+	"fmt"
 	"reflect"
 	"time"
 
@@ -8,19 +10,24 @@ import (
 	ea "github.com/parametron-io/parametron-workflow/internal/engineeringactivity"
 	eb "github.com/parametron-io/parametron-workflow/internal/engineeringbranch"
 	ec "github.com/parametron-io/parametron-workflow/internal/engineeringcontext"
+	feedback "github.com/parametron-io/parametron-workflow/internal/engineeringfeedback"
 	ef "github.com/parametron-io/parametron-workflow/internal/engineeringflow"
 	er "github.com/parametron-io/parametron-workflow/internal/engineeringreconcile"
 	et "github.com/parametron-io/parametron-workflow/internal/engineeringterminal"
 	"github.com/parametron-io/parametron-workflow/internal/github"
 	"github.com/parametron-io/parametron-workflow/internal/observe"
 	"github.com/parametron-io/parametron-workflow/internal/prbinding"
+	"github.com/parametron-io/parametron-workflow/internal/prcompanionreconcile"
 	"github.com/parametron-io/parametron-workflow/internal/prcompletion"
+	"github.com/parametron-io/parametron-workflow/internal/prdevelopment"
+	"github.com/parametron-io/parametron-workflow/internal/prdiscovery"
 	"github.com/parametron-io/parametron-workflow/internal/pronboarding"
 	"github.com/parametron-io/parametron-workflow/internal/prreview"
 	"github.com/parametron-io/parametron-workflow/internal/semanticflow"
 	"github.com/parametron-io/parametron-workflow/internal/semanticreconcile"
 	"github.com/parametron-io/parametron-workflow/internal/storage"
 	"github.com/parametron-io/parametron-workflow/internal/worker"
+	"github.com/parametron-io/parametron-workflow/internal/workflowfeedback"
 )
 
 func missingCapability(v any) bool {
@@ -33,7 +40,7 @@ func missingCapability(v any) bool {
 
 // Engineering uses narrow capabilities on the same shared client/transport,
 // deployment and Store. Validation completes before serving HTTP.
-func composeEngineering(c Config, d config.ResolvedConfig, store *storage.Store, resolver worker.ResourceResolver, reader *observe.Processor) (*ef.Flow, error) {
+func composeEngineering(ctx context.Context, c Config, d config.ResolvedConfig, store *storage.Store, resolver worker.ResourceResolver, reader *observe.Processor) (*ef.Flow, error) {
 	lister, ok := c.Client.(github.IssueLister)
 	if !ok || missingCapability(lister) {
 		return nil, er.ErrInvalid
@@ -119,11 +126,69 @@ func composeEngineering(c Config, d config.ResolvedConfig, store *storage.Store,
 	if err != nil {
 		return nil, err
 	}
-	terminal, err := et.New(et.Config{Project: d.Engineering, BugTracker: d.BugTracker.ID, Snapshots: snapshots, Reader: reader, Canonical: reconciler, Issues: issueStates, Items: items, Fields: fields})
+	closureTimeline, ok := c.Client.(github.IssueClosureReader)
+	if !ok || missingCapability(closureTimeline) {
+		return nil, fmt.Errorf("%w: missing IssueClosureReader", et.ErrAuthority)
+	}
+	terminal, err := et.New(et.Config{Project: d.Engineering, BugTracker: d.BugTracker.ID, Snapshots: snapshots, Reader: reader, Canonical: reconciler, Issues: issueStates, Items: items, Fields: fields, Corrections: store, Timeline: closureTimeline, Merges: completion, Store: store, Clock: c.Clock})
 	if err != nil {
 		return nil, err
 	}
 	flowCfg := ef.Config{Completion: completion, Terminal: terminal, Review: review, Onboarding: onboarding, PRProjectItems: prItems, Deployment: d, Resolver: resolver, Reader: reader, Foundation: reader, Snapshot: snapshots, Reconciler: reconciler, Activity: activityCfg, ProjectItems: items, Branches: branch}
+	prLister, ok := c.Client.(github.PullRequestLister)
+	if !ok || missingCapability(prLister) {
+		return nil, fmt.Errorf("%w: missing PullRequestLister", prcompanionreconcile.ErrInvalid)
+	}
+	repositories := make([]github.Repository, 0, len(d.Repositories))
+	for _, repository := range d.Repositories {
+		repositories = append(repositories, github.Repository{Owner: repository.Owner, Name: repository.Name, ID: repository.ID})
+	}
+	discovery, err := prdiscovery.New(prdiscovery.Config{Repositories: repositories, Project: d.Engineering.ID, BugProject: d.BugTracker.ID, Lister: prLister, Binding: binding, Onboarding: onboarding, Reader: reader})
+	if err != nil {
+		return nil, err
+	}
+	relationships, ok := c.Client.(github.DevelopmentReader)
+	if !ok || missingCapability(relationships) {
+		return nil, fmt.Errorf("%w: missing DevelopmentReader", prdevelopment.ErrInvalid)
+	}
+	relationshipWriter, ok := c.Client.(github.DevelopmentWriter)
+	if !ok || missingCapability(relationshipWriter) {
+		return nil, fmt.Errorf("%w: missing DevelopmentWriter", prdevelopment.ErrInvalid)
+	}
+	development, err := prdevelopment.New(prdevelopment.Config{Repositories: repositories, Project: d.Engineering.ID, BugProject: d.BugTracker.ID, Binding: binding, Onboarding: onboarding, Reader: reader, Relationships: relationships, Writer: relationshipWriter, Corrections: store})
+	if err != nil {
+		return nil, err
+	}
+	companions, err := prcompanionreconcile.New(prcompanionreconcile.Config{Repositories: repositories, Project: d.Engineering, BugProject: d.BugTracker.ID, Discovery: discovery, Snapshots: snapshots, Reader: reader, Numbers: numbers, Store: store, Clock: c.Clock})
+	if err != nil {
+		return nil, err
+	}
+	flowCfg.Companions = companions
+	comments, ok := c.Client.(github.CommentReader)
+	if !ok || missingCapability(comments) {
+		return nil, fmt.Errorf("%w: missing CommentReader", workflowfeedback.ErrInvalid)
+	}
+	commentWriter, ok := c.Client.(github.CommentWriter)
+	if !ok || missingCapability(commentWriter) {
+		return nil, fmt.Errorf("%w: missing CommentWriter", workflowfeedback.ErrInvalid)
+	}
+	credentialAuthor, ok := c.Client.(github.CommentAuthorReader)
+	if !ok || missingCapability(credentialAuthor) {
+		return nil, fmt.Errorf("%w: missing CommentAuthorReader", workflowfeedback.ErrInvalid)
+	}
+	author := feedback.TrustedAuthor{Expected: c.FeedbackActor, Reader: credentialAuthor}
+	if _, err := author.FeedbackAuthor(ctx); err != nil {
+		return nil, err
+	}
+	refresh, err := feedback.New(feedback.Config{Repositories: repositories, Reader: reader, Binding: binding, Capacity: companions, Development: development, Terminal: terminal})
+	if err != nil {
+		return nil, err
+	}
+	managed, err := workflowfeedback.New(workflowfeedback.Config{Refresh: refresh, Author: author, Reader: comments, Writer: commentWriter})
+	if err != nil {
+		return nil, err
+	}
+	flowCfg.Continuous = &engineeringContinuous{discovery: discovery, development: development, review: review, feedback: managed, terminal: terminal, store: store, snapshots: snapshots, companions: companions}
 	if c.Runner != nil {
 		consumer := c.SemanticConsumer
 		mutator := c.Mutator

@@ -65,29 +65,50 @@ validated changes requests trigger one-shot Draft conversion and owned Status
 rollback across durable cycles. See
 [review execution](docs/execution.md#accepted-pr-review-and-rework) and
 [provenance](docs/persistence.md#accepted-pr-onboarding-provenance).
-Pure [PR companion ordering](docs/pr-companion-ordering.md) is implemented and
-independently tested by #48. Production composition, live PR numeric-field
-convergence, ownership-provenance acquisition, and companion orchestration remain
-deferred. Issue #50 implements independently verified accepted PR merge/abandonment,
-native Issue close/reopen synchronization and the direct-child Phase closure gate.
-Native Issue Close is manual completion authority; Project Done projects valid
-terminal state and never authorizes closure. Durable merge-close attempts and
-validated receipts protect later native reopen. Production Engineering integration
-and local policy, transport, persistence/restart and worker tests cover these
-boundaries; see [terminal execution](docs/execution.md#accepted-pr-completion-and-terminal-synchronization).
-Issue #51 implements independently tested standalone Development policy/controller
-and separate GitHub transport; see [Development relationships](docs/pr-development.md).
-Issue #52 implements independently tested standalone managed rejection feedback:
-typed adapters, fixed-template rendering, verified comment reconciliation and
-narrow comment transport. See [managed feedback](docs/managed-feedback.md).
-Production feedback routing, automatic emission and explicit manual lifecycle
-producer integration remain deferred.
-Production-wide Development routing, other relationship projection,
-and full Phase #5 orchestration,
-nested lifecycle, Bug Tracker
-scoring/admission, branch deletion/revocation, heavy agents, automatic merge,
-native Project positioning, and distributed coordination are deferred. Assignees
-remain unchanged because reliable assignability evidence is unavailable.
+Issue #53 composes complete current PR discovery and canonical notification routing
+with binding/onboarding, review/rework, merge/abandonment, companion Roadmap Order,
+native Development projection and supported typed managed feedback. Discovery
+selects consumers; each owner independently validates current mutation authority.
+Pure [companion policy](docs/pr-companion-ordering.md) remains separate from its
+production numeric reconciler. Continuous reconciliation preserves durable
+one-shot protection for initial Draft and rework effects.
+
+Task/Feature native closure requires applicable verified implementation-PR merge
+authority or exact single-use `Force-Close` comment/closure correlation. An explicit
+normal Phase close requires every current direct child CLOSED, including the valid
+empty-child case. Project Done never supplies closure authority. See
+[terminal policy](system-overview.md#25-close-done-and-reopen-synchronization),
+[Development](docs/pr-development.md) and [feedback](docs/managed-feedback.md).
+
+Stage 5A code/test closure is **PASS** at
+`6f750a5797fa94bb399f234af7f89524c01c5720`: Engineering implementation and independent
+offline tests are complete, including production closure-timeline transport tests.
+Fresh-Nix build, full tests, vet, repeated regressions and race checks passed with
+no known material offline implementation defect. Stage 5B documentation
+synchronization completed in `4fe582a` and `bbd661b`. The final independent Stage 5
+integration audit at `81dcf97` returned **PASS WITH NOTES**: 18 of 19 criteria
+passed; it identified final current-status documentation synchronization as the
+remaining criterion addressed by these post-audit corrections.
+Final documentation review, PR integration/review and Issue #53 closure remain
+pending. Issue #53 has not been merged or closed; parent #5 remains open and
+requires its own closure decision.
+
+[GitHub App credentials](docs/github-integration.md#authentication-and-github-app-direction)
+are implemented and independently verified offline. Separate maintainer-supplied
+production Go checks passed real App JWT authentication, installation-token
+acquisition, configured repository scope and Bot identity; tested IssueClosure
+acquisition; and isolated comment creation, receipt, exact readback, complete
+enumeration and corrected REST/GraphQL Bot ownership. The ownership recheck was
+read-only. These selected provider proofs do not establish every operation's live
+permissions, deployed managed-feedback reconciliation or a full Engineering
+controller end-to-end rehearsal. See the [evidence and remaining limits](docs/github-integration.md#issue-53-offline-verification-and-live-proof-gate).
+
+Bug Tracker PR lifecycle/provider work is deferred beyond #6; Bug ordering remains
+separate Priority Score policy. Broad nonterminal manual-intent feedback production,
+other companion classes, nested lifecycle, unrelated relationship projection,
+branch deletion/revocation, heavy agents, automatic merge, native Project positioning
+and distributed coordination remain deferred. Assignees remain unchanged while
+reliable assignability evidence is unavailable.
 
 The current design covers the shared controller model, the **Parametron
 Engineering** Project workflow, and a separate **Bug Tracker** policy layer.
@@ -162,14 +183,21 @@ Enter the reproducible Go development environment:
 nix develop
 ```
 
-Run the controller foundation:
+Illustrative user-credential invocation: replace all placeholders with verified
+deployment bindings. Installation mode is the default and requires different
+settings; see [runtime](docs/runtime.md#command-and-deployment). This example is
+not a live verification procedure.
 
 ```sh
 nix develop --command go run ./cmd/parametron-workflow \
-  --config /etc/parametron-workflow/bindings.json \
-  --data-dir /var/lib/parametron-workflow \
-  --github-token-file /run/secrets/github-token \
-  --webhook-secret-file /run/secrets/github-webhook
+  --config '<bindings-json-path>' \
+  --data-dir '<data-directory>' \
+  --github-credential-type user \
+  --github-token-file '<user-token-file>' \
+  --feedback-author-id '<verified-user-node-id>' \
+  --feedback-author-login '<verified-user-login>' \
+  --feedback-author-type User \
+  --webhook-secret-file '<webhook-secret-file>'
 ```
 
 Startup validates deployment bindings against live GitHub schema before serving

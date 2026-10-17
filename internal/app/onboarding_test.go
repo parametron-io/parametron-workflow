@@ -21,16 +21,20 @@ import (
 // A read client plus narrow deterministic writes, deliberately without Mutator.
 type onboardingRuntimeClient struct {
 	*github.Fake
+	*runtimeSurfaces
 	t                                        *testing.T
 	repo                                     github.Repository
 	user                                     github.Actor
 	issue                                    github.Issue
 	pr                                       github.PullRequest
+	reviewFacts                              github.ReviewFacts
 	items                                    map[string]github.ProjectItem
 	branch                                   *github.Branch
 	adds, statuses, drafts, creates, prReads int
 	prFailure                                error
+	prVisible                                bool
 	draftHook                                func(context.Context) error
+	numberHook                               func(context.Context, string) error
 }
 
 func onboardingRuntimeFixture(t *testing.T) (Config, *onboardingRuntimeClient) {
@@ -46,6 +50,8 @@ func onboardingRuntimeFixture(t *testing.T) (Config, *onboardingRuntimeClient) {
 		return schema, err
 	}
 	f := &onboardingRuntimeClient{Fake: base, t: t, repo: github.Repository{ID: "R", Owner: "parametron-io", Name: "repo"}, user: github.Actor{ID: "U", Login: "developer", Type: "User"}, items: map[string]github.ProjectItem{}}
+	f.runtimeSurfaces = newRuntimeSurfaces(base)
+	c.FeedbackActor = runtimeBot
 	f.issue = github.Issue{Identity: github.Identity{ID: "I46", Repository: f.repo, Number: 46}, State: "OPEN", Body: "Classification: false", Type: &github.IssueType{ID: "type-Task", Name: "Task"}}
 	f.pr = github.PullRequest{Identity: github.Identity{ID: "PR47", Repository: f.repo, Number: 47}, State: "OPEN", Body: "Target: #46\nClassification: false", HeadRepository: f.repo, HeadRef: "development/issue-46", HeadSHA: strings.Repeat("a", 40), Author: &f.user}
 	f.items["I46"] = github.ProjectItem{ID: "ISSUEITEM", ProjectID: "engineering", Content: &github.Content{ID: "I46", Kind: "Issue"}, Values: map[string]github.FieldValue{}}
@@ -58,6 +64,9 @@ func onboardingRuntimeFixture(t *testing.T) (Config, *onboardingRuntimeClient) {
 	}
 	base.PullRequestFunc = func(ctx context.Context, r github.Ref) (github.PullRequest, error) {
 		f.prReads++
+		if !f.prVisible {
+			return github.PullRequest{}, &github.Error{Category: github.NotFound}
+		}
 		if r.Owner != f.repo.Owner || r.Repository != f.repo.Name || r.Number != 47 {
 			t.Errorf("wrong PR refetch: %+v", r)
 			return github.PullRequest{}, errors.New("wrong PR refetch")
@@ -80,6 +89,15 @@ func onboardingRuntimeFixture(t *testing.T) (Config, *onboardingRuntimeClient) {
 	c.Engineering = true
 	c.Concurrency = 1
 	return c, f
+}
+func (f *onboardingRuntimeClient) ListPullRequests(ctx context.Context, r github.Repository) ([]github.ListedPullRequest, error) {
+	if r != f.repo {
+		return nil, errors.New("wrong PR repository")
+	}
+	if !f.prVisible {
+		return nil, ctx.Err()
+	}
+	return []github.ListedPullRequest{{Identity: f.pr.Identity, State: f.pr.State}}, ctx.Err()
 }
 func (f *onboardingRuntimeClient) ListIssues(ctx context.Context, r github.Repository) ([]github.ListedIssue, error) {
 	if r != f.repo {
@@ -134,18 +152,33 @@ func (f *onboardingRuntimeClient) SetProjectDate(context.Context, string, string
 	return errors.New("unexpected start date")
 }
 func (f *onboardingRuntimeClient) SetProjectNumber(ctx context.Context, p, id, field string, v float64) error {
+	if p != "engineering" || field != "roadmap_order" {
+		return fmt.Errorf("foreign numeric write: %s/%s", p, field)
+	}
 	for node, item := range f.items {
 		if item.ID == id {
 			item.Values[field] = github.FieldValue{Kind: config.Number, Number: v}
 			f.items[node] = item
+			if f.numberHook != nil {
+				return f.numberHook(ctx, id)
+			}
 			return ctx.Err()
 		}
 	}
 	return errors.New("unknown item")
 }
-func (f *onboardingRuntimeClient) ClearProjectNumber(context.Context, string, string, string) error {
-	f.t.Error("unexpected number clear")
-	return errors.New("unexpected number clear")
+func (f *onboardingRuntimeClient) ClearProjectNumber(ctx context.Context, project, id, field string) error {
+	if project != "engineering" || field != "roadmap_order" {
+		return errors.New("wrong numeric clear")
+	}
+	for node, item := range f.items {
+		if item.ID == id {
+			delete(item.Values, field)
+			f.items[node] = item
+			return ctx.Err()
+		}
+	}
+	return errors.New("unknown numeric item")
 }
 func (f *onboardingRuntimeClient) AddProjectItem(ctx context.Context, p, node string) (string, error) {
 	f.adds++
@@ -153,8 +186,12 @@ func (f *onboardingRuntimeClient) AddProjectItem(ctx context.Context, p, node st
 		f.t.Error(p, node)
 		return "", errors.New("wrong membership identity")
 	}
-	f.items[node] = github.ProjectItem{ID: "PRITEM", ProjectID: p, Content: &github.Content{ID: node, Kind: "PullRequest"}, Values: map[string]github.FieldValue{}}
-	return "PRITEM", ctx.Err()
+	id := "PRITEM"
+	if f.adds > 1 {
+		id = fmt.Sprint("PRITEM", f.adds)
+	}
+	f.items[node] = github.ProjectItem{ID: id, ProjectID: p, Content: &github.Content{ID: node, Kind: "PullRequest"}, Values: map[string]github.FieldValue{}}
+	return id, ctx.Err()
 }
 func (f *onboardingRuntimeClient) ConvertPullRequestToDraft(ctx context.Context, id string) error {
 	f.drafts++
@@ -169,14 +206,32 @@ func (f *onboardingRuntimeClient) ConvertPullRequestToDraft(ctx context.Context,
 	return ctx.Err()
 }
 func (f *onboardingRuntimeClient) CurrentProjectItem(ctx context.Context, id string) (github.CurrentProjectItem, error) {
-	if id != "PRITEM" {
+	if id == f.items[f.issue.ID].ID {
+		i := f.issue.Identity
+		return github.CurrentProjectItem{ID: id, ProjectID: "engineering", ContentKind: "Issue", Issue: &i}, ctx.Err()
+	}
+	if id != f.items[f.pr.ID].ID {
 		f.t.Error(id)
 		return github.CurrentProjectItem{}, errors.New("wrong Project item identity")
 	}
 	return github.CurrentProjectItem{ID: id, ProjectID: "engineering", ContentKind: "PullRequest"}, ctx.Err()
 }
+func (f *onboardingRuntimeClient) PullRequestReviewFacts(ctx context.Context, id github.Identity) (github.ReviewFacts, error) {
+	if id != f.pr.Identity {
+		return github.ReviewFacts{}, fmt.Errorf("unrelated review facts: %v", id)
+	}
+	facts := f.reviewFacts
+	facts.PR = id
+	return facts, ctx.Err()
+}
+func (f *onboardingRuntimeClient) NativeLifecycle(ctx context.Context, id github.Identity, kind string) (github.NativeLifecycle, error) {
+	if id != f.pr.Identity || kind != "pull_request" || f.pr.State != "OPEN" {
+		return github.NativeLifecycle{}, fmt.Errorf("unrelated native lifecycle: %v/%s", id, kind)
+	}
+	return github.NativeLifecycle{Resource: id, Kind: kind, State: f.pr.State}, ctx.Err()
+}
 func (f *onboardingRuntimeClient) CurrentPullRequestProjectItem(ctx context.Context, id string) (github.PullRequestProjectItem, error) {
-	if id != "PRITEM" {
+	if id != f.items[f.pr.ID].ID {
 		f.t.Error(id)
 		return github.PullRequestProjectItem{}, errors.New("wrong PR item identity")
 	}
@@ -195,8 +250,15 @@ func (f *onboardingRuntimeClient) RepositoryPermission(ctx context.Context, r gi
 	return github.Permission{Repository: r, User: f.user, Base: "write"}, ctx.Err()
 }
 
-func onboardingNotification(t *testing.T, r *runtime, id, event string) {
+// Creation follows branch authorization in these scenarios. Both enumeration
+// and primary reads expose the PR once it exists, including later terminal states.
+func (f *onboardingRuntimeClient) publishPR() { f.prVisible = true }
+
+func onboardingNotification(t *testing.T, r *runtime, f interface{ publishPR() }, id, event string) {
 	t.Helper()
+	if event == "pull_request" {
+		f.publishPR()
+	}
 	var payload string
 	switch event {
 	case "issues":
@@ -223,13 +285,13 @@ func TestAcceptedOnboardingComposedWorkerAndRestart(t *testing.T) {
 				}}
 			}
 			r := openRuntime(t, c)
-			onboardingNotification(t, r, "branch", "issues")
+			onboardingNotification(t, r, f, "branch", "issues")
 			step(t, r)
 			state(t, r, "branch", storage.Completed, 1)
 			if f.creates != 1 {
 				t.Fatal("no actual branch provenance", f.creates)
 			}
-			onboardingNotification(t, r, "pr", "pull_request")
+			onboardingNotification(t, r, f, "pr", "pull_request")
 			step(t, r)
 			state(t, r, "pr", storage.Completed, 1)
 			if f.adds != 1 || f.statuses != 1 || f.drafts != 1 || f.prReads < 2 {
@@ -244,22 +306,28 @@ func TestAcceptedOnboardingComposedWorkerAndRestart(t *testing.T) {
 			}
 			r = openRuntime(t, c)
 			f.pr.Draft = false
+			f.reviewFacts.Transitions = []github.ReviewTransition{{ID: "READY", Kind: "ReadyForReviewEvent", PR: f.pr.Identity, Actor: &f.user, CreatedAt: p.CreatedAt.Add(time.Second)}}
 			item := f.items["PR47"]
 			item.Values["status"] = github.FieldValue{Kind: config.SingleSelect, OptionID: "in_review"}
 			f.items["PR47"] = item
-			onboardingNotification(t, r, "ready", "pull_request")
+			onboardingNotification(t, r, f, "ready", "pull_request")
 			step(t, r)
 			state(t, r, "ready", storage.Completed, 1)
-			onboardingNotification(t, r, "project", "projects_v2_item")
+			onboardingNotification(t, r, f, "project", "projects_v2_item")
 			step(t, r)
 			e := state(t, r, "project", storage.Completed, 1)
 			if e.Resource == nil || e.Resource.Kind != "pull_request" || e.Resource.NodeID != "PR47" {
 				t.Fatal(e)
 			}
 			delete(f.items, "PR47")
-			onboardingNotification(t, r, "repair", "pull_request")
+			onboardingNotification(t, r, f, "repair", "pull_request")
 			step(t, r)
-			state(t, r, "repair", storage.Completed, 1)
+			// Onboarding can restore membership, but the replacement item must not
+			// inherit the original numeric acquisition receipt.
+			repair := state(t, r, "repair", storage.Failed, 1)
+			if repair.State.ErrorCategory != "pr_companion_ownership" {
+				t.Fatal(repair.State)
+			}
 			if f.adds != 2 || f.statuses != 1 || f.drafts != 1 || f.pr.Draft {
 				t.Fatal("replayed ingress after readiness", f.adds, f.statuses, f.drafts)
 			}
@@ -269,10 +337,10 @@ func TestAcceptedOnboardingComposedWorkerAndRestart(t *testing.T) {
 			}
 			f.pr.Author = &github.Actor{ID: "other", Login: "outsider", Type: "User"}
 			delete(f.items, "PR47")
-			onboardingNotification(t, r, "rejected", "pull_request")
+			onboardingNotification(t, r, f, "rejected", "pull_request")
 			step(t, r)
 			e = state(t, r, "rejected", storage.Failed, 1)
-			if e.State.ErrorCategory != "pr_onboarding_rejected" || f.adds != 2 {
+			if e.State.ErrorCategory != "pr_companion_ownership" || f.adds != 2 {
 				t.Fatal(e.State, f.adds)
 			}
 		})
@@ -289,7 +357,7 @@ func TestComposedOnboardingProviderRetryAndMissingAuthority(t *testing.T) {
 	f.branch = &b
 	f.pr.Draft = true
 	f.items["PR47"] = github.ProjectItem{ID: "PRITEM", ProjectID: "engineering", Content: &github.Content{ID: "PR47", Kind: "PullRequest"}, Values: map[string]github.FieldValue{"status": {Kind: config.SingleSelect, OptionID: "in_progress"}}}
-	onboardingNotification(t, r, "manual", "pull_request")
+	onboardingNotification(t, r, f, "manual", "pull_request")
 	step(t, r)
 	e := state(t, r, "manual", storage.Failed, 1)
 	if e.State.ErrorCategory != "pr_onboarding_rejected" || f.adds+f.statuses+f.drafts != 0 {
@@ -300,12 +368,14 @@ func TestComposedOnboardingProviderRetryAndMissingAuthority(t *testing.T) {
 	}
 	f.branch = nil
 	f.pr.Draft = false
-	delete(f.items, "PR47")
-	onboardingNotification(t, r, "branch", "issues")
+	// This already-visible manual PR retains its card during branch creation;
+	// removing it here would correctly block complete companion preflight.
+	onboardingNotification(t, r, f, "branch", "issues")
 	step(t, r)
 	state(t, r, "branch", storage.Completed, 1)
+	delete(f.items, "PR47")
 	f.prFailure = &github.Error{Category: github.Transient}
-	onboardingNotification(t, r, "retry", "pull_request")
+	onboardingNotification(t, r, f, "retry", "pull_request")
 	step(t, r)
 	e = state(t, r, "retry", storage.Retryable, 1)
 	if e.State.NextAttemptAt == nil {
@@ -405,12 +475,12 @@ func TestEngineeringRequiresEachOnboardingCapability(t *testing.T) {
 func TestComposedOnboardingCancellationNeverReplaysUnresolvedDraft(t *testing.T) {
 	c, f := onboardingRuntimeFixture(t)
 	r := openRuntime(t, c)
-	onboardingNotification(t, r, "branch", "issues")
+	onboardingNotification(t, r, f, "branch", "issues")
 	step(t, r)
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	f.draftHook = func(ctx context.Context) error { cancel(); return ctx.Err() }
-	onboardingNotification(t, r, "cancelled", "pull_request")
+	onboardingNotification(t, r, f, "cancelled", "pull_request")
 	if err := r.worker.Step(ctx); err != nil && !errors.Is(err, context.Canceled) {
 		t.Fatal(err)
 	}
@@ -437,9 +507,9 @@ func TestComposedOnboardingCancellationNeverReplaysUnresolvedDraft(t *testing.T)
 func TestComposedOnboardingRecoverInterruptedClaim(t *testing.T) {
 	c, f := onboardingRuntimeFixture(t)
 	r := openRuntime(t, c)
-	onboardingNotification(t, r, "branch", "issues")
+	onboardingNotification(t, r, f, "branch", "issues")
 	step(t, r)
-	onboardingNotification(t, r, "interrupted", "pull_request")
+	onboardingNotification(t, r, f, "interrupted", "pull_request")
 	if _, err := r.store.Claim(context.Background(), "interrupted", time.Now()); err != nil {
 		t.Fatal(err)
 	}
@@ -494,10 +564,10 @@ func TestComposedOnboardingWithExplicitPRSemanticRunner(t *testing.T) {
 		return ctx.Err()
 	})
 	r := openRuntime(t, c)
-	onboardingNotification(t, r, "branch", "issues")
+	onboardingNotification(t, r, f, "branch", "issues")
 	step(t, r)
 	state(t, r, "branch", storage.Completed, 1)
-	onboardingNotification(t, r, "pr", "pull_request")
+	onboardingNotification(t, r, f, "pr", "pull_request")
 	step(t, r)
 	state(t, r, "pr", storage.Retryable, 1)
 	if f.adds+f.statuses+f.drafts != 0 {
@@ -506,7 +576,7 @@ func TestComposedOnboardingWithExplicitPRSemanticRunner(t *testing.T) {
 	now = now.Add(c.RetryDelay)
 	step(t, r)
 	state(t, r, "pr", storage.Completed, 2)
-	onboardingNotification(t, r, "duplicate", "pull_request")
+	onboardingNotification(t, r, f, "duplicate", "pull_request")
 	step(t, r)
 	state(t, r, "duplicate", storage.Completed, 1)
 	if models != 1 || consumers != 3 || f.adds != 1 || f.statuses != 1 || f.drafts != 1 {

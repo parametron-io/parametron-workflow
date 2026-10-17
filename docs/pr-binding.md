@@ -10,8 +10,11 @@ while `internal/prreview` consumes fresh accepted decisions for
 [review/rework](execution.md#accepted-pr-review-and-rework).
 
 [#48 pure companion ordering](pr-companion-ordering.md) consumes current accepted
-decisions without taking over #46 authorization. Its production integration remains
-deferred.
+decisions without taking over #46 authorization. Production `prcompanionreconcile`
+consumes that pure plan; discovery, review, Development and supported rejection
+feedback also consume current binding through their own narrow contracts.
+Completion separately validates accepted onboarding and effect-specific terminal
+evidence rather than treating an OPEN-only binding as permanent authority.
 
 ## Construction and inputs
 
@@ -172,4 +175,5 @@ Tests use local fixtures and HTTP servers, not live deployment credentials.
 Organization `Members: read`, repository `Metadata: read`, and the composed
 Issue/PR/repository/ref readers' existing permissions are deployment prerequisites;
 see [GitHub integration](github-integration.md). Credential grants and a live
-permission rehearsal remain unverified. Installation-token minting is deferred.
+permission rehearsal remain unverified. App-owned installation minting is
+implemented and independently tested offline; see the [credential contract](github-integration.md#authentication-and-github-app-direction).

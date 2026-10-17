@@ -486,13 +486,12 @@ engineering_activity_storage and engineering_branch_storage are terminal; struct
 graph/policy/order/provenance/Project/configuration corruption is terminal with
 bounded categories. Existing typed GitHub transient/rate-limit handling remains
 separate; no provider/storage diagnostics leak into stable categories.
-[#48 pure PR companion ordering](pr-companion-ordering.md) is implemented and
-independently tested. Production companion composition, numeric convergence,
-ownership-provenance acquisition and orchestration remain deferred.
-Later Phase #5 work retains production-wide Development routing, other
-relationship projection and continuous/global orchestration.
-Nested lifecycle, Bug Tracker scoring/admission,
-heavy agents, automatic merge, and distributed coordination remain deferred.
+[#48 pure PR companion ordering](pr-companion-ordering.md) remains policy-only.
+Issue #53 composes its separate numeric reconciler, Development and supported
+feedback owners; see [continuous PR execution](#continuous-engineering-pr-reconciliation).
+Bug PR lifecycle/provider work is deferred beyond #6. Other companion classes,
+unrelated relationships, nested lifecycle, heavy agents, automatic merge and
+distributed coordination remain deferred.
 
 ## Accepted PR onboarding
 
@@ -545,11 +544,9 @@ cancellation follows worker release semantics. A transport retry can encounter a
 persisted attempt and then fail closed with `ErrAmbiguous`; it is not automatic
 convergence. No recovery operation synthesizes successful provenance.
 
-Standalone [Development reconciliation](pr-development.md) is implemented and
-independently tested. Production-wide Development routing, other relationship
-projection, production companion integration and numeric
-reconciliation remain deferred. Separate #50 completion and terminal
-synchronization composition is described below.
+Current production Development and companion convergence are composed separately
+from onboarding initialization. Their applicable routes and authority checks are
+specified [below](#continuous-engineering-pr-reconciliation).
 
 ## Standalone Development relationship reconciliation
 
@@ -571,9 +568,9 @@ propagates, including lane waits. CLOSED/MERGED PRs receive no relationship writ
 reopening requires current authorization again.
 
 This lane is process-local, not distributed serialization, an atomic GitHub
-snapshot or a transaction. No production event routing or dedicated worker error
-classification is implemented for this controller. Review/completion mappings
-below do not apply to it. See [Development relationships](pr-development.md) for
+snapshot or a transaction. Issue #53 composes supported event routing and separate
+`pr_development_*` worker categories. Review/completion mappings below do not
+replace those owner-specific categories. See [Development relationships](pr-development.md) for
 exact configuration, policy, lifecycle and verification boundaries.
 
 ## Accepted PR review and rework
@@ -658,9 +655,9 @@ drift, partial writes, cancellation/restart, corrupt history and ambiguous effec
 Transport/GraphQL fixtures validate bounded local behavior, not authenticated live
 API execution or deployed GitHub App grants. Merge/completion and terminal
 synchronization remain outside the #49 review controller and are implemented by
-the separate #50 composition below. Standalone Development and
-[managed feedback](managed-feedback.md) are implemented separately; their
-production-wide routing and broader continuous/global orchestration remain deferred.
+the separate revised #50 composition below. Development and
+[managed feedback](managed-feedback.md) are separate owners invoked by #53's
+supported current-state production routes.
 
 ## Accepted PR completion and terminal synchronization
 
@@ -684,8 +681,13 @@ own accepted authority. A direct Phase implementation PR requires explicit
 `Create-Branch: true`; merge completes only that attempt and never closes the
 Phase, even if all children are CLOSED.
 
-Repository-native Issue Close is authoritative for manual completion. Project
-Done is terminal-state projection, never closure intent. Valid native CLOSED
+Task/Feature native closure requires applicable verified implementation-PR merge
+authority or exact single-use Force-Close correlation under the
+[terminal contract](../system-overview.md#25-close-done-and-reopen-synchronization).
+Ordinary Close, ordinary Close with comment, maintainer identity, keyword-only
+closure and Project Done independently grant no terminal authority. The terminal
+owner repairs unauthorized native close and native-open Done drift from fresh
+evidence. Project Done is terminal-state projection, never closure intent. Valid native CLOSED
 Issues converge to Done; OPEN Issues with Done stay OPEN and receive canonical
 nonterminal Status, including after native reopen, delayed Project delivery or
 restart. These consistency corrections apply with `Set-Status: false`; ordinary
@@ -697,11 +699,14 @@ with completed rework may resume review, while ambiguous continuation fails clos
 
 The authoritative complete declarative Parent graph, including cross-repository
 direct children, gates Phase closure. All direct children CLOSED permits explicit
-maintainer native Close; it triggers no automatic close. Invalid native Phase
+normal native Close, including zero direct children. Force-Close cannot bypass
+an OPEN child; last-child completion never auto-closes Phase or cascades child
+closure. Child reopen can force an already-closed Phase to reopen. Invalid native Phase
 closure with an OPEN direct child is corrected by native reopen followed by a
 freshly computed nonterminal Status. An OPEN Phase with Done is corrected even
 when all children are CLOSED. The typed `open_direct_children` rejection is
-feedback-ready; no managed feedback comment is emitted. The mechanical gate does
+part of current durable correction evidence consumed by production managed
+feedback, without guessing human Project-action attribution. The mechanical gate does
 not replace maintainer Verification Standard responsibility. Nested lifecycle is
 deferred.
 
@@ -720,8 +725,8 @@ configured semantic enrichment/consumption remains available after correction;
 missing Type authority may take that path, but an incomplete graph authorizes no
 terminal effect. Push and Project-item routing retain their semantic exclusions.
 Terminal PR handling takes precedence over onboarding/review routing. This is
-bounded production integration, not general polling or full Phase #5 global
-orchestration.
+bounded notification-driven production integration, not general polling or
+distributed orchestration.
 
 Partial Project writes retry against fresh current drift. Native merge-close is
 more conservative: an immutable attempt precedes the mutation and a validated
@@ -762,10 +767,137 @@ later native reopen, stale reviews and fresh supported review continuation.
 Production worker fixtures exercise merge/restart/reopen, manual Done drift,
 invalid Phase close and direct Phase implementation. These establish local
 contracts, not authenticated live GitHub permissions or end-to-end deployment proof.
-Standalone [Development reconciliation](pr-development.md) is implemented and
-independently tested. Companion production allocation/numeric convergence,
-production-wide Development routing, other relationship projection,
-production feedback routing/manual lifecycle producer integration, nested lifecycle,
-Bug Tracker policy, automatic merge, branch
-deletion/revocation, continuous/global orchestration and distributed coordination
-remain deferred.
+Issue #53 also composes Development, companion numeric convergence and supported
+typed feedback; see the current integration details below. Broader nonterminal
+manual-intent production, Bug PR lifecycle/provider work beyond #6, unrelated
+relationship projection, other companion classes, nested lifecycle, automatic
+merge, branch deletion/revocation and distributed coordination remain deferred.
+
+## Continuous Engineering PR reconciliation
+
+The production path is durable signed webhook acceptance → worker resource
+resolution/FIFO → `engineeringflow.Flow` under its process-local Engineering lane
+→ current observations and owner-specific effects. Optional semantic enrichment
+remains separate; no LLM is required for this deterministic path. A notification
+supplies locators/selectors, never lifecycle or mutation authority.
+
+`app.composeEngineering` composes the existing #46–#52 owners with `prdiscovery`,
+`prcompanionreconcile`, `engineeringfeedback`, the shared Store and narrow client
+capabilities. Completion checks current native PR state before stale onboarding
+or review routes. A handled terminal route or owner failure still reaches the
+applicable current convergence path; an ordinary OPEN PR reaches onboarding before
+numeric preflight needs managed membership. One-shot Draft/rework/close attempts
+retain their durable owner protocols; continuous convergence cannot replay them.
+
+`engineeringContinuous.Converge` uses bounded complete PR discovery, including
+open/closed/merged and current rejected-binding entries. A PR locator is resolved
+to one canonical repository/number/kind/node identity; supplied conflicting node
+evidence fails closed. Initial absence selects no consumer. A previously selected
+identity disappearing or changing after terminal repair/rediscovery causes retry.
+Issue locators resolve through the current complete Issue Snapshot with explicit
+identity agreement, not payload node authority. The Snapshot stays Issue-only.
+
+The same terminal owner performs applicable Target repair, then discovery is
+refreshed. Current Target and declarative Issue graph relationships select affected
+PRs for fan-out on supported Issue notifications. Accepted binding plus completed
+onboarding and OPEN PR/Target select continuous review and Development consumers;
+both owners independently revalidate current authority, membership and native
+facts before mutations. Definitive binding rejections may reach explanation
+without granting membership, Draft, Status, relationship or terminal authority.
+Unsupported Bug Targets remain outside Engineering policy.
+
+Companion convergence consumes exact #36 primary and #48 companion plans from the
+complete current set before any numeric writes. It never takes over primary Issue
+ordering. Exact historical field ownership permits safe policy-directed clears and
+selects former Target consumers for feedback withdrawal; it supplies no fresh
+binding or lifecycle/relationship grant. See [numeric convergence](pr-companion-ordering.md#production-reconciliation).
+
+`engineeringfeedback` assembles current typed binding/capacity rejection and
+Development/terminal correction evidence; `workflowfeedback` owns only the exact
+managed comment. Terminal/Development correction relevance persists across partial
+writes and lost comment responses, is freshly revalidated, and is acknowledged
+after successful reporting. Later applicable notifications resolve the same owned
+comment. A failure to report never authorizes closure or undoes a validated repair.
+Broad nonterminal human-intent attribution is not a production producer.
+
+`app.classify` maps discovery changed/incomplete, Development changed/incomplete,
+feedback changed/stale/incomplete and closure changed/incomplete to fresh retry.
+Malformed identities, corrupt provenance/ownership, ambiguous one-shot outcomes,
+unsupported Bug Targets and capacity/observation-limit failures retain bounded
+terminal categories; shared request-budget exhaustion retries. Provider Transient/RateLimited errors retry; cancellation
+releases worker claims. `continuousFailures` preserves owner failure precedence
+through `worker.EffectError`. Local serialization is not distributed locking.
+
+Every retry obtains current facts and recomputes desired state; partial Project,
+Status, number, relationship, terminal-provenance and comment effects are not a
+single transaction. Receipt-less one-shot attempts remain indeterminate rather
+than inferring success or blindly replaying. There is no atomic GitHub snapshot,
+GitHub/SQLite transaction or exactly-once external mutation guarantee.
+
+## Issue #53 independent offline verification
+
+Stage 5A PASS freezes the accepted Engineering implementation/offline tests at
+`6f750a5797fa94bb399f234af7f89524c01c5720`. At that milestone, all 19 revised
+criteria were reconciled: 17 verified, one externally gated installation/provider
+criterion and one Stage 5B documentation criterion. No known material offline code/test gap remains.
+Stage 5B documentation synchronization subsequently completed in `4fe582a` and
+`bbd661b`; the final post-audit status corrections are a separate documentation
+step. Final documentation review, PR integration/review and Issue #53 closure
+remain pending. Parent #5 remains open and requires its own closure decision.
+
+| Boundary | Independent committed evidence |
+| --- | --- |
+| Canonical routing / rejected binding / Bug isolation | [continuous_routing_test.go](../internal/app/continuous_routing_test.go) and protected [identity](../internal/app/current_identity_test.go) regression |
+| Onboarding and review/rework | [onboarding_test.go](../internal/app/onboarding_test.go), [review_test.go](../internal/app/review_test.go) |
+| Completion / Phase / terminal feedback | [completion_test.go](../internal/app/completion_test.go), [terminal_feedback_test.go](../internal/app/terminal_feedback_test.go), [current_snapshot_test.go](../internal/app/current_snapshot_test.go) |
+| Companion rebasing / capacity feedback | [companion_test.go](../internal/app/companion_test.go), [capacity_feedback_test.go](../internal/app/capacity_feedback_test.go) |
+| Development notification and drift | [development_notification_test.go](../internal/app/development_notification_test.go), [controller tests](../internal/prdevelopment/controller_test.go) |
+| Force-Close policy / SQLite reservation history | [authorization_test.go](../internal/engineeringterminal/authorization_test.go), [reservations_test.go](../internal/engineeringterminal/reservations_test.go) |
+| Real closure transport with local HTTP | [issue_closure_test.go](../internal/github/issue_closure_test.go) |
+| App credential behavior with synthetic keys/responses | [app_credentials_test.go](../internal/github/app_credentials_test.go), [app_pagination_test.go](../internal/github/app_pagination_test.go) |
+
+The Stage 5A re-audit independently executed fresh-Nix build, full
+`go test -count=1 -timeout=180s ./...`, vet, three repetitions of closure transport
+and Force-Close acceptance/reservation tests, five repetitions of the three
+protected identity regressions, and race groups covering GitHub/terminal/storage
+and app/review/Development. All passed. This historical evidence is offline.
+
+The accepted final independent Stage 5 audit at
+`81dcf97f215c7ac5995540255755b89987188e85` returned **PASS WITH NOTES**. It assessed
+all 19 Issue #53 verification/exit criteria: 18 PASS and one requiring final
+current-status documentation synchronization, addressed by these post-audit
+corrections. No material source or test defect was reported. The audit executed
+the following fresh-Nix commands, all with exit code zero; this documentation-only
+task did not rerun them:
+
+```sh
+nix develop --command go test -count=1 -timeout=300s ./...
+nix develop --command go test -count=3 -timeout=300s \
+  ./internal/app \
+  ./internal/engineeringflow \
+  ./internal/engineeringterminal \
+  ./internal/prdiscovery \
+  ./internal/prcompanionreconcile \
+  ./internal/prdevelopment \
+  ./internal/prreview \
+  ./internal/workflowfeedback
+nix develop --command go build ./...
+nix develop --command go vet ./...
+nix develop --command go test -race -count=1 -timeout=300s \
+  ./internal/app \
+  ./internal/worker \
+  ./internal/storage \
+  ./internal/github \
+  ./internal/engineeringterminal \
+  ./internal/prcompanionreconcile \
+  ./internal/workflowfeedback
+```
+
+Separate maintainer-supplied production Go checks passed real App credential and
+Bot identity verification, tested IssueClosure acquisition/correlation, and
+isolated comment creation, receipt, exact readback and complete enumeration.
+The corrected REST/GraphQL Bot ownership recheck also passed read-only. These are
+selected real provider proofs, distinct from synthetic tests and from deployed
+workflow authorization. A full deployed Engineering controller rehearsal, real
+managed-feedback policy reconciliation and other operation-specific live
+permissions/capabilities remain unproven. See the [provider evidence and remaining limits](github-integration.md#issue-53-offline-verification-and-live-proof-gate).

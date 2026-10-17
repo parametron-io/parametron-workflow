@@ -165,8 +165,16 @@ func (t *Transport) request(ctx context.Context, method, endpoint string, body [
 	if err := ctx.Err(); err != nil {
 		return nil, contextFailure(ctx, err, Transient)
 	}
+	if err := consumeRequest(ctx); err != nil {
+		return nil, err
+	}
 	token, err := t.tokens.Token(ctx)
 	if err != nil {
+		// App-owned credential verification shares the caller's request budget.
+		// Exhaustion is incomplete observation, not invalid authentication.
+		if errors.Is(err, ErrRequestLimit) {
+			return nil, ErrRequestLimit
+		}
 		var classified *Error
 		if errors.As(err, &classified) {
 			switch classified.Category {
@@ -194,6 +202,13 @@ func (t *Transport) request(ctx context.Context, method, endpoint string, body [
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		// Revoked or no-longer-authorized installation credentials must be
+		// freshly verified/minted on the next attempt, without hidden replay.
+		if resp.StatusCode == 401 || resp.StatusCode == 403 {
+			if source, ok := t.tokens.(*AppCredentials); ok {
+				source.invalidate(ctx, token)
+			}
+		}
 		c := Permanent
 		switch {
 		case resp.StatusCode == 401:

@@ -15,6 +15,7 @@ import (
 type feedbackRemote struct {
 	current                                    Current
 	author                                     github.Actor
+	commentAuthor                              github.Actor
 	comments                                   []github.IssueComment
 	writes, refreshes, lists, lookups, authors int
 	incomplete                                 bool
@@ -76,6 +77,9 @@ func (f *feedbackRemote) IssueComment(ctx context.Context, r Resource, id string
 }
 func (f *feedbackRemote) CreateIssueComment(ctx context.Context, r Resource, body string) (github.IssueComment, error) {
 	c := github.IssueComment{ID: fmt.Sprintf("C%d", len(f.comments)+1), DatabaseID: int64(len(f.comments) + 1), Body: body, Resource: r, Author: f.author}
+	if f.commentAuthor != (github.Actor{}) {
+		c.Author = f.commentAuthor
+	}
 	f.comments = append(f.comments, c)
 	return f.wrote(c)
 }
@@ -414,5 +418,111 @@ func TestControllerRejectsMissingDependenciesAndCanceledWork(t *testing.T) {
 	cancel()
 	if e := f.controller(t).Reconcile(ctx, f.current.Resource); !errors.Is(e, context.Canceled) || f.writes != 0 {
 		t.Fatal(e, f.writes)
+	}
+}
+
+func TestVerifiedBotGraphQLFeedback(t *testing.T) {
+	for _, kind := range []string{"issue", "pull_request"} {
+		for _, mode := range []string{"existing", "create", "update"} {
+			t.Run(kind+"/"+mode, func(t *testing.T) {
+				f := remote(kind)
+				f.commentAuthor = github.Actor{ID: f.author.ID, Login: "controller", Type: "Bot"}
+				if mode != "create" {
+					x := f.managed()
+					x.Author = f.commentAuthor
+					if mode == "update" {
+						x.Body += " old"
+					}
+					f.comments = []github.IssueComment{x}
+				}
+				c := f.controller(t)
+				for range 2 {
+					if err := c.Reconcile(context.Background(), f.current.Resource); err != nil {
+						t.Fatal(err)
+					}
+				}
+				wantWrites := 1
+				if mode == "existing" {
+					wantWrites = 0
+				}
+				if f.writes != wantWrites || len(f.comments) != 1 || f.comments[0].ID != "C1" || f.comments[0].Author != f.commentAuthor || f.lookups == 0 {
+					t.Fatal("ownership, receipt, or idempotency failed", f)
+				}
+				if mode != "existing" && f.authors < 2 {
+					t.Fatal("write lacked author re-verification")
+				}
+			})
+		}
+	}
+}
+
+func TestGraphQLFeedbackOwnershipFailsClosed(t *testing.T) {
+	for _, variant := range []string{"unrelated", "lookalike", "different node", "User", "unknown marker", "malformed marker", "duplicate"} {
+		t.Run(variant, func(t *testing.T) {
+			f := remote("pull_request")
+			x := f.managed()
+			x.Author.Login = "controller"
+			want := ErrOwnership
+			switch variant {
+			case "unrelated", "lookalike":
+				x.Author.ID = "OTHER_BOT"
+				x.Author.Login = "unrelated"
+				if variant == "lookalike" {
+					x.Author.Login = "contro11er"
+				}
+				want = nil // Preserve unrelated discussion; create a separately owned comment.
+			case "different node":
+				x.Author.ID = "OTHER_BOT"
+				want = nil // Bare login is not proof of ownership or a REST login collision.
+			case "User":
+				x.Author.Type = "User"
+			case "unknown marker":
+				x.Body = "<!-- parametron-workflow:managed-feedback:v2 -->\nold"
+			case "malformed marker":
+				x.Body = "prefix " + x.Body
+			case "duplicate":
+				want = ErrAmbiguous
+			}
+			f.comments = []github.IssueComment{x}
+			if variant == "duplicate" {
+				copy := x
+				copy.ID, copy.DatabaseID = "C2", 2
+				f.comments = append(f.comments, copy)
+			}
+			c := f.controller(t)
+			err := c.Reconcile(context.Background(), f.current.Resource)
+			if !errors.Is(err, want) {
+				t.Fatalf("error=%v want=%v", err, want)
+			}
+			if want != nil {
+				if f.writes != 0 {
+					t.Fatal("unsafe write", f.writes)
+				}
+			} else {
+				if f.writes != 1 || len(f.comments) != 2 || f.comments[0] != x || f.comments[1].Author != f.author {
+					t.Fatal("untrusted comment adopted", f.comments)
+				}
+				if err := c.Reconcile(context.Background(), f.current.Resource); err != nil || f.writes != 1 {
+					t.Fatal("retry duplicated feedback", err, f.writes)
+				}
+			}
+		})
+	}
+}
+
+func TestGraphQLFeedbackReceiptRejectsImpersonation(t *testing.T) {
+	for _, author := range []github.Actor{
+		{ID: "OTHER", Login: "controller", Type: "Bot"},
+		{ID: "BOT", Login: "contro11er", Type: "Bot"},
+		{ID: "BOT", Login: "controller", Type: "User"},
+	} {
+		t.Run(author.ID+"/"+author.Login+"/"+author.Type, func(t *testing.T) {
+			f := remote("issue")
+			f.commentAuthor = author
+			err := f.controller(t).Reconcile(context.Background(), f.current.Resource)
+			if !errors.Is(err, ErrOwnership) || f.writes != 1 || f.lists != 2 {
+				t.Fatal("untrusted mutation receipt accepted", err, f.writes, f.lists)
+			}
+		})
 	}
 }

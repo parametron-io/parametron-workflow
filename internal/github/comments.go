@@ -3,6 +3,7 @@ package github
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"net/url"
 	"strconv"
 	"strings"
@@ -38,6 +39,41 @@ type CommentWriter interface {
 	UpdateIssueComment(context.Context, IssueComment, string) (IssueComment, error)
 }
 
+// CommentAuthorReader verifies the actual shared writer credential before any
+// comment mutation. An installation account is never treated as its Bot actor.
+type CommentAuthorReader interface {
+	AuthenticatedCommentAuthor(context.Context) (Actor, error)
+}
+
+var ErrCommentCredential = errors.New("github: comment credential author is not independently verifiable")
+
+// CommentCredentialSource explicitly selects the supported identity contract.
+// Installation tokens do not support GET /user. Only the App-owned provider
+// below can establish their provenance; a token-kind flag grants no authority.
+type CommentCredentialSource interface{ CommentCredentialKind() string }
+
+func (t *Transport) AuthenticatedCommentAuthor(ctx context.Context) (Actor, error) {
+	if err := ctx.Err(); err != nil {
+		return Actor{}, err
+	}
+	if app, ok := t.tokens.(*AppCredentials); ok && app != nil {
+		return app.commentAuthor(ctx)
+	}
+	credential, ok := t.tokens.(CommentCredentialSource)
+	if !ok || credential.CommentCredentialKind() != "user" {
+		return Actor{}, ErrCommentCredential
+	}
+	var u restUser
+	if err := t.developerRead(ctx, "/user", &u); err != nil {
+		return Actor{}, err
+	}
+	a := Actor{ID: u.NodeID, Login: u.Login, Type: u.Type}
+	if u.ID <= 0 || !ValidCommentAuthor(a) {
+		return Actor{}, failure(Malformed)
+	}
+	return a, ctx.Err()
+}
+
 // Expected authors come from trusted deployment configuration, including account
 // type and stable node ID; no inference about the credential's author is made.
 func ValidCommentAuthor(a Actor) bool {
@@ -45,7 +81,15 @@ func ValidCommentAuthor(a Actor) bool {
 	return validLogin(login) && validIDs(a.ID) && (a.Type == "User" || a.Type == "Bot") && (a.Type == "Bot" || login == a.Login)
 }
 func SameCommentAuthor(a, b Actor) bool {
-	return ValidCommentAuthor(a) && ValidCommentAuthor(b) && a.ID == b.ID && a.Type == b.Type && strings.EqualFold(a.Login, b.Login)
+	if !ValidCommentAuthor(a) || !ValidCommentAuthor(b) || a.ID != b.ID || a.Type != b.Type {
+		return false
+	}
+	if strings.EqualFold(a.Login, b.Login) {
+		return true
+	}
+	// Verified Bots have REST <slug>[bot] and GraphQL <slug> logins.
+	// This exact representation relationship does not authenticate actors.
+	return a.Type == "Bot" && (a.Login == b.Login+"[bot]" || b.Login == a.Login+"[bot]")
 }
 
 const commentSelection = `__typename id body url databaseId author{__typename login ... on User{id} ... on Bot{id}}`
