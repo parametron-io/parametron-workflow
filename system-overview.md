@@ -350,11 +350,17 @@ Within the same repository, a relationship may use:
 #<issue-number>
 ```
 
-Across repositories, use the canonical qualified form:
+Across repositories in the configured organization, use the canonical qualified
+form (shown for the production deployment):
 
 ```text
 parametron-io/<repository>#<issue-number>
 ```
+
+The owner must match the configured organization's lowercase canonical login;
+uppercase owner prefixes are rejected even when the configured login contains
+uppercase letters. Parsing a reference does not authorize access to an
+unconfigured repository.
 
 Supported relationship directives are:
 

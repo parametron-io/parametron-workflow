@@ -243,7 +243,12 @@ func TestDiscoveryConstructor(t *testing.T) {
 		}},
 		{"shared node", func(c *Config) { r := c.Repositories[0]; r.Name = "other"; c.Repositories = append(c.Repositories, r) }},
 		{"invalid repo", func(c *Config) { c.Repositories[0].ID = "" }},
-		{"outside deployment", func(c *Config) { c.Repositories[0].Owner = "other" }},
+		{"outside deployment", func(c *Config) {
+			r := c.Repositories[0]
+			r.Owner = "other"
+			r.ID = "FOREIGN"
+			c.Repositories = append(c.Repositories, r)
+		}},
 		{"project empty", func(c *Config) { c.Project = "" }},
 		{"bug empty", func(c *Config) { c.BugProject = "" }},
 		{"duplicate projects", func(c *Config) { c.BugProject = c.Project }},

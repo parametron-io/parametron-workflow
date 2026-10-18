@@ -73,7 +73,7 @@ func New(c Config) (*Controller, error) {
 			return nil, ErrInvalid
 		}
 	}
-	if c.Deployment.Organization.Login != "parametron-io" || !validID(c.Deployment.Organization.ID) || len(c.Deployment.Repositories) == 0 || !validID(c.Deployment.Engineering.ID) || !validID(c.Deployment.BugTracker.ID) || c.Deployment.Engineering.ID == c.Deployment.BugTracker.ID || !validID(c.Deployment.Engineering.Fields[config.Status]) || !validID(c.Deployment.Engineering.StatusOptions[config.InReview]) || !validID(c.Deployment.Engineering.StatusOptions[config.InProgress]) || c.Deployment.Engineering.StatusOptions[config.InProgress] == c.Deployment.Engineering.StatusOptions[config.InReview] {
+	if !intent.ValidOrganizationLogin(c.Deployment.Organization.Login) || !validID(c.Deployment.Organization.ID) || len(c.Deployment.Repositories) == 0 || !validID(c.Deployment.Engineering.ID) || !validID(c.Deployment.BugTracker.ID) || c.Deployment.Engineering.ID == c.Deployment.BugTracker.ID || !validID(c.Deployment.Engineering.Fields[config.Status]) || !validID(c.Deployment.Engineering.StatusOptions[config.InReview]) || !validID(c.Deployment.Engineering.StatusOptions[config.InProgress]) || c.Deployment.Engineering.StatusOptions[config.InProgress] == c.Deployment.Engineering.StatusOptions[config.InReview] {
 		return nil, ErrInvalid
 	}
 	c.Deployment.Repositories = append([]config.Repository(nil), c.Deployment.Repositories...)

@@ -9,7 +9,10 @@ import (
 	"strings"
 )
 
-// Context identifies the current repository; Organization must be parametron-io.
+// Context identifies the current repository in the configured organization.
+// Parsing validates syntax and same-organization references, not repository membership.
+// Organization is canonicalized to lowercase; qualified owner text must match
+// that canonical spelling exactly.
 type Context struct{ Organization, Repository string }
 
 // Boolean preserves presence and the written value independently of defaults
@@ -89,9 +92,10 @@ func (e *Error) Unwrap() error { return e.Kind }
 // accepted. Unknown names, indentation, quotes and prose are ignored.
 // On any error the returned Intent is zero, never partially accepted intent.
 func Parse(body string, ctx Context) (Intent, error) {
-	if ctx.Organization != "parametron-io" || !repositoryName(ctx.Repository) {
+	if !ValidOrganizationLogin(ctx.Organization) || !repositoryName(ctx.Repository) {
 		return Intent{}, ErrContext
 	}
+	ctx.Organization = strings.ToLower(ctx.Organization)
 	ctx.Repository = strings.ToLower(ctx.Repository)
 	var out Intent
 	var fence byte
@@ -204,7 +208,7 @@ func reference(s string, ctx Context) (IssueRef, error) {
 		repo = ctx.Repository
 	} else {
 		owner, name, ok := strings.Cut(repo, "/")
-		if !ok || owner != "parametron-io" || !repositoryName(name) {
+		if !ok || owner != ctx.Organization || !repositoryName(name) {
 			return IssueRef{}, ErrReference
 		}
 		repo = strings.ToLower(name)

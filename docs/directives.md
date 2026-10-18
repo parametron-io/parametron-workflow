@@ -3,8 +3,10 @@
 `internal/intent.Parse(body, Context{Organization, Repository}) (Intent, error)`
 parses a current Issue/PR body without GitHub reads/writes, semantic judgement,
 resource-type inference, lifecycle decisions, or runtime integration. It uses
-only the standard library. Context requires organization `parametron-io` and a
-valid current repository name. No existence lookup or authorization is implied.
+only the standard library. Context requires a valid configured organization login
+and a valid current repository name. The parser canonicalizes the context's
+organization to lowercase without changing the resolved deployment identity.
+No existence lookup or authorization is implied.
 
 ## Line recognition
 
@@ -75,7 +77,12 @@ Only these names are recognized:
 | Refs | One or more whitespace-separated references |
 
 Local references are `#N`. Cross-repository references are
-`parametron-io/repository#N`, with the literal case-sensitive organization prefix.
+`<configured-organization>/repository#N`, with an exact, case-sensitive lowercase
+organization prefix. For example, configuration login `PRM-Workflow` requires
+`prm-workflow/repository#N`; `PRM-Workflow/repository#N` is rejected with
+`ErrReference`, as is a foreign organization prefix. Production examples below
+use `parametron-io`. Only the context is canonicalized, never the owner text in
+a reference.
 Qualified references naming the current repository fail as noncanonical; use
 `#N` instead. Repository comparisons are case insensitive, and output repository
 names are lowercase. Repository tokens contain 1–100 ASCII letters, digits,
@@ -85,8 +92,10 @@ to 9223372036854775807, and have no leading zeros. Leading zeros fail as
 noncanonical rather than creating an alias.
 
 `IssueRef{Repository string, Number int64}` contains a resolved lowercase
-repository name even for a local reference. All refs belong to the fixed
-organization grammar. It is comparable and contains no URL or GitHub node ID.
+repository name even for a local reference. All refs belong to the context's
+canonical organization grammar. Parsing does not establish configured repository
+membership, resource existence, or mutation authorization; consuming boundaries
+validate those independently. It is comparable and contains no URL or GitHub node ID.
 Parent/Target use pointers for presence; lists use ordered slices (nil when
 absent). Parent/Target repetitions, including identical tokens, normalize to one
 semantic value; conflicting values fail. Repeated list lines append new

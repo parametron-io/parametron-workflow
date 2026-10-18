@@ -11,6 +11,7 @@ import (
 	"strings"
 
 	ec "github.com/parametron-io/parametron-workflow/internal/engineeringcontext"
+	"github.com/parametron-io/parametron-workflow/internal/intent"
 	sp "github.com/parametron-io/parametron-workflow/internal/semanticpolicy"
 	"github.com/parametron-io/parametron-workflow/internal/storage"
 )
@@ -101,7 +102,7 @@ func validName(s string) bool {
 	return true
 }
 func validResource(r storage.Resource) bool {
-	return r.Owner == "parametron-io" && validName(r.Repository) && r.Kind == "issue" && validIssueNumber(r.Number) && strings.TrimSpace(r.NodeID) != "" && r.NodeID == strings.TrimSpace(r.NodeID)
+	return intent.ValidOrganizationLogin(r.Owner) && r.Owner == strings.ToLower(r.Owner) && validName(r.Repository) && r.Kind == "issue" && validIssueNumber(r.Number) && strings.TrimSpace(r.NodeID) != "" && r.NodeID == strings.TrimSpace(r.NodeID)
 }
 
 type graph struct {
@@ -192,9 +193,11 @@ func validate(in Input) (graph, error) {
 	g := graph{map[storage.Resource]ec.IssueNode{}, map[storage.Resource]storage.Resource{}, map[storage.Resource]bool{}}
 	ids := map[storage.Resource]bool{}
 	nodeIDs := map[string]bool{}
+	// Context resolution owns deployment membership; pure policy additionally
+	// requires every node to share the canonical root owner.
 	for _, n := range in.Context.Nodes {
 		r := n.Resource
-		if !validResource(r) || ids[identity(r)] || nodeIDs[r.NodeID] || !slices.Contains(sp.Types(), n.Type) || (n.State != ec.Open && n.State != ec.Closed) {
+		if !validResource(r) || r.Owner != in.Context.Root.Owner || ids[identity(r)] || nodeIDs[r.NodeID] || !slices.Contains(sp.Types(), n.Type) || (n.State != ec.Open && n.State != ec.Closed) {
 			return g, fail(ErrInvalid)
 		}
 		switch n.TypeSource {

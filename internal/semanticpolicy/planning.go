@@ -79,7 +79,7 @@ func NewPlanningContext(repo Repository, title, body string, c IssueClassificati
 	}
 	repo.Owner = strings.ToLower(repo.Owner)
 	repo.Name = strings.ToLower(repo.Name)
-	if repo.Owner != "parametron-io" || !validName(repo.Name) {
+	if !intent.ValidOrganizationLogin(repo.Owner) || !validName(repo.Name) {
 		return PlanningContext{}, ErrPlanning
 	}
 	p := PlanningContext{Repository: repo, Type: c.Type, Title: title, Body: body, Labels: c.Labels, Priority: c.Priority, Effort: c.Effort, eligible: true, createBranch: i.CreateBranch}

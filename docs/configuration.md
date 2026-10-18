@@ -55,8 +55,10 @@ including case and spaces. No name defaults or coercions are applied.
 }
 ```
 
-Organization is an organization login; repository values are unqualified names
-within that organization. At least one repository and both Projects are required.
+Organization is the deployment organization login, such as parametron-io or an
+isolated playground organization. Runtime Engineering and PR boundaries validate
+repository ownership against that deployment identity. Repository values are
+unqualified names within that organization. At least one repository and both Projects are required.
 Projects are selected by organization owner and positive Project number; the
 profiles must bind distinct Projects.
 
