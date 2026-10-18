@@ -106,10 +106,12 @@ func New(c Config) (*Coordinator, error) {
 		}
 	}
 	c.Repositories = append([]github.Repository(nil), c.Repositories...)
+	// Repository bindings are supplied by deployment composition. Keep this
+	// boundary single-organization without introducing another organization setting.
 	names, ids := map[string]bool{}, map[string]bool{}
 	for _, r := range c.Repositories {
 		name := strings.ToLower(r.Owner + "/" + r.Name)
-		if !github.ValidBranchRepository(r) || r.Owner != "parametron-io" || names[name] || ids[r.ID] || r.ID == c.Project || r.ID == c.BugProject {
+		if !github.ValidBranchRepository(r) || !intent.ValidOrganizationLogin(r.Owner) || !strings.EqualFold(r.Owner, c.Repositories[0].Owner) || names[name] || ids[r.ID] || r.ID == c.Project || r.ID == c.BugProject {
 			return nil, fail(ErrInvalid)
 		}
 		names[name], ids[r.ID] = true, true

@@ -91,9 +91,14 @@ identity and title). It rejects inapplicable ownership or invalid semantic conte
 `PlanningContext` contains Repository, Type, Title, Body, Labels, Priority, Effort,
 Parent, BlockedBy, Blocks, Refs, and optional ParentPhase. Relationships reuse
 `intent.IssueRef` and preserve #24 first-seen order, deduplicating typed inputs.
-ParentPhase must identify the supplied Parent. Repository names are lowercase;
-owner is the same parametron-io identity domain as intent. No existence lookup is
-performed. Construction copies all slices/pointers and validates references.
+ParentPhase must identify the supplied Parent. Repository owners and names are
+normalized to lowercase. Owner syntax uses the same organization-login validation
+as intent, without restricting it to a particular deployment. Parsed qualified
+references require the configured organization's exact lowercase prefix; foreign
+or noncanonical owner prefixes are rejected by intent before planning. Planning
+performs no existence lookup or deployment authorization. Consuming runtime
+boundaries retain configured repository and resource identity checks.
+Construction copies all slices/pointers and validates references.
 
 `Serialize` revalidates editable context values, retaining the original explicit
 Create-Branch ownership check. It emits deterministic struct JSON with canonical

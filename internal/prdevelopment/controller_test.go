@@ -238,7 +238,12 @@ func TestDevelopmentControllerFreshness(t *testing.T) {
 }
 func TestDevelopmentControllerConstruction(t *testing.T) {
 	f, _ := fixtureController(t)
-	for _, change := range []func(*Config){func(c *Config) { c.Binding = nil }, func(c *Config) { c.Onboarding = nil }, func(c *Config) { c.Reader = nil }, func(c *Config) { c.Relationships = nil }, func(c *Config) { c.Writer = nil }, func(c *Config) { var p *developmentFixture; c.Binding = p }, func(c *Config) { c.Repositories = nil }, func(c *Config) { c.Repositories = append(c.Repositories, c.Repositories[0]) }, func(c *Config) { c.Project = "bad id" }, func(c *Config) { c.BugProject = c.Project }, func(c *Config) { c.Repositories[0].Owner = "other" }} {
+	for _, change := range []func(*Config){func(c *Config) { c.Binding = nil }, func(c *Config) { c.Onboarding = nil }, func(c *Config) { c.Reader = nil }, func(c *Config) { c.Relationships = nil }, func(c *Config) { c.Writer = nil }, func(c *Config) { var p *developmentFixture; c.Binding = p }, func(c *Config) { c.Repositories = nil }, func(c *Config) { c.Repositories = append(c.Repositories, c.Repositories[0]) }, func(c *Config) { c.Project = "bad id" }, func(c *Config) { c.BugProject = c.Project }, func(c *Config) {
+		r := c.Repositories[0]
+		r.Owner = "other"
+		r.ID = "FOREIGN"
+		c.Repositories = append(c.Repositories, r)
+	}} {
 		cfg := f.config()
 		change(&cfg)
 		if _, err := New(cfg); !errors.Is(err, ErrInvalid) {

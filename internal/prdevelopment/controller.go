@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/parametron-io/parametron-workflow/internal/github"
+	"github.com/parametron-io/parametron-workflow/internal/intent"
 	"github.com/parametron-io/parametron-workflow/internal/observe"
 	"github.com/parametron-io/parametron-workflow/internal/prbinding"
 	"github.com/parametron-io/parametron-workflow/internal/pronboarding"
@@ -61,10 +62,12 @@ func New(c Config) (*Controller, error) {
 	if c.Project == "" || strings.ContainsAny(c.Project, " \t\r\n") || c.BugProject == "" || strings.ContainsAny(c.BugProject, " \t\r\n") || c.Project == c.BugProject || len(c.Repositories) == 0 {
 		return nil, ErrInvalid
 	}
+	// Repository bindings are supplied by deployment composition. Keep this
+	// boundary single-organization without introducing another organization setting.
 	names, ids := map[string]bool{}, map[string]bool{}
 	for _, r := range c.Repositories {
 		name := strings.ToLower(r.Owner + "/" + r.Name)
-		if !github.ValidBranchRepository(r) || r.Owner != "parametron-io" || names[name] || ids[r.ID] {
+		if !github.ValidBranchRepository(r) || !intent.ValidOrganizationLogin(r.Owner) || !strings.EqualFold(r.Owner, c.Repositories[0].Owner) || names[name] || ids[r.ID] {
 			return nil, ErrInvalid
 		}
 		names[name], ids[r.ID] = true, true

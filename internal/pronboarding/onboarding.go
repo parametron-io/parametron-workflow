@@ -12,6 +12,7 @@ import (
 	"github.com/parametron-io/parametron-workflow/internal/config"
 	eb "github.com/parametron-io/parametron-workflow/internal/engineeringbranch"
 	"github.com/parametron-io/parametron-workflow/internal/github"
+	"github.com/parametron-io/parametron-workflow/internal/intent"
 	"github.com/parametron-io/parametron-workflow/internal/observe"
 	"github.com/parametron-io/parametron-workflow/internal/prbinding"
 	"github.com/parametron-io/parametron-workflow/internal/storage"
@@ -65,7 +66,7 @@ func absent(v any) bool {
 }
 func validID(s string) bool { return s != "" && !strings.ContainsAny(s, " \t\r\n") }
 func New(c Config) (*Controller, error) {
-	if absent(c.Binding) || absent(c.Reader) || absent(c.Projects) || absent(c.Items) || absent(c.Draft) || absent(c.Store) || !validID(c.Deployment.Organization.ID) || c.Deployment.Organization.Login != "parametron-io" || len(c.Deployment.Repositories) == 0 || !validID(c.Deployment.Engineering.ID) || !validID(c.Deployment.BugTracker.ID) || c.Deployment.Engineering.ID == c.Deployment.BugTracker.ID || !validID(c.Deployment.Engineering.Fields[config.Status]) || !validID(c.Deployment.Engineering.StatusOptions[config.InProgress]) {
+	if absent(c.Binding) || absent(c.Reader) || absent(c.Projects) || absent(c.Items) || absent(c.Draft) || absent(c.Store) || !validID(c.Deployment.Organization.ID) || !intent.ValidOrganizationLogin(c.Deployment.Organization.Login) || len(c.Deployment.Repositories) == 0 || !validID(c.Deployment.Engineering.ID) || !validID(c.Deployment.BugTracker.ID) || c.Deployment.Engineering.ID == c.Deployment.BugTracker.ID || !validID(c.Deployment.Engineering.Fields[config.Status]) || !validID(c.Deployment.Engineering.StatusOptions[config.InProgress]) {
 		return nil, ErrInvalid
 	}
 	c.Deployment.Repositories = append([]config.Repository(nil), c.Deployment.Repositories...)

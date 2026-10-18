@@ -17,6 +17,7 @@ import (
 	eo "github.com/parametron-io/parametron-workflow/internal/engineeringorder"
 	er "github.com/parametron-io/parametron-workflow/internal/engineeringreconcile"
 	"github.com/parametron-io/parametron-workflow/internal/github"
+	"github.com/parametron-io/parametron-workflow/internal/intent"
 	"github.com/parametron-io/parametron-workflow/internal/observe"
 	"github.com/parametron-io/parametron-workflow/internal/prbinding"
 	pc "github.com/parametron-io/parametron-workflow/internal/prcompanion"
@@ -86,10 +87,12 @@ func New(c Config) (*Controller, error) {
 			return nil, ErrInvalid
 		}
 	}
+	// Repository bindings are supplied by deployment composition. Keep this
+	// boundary single-organization without introducing another organization setting.
 	names, ids := map[string]bool{}, map[string]bool{}
 	for _, r := range c.Repositories {
 		n := strings.ToLower(r.Owner + "/" + r.Name)
-		if !github.ValidBranchRepository(r) || r.Owner != "parametron-io" || names[n] || ids[r.ID] || r.ID == c.Project.ID || r.ID == c.BugProject || r.ID == field {
+		if !github.ValidBranchRepository(r) || !intent.ValidOrganizationLogin(r.Owner) || !strings.EqualFold(r.Owner, c.Repositories[0].Owner) || names[n] || ids[r.ID] || r.ID == c.Project.ID || r.ID == c.BugProject || r.ID == field {
 			return nil, ErrInvalid
 		}
 		names[n], ids[r.ID] = true, true

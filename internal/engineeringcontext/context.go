@@ -93,14 +93,14 @@ func absent(v any) bool {
 	return false
 }
 func New(c Config) (*Resolver, error) {
-	if absent(c.Primary) || absent(c.Lister) || absent(c.Accepted) || !strings.EqualFold(c.Deployment.Organization.Login, "parametron-io") || len(c.Deployment.Repositories) == 0 {
+	if absent(c.Primary) || absent(c.Lister) || absent(c.Accepted) || !intent.ValidOrganizationLogin(c.Deployment.Organization.Login) || len(c.Deployment.Repositories) == 0 {
 		return nil, fail(ErrInvalid)
 	}
 	repos := append([]config.Repository(nil), c.Deployment.Repositories...)
 	names, ids := map[string]bool{}, map[string]bool{}
 	for _, repo := range repos {
 		name := strings.ToLower(repo.Name)
-		if strings.TrimSpace(repo.ID) == "" || strings.TrimSpace(name) == "" || !strings.EqualFold(repo.Owner, c.Deployment.Organization.Login) || names[name] || ids[repo.ID] {
+		if !github.ValidBranchRepository(repo) || !strings.EqualFold(repo.Owner, c.Deployment.Organization.Login) || names[name] || ids[repo.ID] {
 			return nil, fail(ErrInvalid)
 		}
 		names[name], ids[repo.ID] = true, true

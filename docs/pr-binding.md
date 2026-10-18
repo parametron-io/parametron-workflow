@@ -29,8 +29,8 @@ evidence rather than treating an OPEN-only binding as permanent authority.
 | `Branches` | `BranchReader.Branch(ctx, github.Repository, string)` for exact current heads state |
 | `Developers` | `github.DeveloperReads` for current user, membership, and permission |
 
-Absent and typed-nil dependencies fail construction. Organization login must be
-exactly `parametron-io`, with a nonblank ID containing no space/tab/CR/LF.
+Absent and typed-nil dependencies fail construction. The configured organization
+must have a valid login and a nonblank ID containing no space/tab/CR/LF.
 Repositories must have valid branch repository identities, belong to that
 organization, and have unique case-insensitive names and unique node IDs. The
 repository slice is copied. This adds no configuration file or persisted schema.
@@ -44,7 +44,13 @@ policy rejection, rather than an accepted absent resource.
 ## Target and branch authority
 
 The current PR body is parsed by strict `intent.Parse`; any parser failure yields
-`InvalidTarget`. Target references resolve within configured repositories,
+`InvalidTarget`. The parser canonicalizes its organization context to lowercase,
+so qualified references require that exact lowercase prefix even when the resolved
+login contains uppercase letters. Reference text is not case-folded. Snapshot
+parsing and Target-body revalidation use the same rule; the original resolved
+organization identity remains unchanged for membership and authorization checks.
+Syntax acceptance does not authorize a repository. Target references resolve
+within configured repositories,
 including cross-repository Targets. A complete Engineering Snapshot supplies
 current Issue identity, authoritative Type and declared graph facts. Type retains
 the existing accepted semantic authority or validated native fallback contract.

@@ -10,6 +10,7 @@ import (
 	"github.com/parametron-io/parametron-workflow/internal/config"
 	ec "github.com/parametron-io/parametron-workflow/internal/engineeringcontext"
 	"github.com/parametron-io/parametron-workflow/internal/github"
+	"github.com/parametron-io/parametron-workflow/internal/intent"
 	"github.com/parametron-io/parametron-workflow/internal/observe"
 	"github.com/parametron-io/parametron-workflow/internal/prbinding"
 	"github.com/parametron-io/parametron-workflow/internal/pronboarding"
@@ -81,7 +82,7 @@ func New(c Config) (*Controller, error) {
 			return nil, ErrInvalid
 		}
 	}
-	if c.Deployment.Organization.Login != "parametron-io" || !validID(c.Deployment.Organization.ID) || !validID(c.Deployment.Engineering.ID) || !validID(c.Deployment.BugTracker.ID) || c.Deployment.Engineering.ID == c.Deployment.BugTracker.ID || !validID(c.Deployment.Engineering.Fields[config.Status]) || len(c.Deployment.Repositories) == 0 {
+	if !intent.ValidOrganizationLogin(c.Deployment.Organization.Login) || !validID(c.Deployment.Organization.ID) || !validID(c.Deployment.Engineering.ID) || !validID(c.Deployment.BugTracker.ID) || c.Deployment.Engineering.ID == c.Deployment.BugTracker.ID || !validID(c.Deployment.Engineering.Fields[config.Status]) || len(c.Deployment.Repositories) == 0 {
 		return nil, ErrInvalid
 	}
 	names, ids := map[string]bool{}, map[string]bool{}

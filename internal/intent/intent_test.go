@@ -228,7 +228,7 @@ func TestErrors(t *testing.T) {
 	if !reflect.DeepEqual(got, Intent{}) || strings.Contains(err.Error(), "secret") {
 		t.Fatal("partial result or input leaked")
 	}
-	for _, ctx := range []Context{{}, {"other", "repo"}, {"parametron-io", ""}, {"parametron-io", "a/b"}} {
+	for _, ctx := range []Context{{}, {"bad/owner", "repo"}, {"parametron-io", ""}, {"parametron-io", "a/b"}} {
 		_, err := Parse("", ctx)
 		if !errors.Is(err, ErrContext) {
 			t.Fatalf("%+v: %v", ctx, err)

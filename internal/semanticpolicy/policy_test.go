@@ -235,7 +235,7 @@ func TestPlanning(t *testing.T) {
 	if _, err := p.Serialize(); err == nil {
 		t.Fatal("unvalidated mutation")
 	}
-	for _, repo := range []Repository{{}, {"other", "repo"}, {"parametron-io", "bad/name"}} {
+	for _, repo := range []Repository{{}, {"bad/owner", "repo"}, {"parametron-io", "bad/name"}} {
 		if _, err := NewPlanningContext(repo, "", "", classification(), intent.Intent{}, nil); !errors.Is(err, ErrPlanning) {
 			t.Fatal(repo, err)
 		}

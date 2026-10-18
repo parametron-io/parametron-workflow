@@ -100,7 +100,7 @@ func absent(v any) bool {
 	return false
 }
 func New(c Config) (*Validator, error) {
-	if absent(c.Primary) || absent(c.Context) || absent(c.Completion) || absent(c.Branches) || absent(c.Developers) || c.Deployment.Organization.Login != "parametron-io" || strings.TrimSpace(c.Deployment.Organization.ID) == "" || strings.ContainsAny(c.Deployment.Organization.ID, " \t\r\n") || len(c.Deployment.Repositories) == 0 {
+	if absent(c.Primary) || absent(c.Context) || absent(c.Completion) || absent(c.Branches) || absent(c.Developers) || !intent.ValidOrganizationLogin(c.Deployment.Organization.Login) || strings.TrimSpace(c.Deployment.Organization.ID) == "" || strings.ContainsAny(c.Deployment.Organization.ID, " \t\r\n") || len(c.Deployment.Repositories) == 0 {
 		return nil, ErrInvalid
 	}
 	c.Deployment.Repositories = append([]config.Repository(nil), c.Deployment.Repositories...)
